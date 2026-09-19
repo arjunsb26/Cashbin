@@ -10,15 +10,21 @@ checklist can show them.
 
 Thirty common items: hackathon food, the packaging it comes in, and small
 electronics. Columns match the `catalog_item` table in PLAN.md section 8, plus
-`price_source`, which holds the URL the price came from.
+`price_source`, which holds the URL the price came from or, for food, the words
+`estimate: 50 percent of retail` followed by that URL.
 
 - `unit_cost_cents` and `unit_mass_g` price a countable item. `price_per_kg_cents`
   prices something sold by weight, which today is the banana and the apple.
 - `fmv_per_kg_cents` is fair market value, which the engine uses for donation
-  math. It is filled for food only. Today it is derived from the same retail
-  listing as the cost, so the enhanced food deduction computes to zero until
-  someone enters the wholesale cost the kitchen actually paid. That is the one
-  number in this file worth replacing first.
+  math. It is filled for food only, and it is the retail listing price.
+- Food cost, the `unit_cost_cents` or `price_per_kg_cents` cell, is what the
+  business paid, not what the shelf says. Nobody published that, so it is set at
+  half the retail listing and the `price_source` cell says so. That gives the
+  enhanced food deduction a mark up to work on. Replacing these eleven cells
+  with the kitchen's real invoice prices is the most valuable edit in this file.
+- Every food row carries the `food` regulatory flag. The engine reads it to
+  block the resale option, because food that has reached the bin cannot be sold
+  (rule `FOOD_NO_RESALE`). The row still shows, struck through, with the reason.
 - `material_mix_json` fractions must sum to 1 and every key must exist in
   `warm_factors.csv`. A test enforces both.
 - `mass_prior_mean_g` is a typical mass, not a measurement. It ships with
@@ -57,10 +63,11 @@ https://www.epa.gov/waste-reduction-model/versions-waste-reduction-model
 
 ## tax_rules.yaml
 
-The seven rules the engine cites, with the citations PLAN.md section 10 names.
+The eight rules the engine cites, with the citations PLAN.md section 10 names.
 `plain_text` is the only copy of each explanation; the evidence drawer and the
 close report both read it from here so the words cannot drift from the maths.
-Three rules carry no citation link because the plan gives none for them.
+Four rules carry no citation link. Three because the plan gives none for
+them, and `FOOD_NO_RESALE` because it is a policy, not a tax rule.
 
 ## assets_seed.csv
 
@@ -76,5 +83,11 @@ displays. That is a policy choice, not a measured fact, and it is editable.
 
 ## llm_prices.csv
 
-Per model prices for the cost chart. Three empty `openai` rows wait for the
-model ids and the published prices. Nothing reads a price until it is filled.
+Per model prices for the cost chart, in US dollars per million tokens. Five
+`openai` rows, read from https://developers.openai.com/api/docs/pricing on
+19 September 2026, short context and the standard tier. `cached_input` is the
+lower rate a repeated prompt prefix gets, which matters here because the vision
+prompt is the same every time.
+
+Refresh by opening that page and retyping the numbers. Change the model ids in
+one place, this file, and set the runtime settings to match.

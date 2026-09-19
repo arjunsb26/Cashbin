@@ -32,7 +32,12 @@ from app.engine.records import (
 # The exact sentence a person sees when electronics cannot go in the bin.
 EWASTE_BLOCKED_REASON = "Electronics: check your state's disposal rule"
 
+# The exact sentence a person sees on the blocked resale row for food.
+FOOD_NO_RESALE_REASON = "Food in the bin cannot be resold"
+
 BLOCKING_FLAGS = ("electronics", "battery")
+
+FOOD_FLAG = "food"
 
 
 class TaxEffect(BaseModel):
@@ -76,6 +81,11 @@ def money(cents: int) -> str:
 def is_blocked(record: ItemRecord) -> bool:
     """True when the item carries a flag that keeps it out of the landfill."""
     return any(record.has_flag(flag) for flag in BLOCKING_FLAGS)
+
+
+def is_food_item(record: ItemRecord) -> bool:
+    """True for anything the catalog calls food or whose mass is mostly organics."""
+    return record.has_flag(FOOD_FLAG) or carbon.is_food(record)
 
 
 def food_donation_deduction(cost_basis_cents: int, fmv_cents: int) -> FoodDonation:
@@ -315,6 +325,14 @@ def tax_effect_for(
                 "allowed": False,
                 "blocked_reason": EWASTE_BLOCKED_REASON,
                 "rule_ids": (*effect.rule_ids, "EWASTE"),
+            }
+        )
+    if option is Option.resell and is_food_item(record):
+        return effect.model_copy(
+            update={
+                "allowed": False,
+                "blocked_reason": FOOD_NO_RESALE_REASON,
+                "rule_ids": (*effect.rule_ids, "FOOD_NO_RESALE"),
             }
         )
     return effect

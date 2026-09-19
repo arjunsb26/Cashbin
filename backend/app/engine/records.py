@@ -85,6 +85,25 @@ class EngineSettings(BaseModel):
     capitalization_threshold_cents: int = 50000
     tie_break_cents: int = 50
 
+    @classmethod
+    def from_settings(cls, settings: Any) -> EngineSettings:
+        """Build the engine's view from the one live settings object.
+
+        This is the single seam between the app's configuration and the engine,
+        so the two sets of numbers cannot drift. `app.config` is imported here
+        and nowhere else under `engine/`, and only as a type the caller passes
+        in, so the engine still has no configuration of its own to load.
+        """
+        return cls(
+            tax_rate=settings.tax_rate,
+            disposal_fee_cents=settings.disposal_fee_cents,
+            recycle_fee_cents=settings.recycle_fee_cents,
+            capitalization_threshold_cents=settings.capitalization_threshold_cents,
+            tie_break_cents=getattr(
+                settings, "tie_break_cents", cls.model_fields["tie_break_cents"].default
+            ),
+        )
+
 
 class CatalogItem(BaseModel):
     """One row of `catalog_item`."""
@@ -414,6 +433,7 @@ class LlmPrice(BaseModel):
     provider: str
     model: str | None = None
     input_usd_per_million: float | None = None
+    cached_input_usd_per_million: float | None = None
     output_usd_per_million: float | None = None
     source: str | None = None
 
@@ -434,6 +454,7 @@ def load_llm_prices(path: Path | None = None) -> tuple[LlmPrice, ...]:
             provider=row["provider"].strip(),
             model=_opt_str(row.get("model")) if row.get("model") != NEEDS_HUMAN else None,
             input_usd_per_million=_opt_float(row.get("input_usd_per_million")),
+            cached_input_usd_per_million=_opt_float(row.get("cached_input_usd_per_million")),
             output_usd_per_million=_opt_float(row.get("output_usd_per_million")),
             source=_opt_str(row.get("source")),
         )

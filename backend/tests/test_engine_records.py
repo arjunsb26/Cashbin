@@ -58,7 +58,7 @@ def test_cost_basis_scales_with_the_fraction_of_a_unit_that_was_tossed() -> None
         event_date=EVENT_DATE,
         catalog=item,
     )
-    assert half.cost_basis_cents == 33
+    assert half.cost_basis_cents == 16
 
 
 def test_a_catalog_row_with_no_price_leaves_the_cost_basis_empty() -> None:

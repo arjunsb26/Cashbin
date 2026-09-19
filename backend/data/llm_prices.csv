@@ -1,4 +1,6 @@
-provider,model,input_usd_per_million,output_usd_per_million,source
-openai,NEEDS_HUMAN,NEEDS_HUMAN,NEEDS_HUMAN,NEEDS_HUMAN
-openai,NEEDS_HUMAN,NEEDS_HUMAN,NEEDS_HUMAN,NEEDS_HUMAN
-openai,NEEDS_HUMAN,NEEDS_HUMAN,NEEDS_HUMAN,NEEDS_HUMAN
+provider,model,input_usd_per_million,cached_input_usd_per_million,output_usd_per_million,source
+openai,gpt-5.6-luna,0.20,0.02,1.20,https://developers.openai.com/api/docs/pricing
+openai,gpt-5.6-terra,2.00,0.20,12.00,https://developers.openai.com/api/docs/pricing
+openai,gpt-5.6-sol,4.00,0.40,20.00,https://developers.openai.com/api/docs/pricing
+openai,gpt-5.4-mini,0.75,0.075,4.50,https://developers.openai.com/api/docs/pricing
+openai,gpt-5.4-nano,0.20,0.02,1.25,https://developers.openai.com/api/docs/pricing

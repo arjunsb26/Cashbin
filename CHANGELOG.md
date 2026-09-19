@@ -76,6 +76,38 @@ Newest first. Each lane writes under its own heading.
   `detect()` over recorded samples and as a streaming `StepDetector`. Tosses, bag
   changes and removals, each with its mass, its error and the trace around it.
 
+## 2026-09-19, lane b: seed script, register, catalog and books over the API
+
+- Filled `backend/data/llm_prices.csv` with the five openai models the team
+  chose and their published prices, adding a `cached_input_usd_per_million`
+  column. Nothing in that file waits on a person any more.
+- Added `backend/tests/test_api_assets.py`, `test_api_catalog.py`,
+  `test_api_journal.py`, `test_seed_db.py` and `test_engine_food_resale.py`.
+  The register, the catalog and the journal are no longer stubs, so their three
+  rows moved out of the not-built-yet list in `test_health.py`.
+- Added `scripts/seed_db.py`: loads `catalog.csv` and `assets_seed.csv` into the
+  database, upserting by label and by tag, so running it twice changes nothing.
+  An asset row whose cost, date or tax method is still `NEEDS_HUMAN` is skipped
+  and named, or stored with an obvious stand in under `--allow-placeholders`.
+  `seed_all(session)` is the same work for the app to call on a first start.
+- Filled `GET /api/journal`: entries with their lines and account names, the
+  trial balance, and whether it agrees.
+- Filled `GET`, `POST` and `PATCH /api/assets` and `GET`, `POST /api/catalog`.
+  Every register row carries today's book value and tax basis, computed once by
+  the engine so the page cannot disagree with the ledger.
+- Added `app/ledger/queries.py`: posting a balanced entry into `journal_entry`
+  and `journal_line`, reading entries and the trial balance back, and voiding an
+  event by reversal. An unbalanced entry never reaches the database.
+- Added `EngineSettings.from_settings()`, so the engine's numbers are built from
+  the one live settings object rather than kept in step by hand.
+- Food in the bin can no longer be resold. `resell` is a visible blocked row
+  with the reason "Food in the bin cannot be resold" and the new
+  `FOOD_NO_RESALE` rule. Every food row in `catalog.csv` carries a `food` flag.
+- Food cost in `catalog.csv` is now the business cost, estimated at half the
+  retail listing and marked as an estimate, with the listing kept as fair market
+  value. The enhanced food donation deduction is no longer zero, so donating the
+  bagel ranks above binning it.
+
 ## 2026-09-19, lane b: engine, ledger, seed data
 
 - Added `backend/data/README.md` explaining every seed file, where its numbers

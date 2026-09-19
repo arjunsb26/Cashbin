@@ -72,13 +72,12 @@ def test_init_db_is_idempotent(settings: Settings) -> None:
     assert set(ALL_TABLES).issubset(set(inspect(get_engine()).get_table_names()))
 
 
+# The register, the catalog and the journal are built, so they are not stubs any more.
+# They are covered by test_api_assets.py, test_api_catalog.py and test_api_journal.py.
 STUB_ROUTES = [
     ("get", "/api/events"),
     ("get", "/api/events/1"),
     ("post", "/api/events/1/void"),
-    ("get", "/api/assets"),
-    ("get", "/api/catalog"),
-    ("get", "/api/journal"),
     ("get", "/api/metrics/rounds"),
     ("post", "/api/metrics/rounds/start"),
     ("get", "/api/summary"),
@@ -110,19 +109,6 @@ def test_body_routes_exist(client: TestClient) -> None:
         == 501
     )
     assert client.patch("/api/settings", json={"tax_rate": 0.25}).status_code == 501
-    assert (
-        client.post(
-            "/api/assets",
-            json={
-                "tag": "kb-001",
-                "description": "Keyboard",
-                "cost_cents": 12000,
-                "in_service_date": "2025-02-01",
-                "book_life_months": 36,
-            },
-        ).status_code
-        == 501
-    )
 
 
 def test_sim_routes_are_hidden_without_dev_tools(client: TestClient) -> None:
