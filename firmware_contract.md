@@ -25,10 +25,10 @@ fields are ignored. Every message has `type`.
 {"type":"tare"}
 {"type":"screen","s":"idle"}
 {"type":"screen","s":"thinking"}
-{"type":"screen","s":"result","l1":"Keyboard","big":"-$20","l2":"Removed from register","c":"amber"}
+{"type":"screen","s":"result","l1":"Keyboard","big":"-$20","l2":"Removed from books","c":"amber"}
 {"type":"screen","s":"ask","l1":"Not sure","l2":"Check the dashboard"}
 {"type":"screen","s":"offline"}
 ```
 
-- Firmware draws only: two text lines (max 20 chars each), one big string (max 7 chars), a background colour from `green`, `amber`, `red`, `neutral`. Backend is responsible for truncation. Put the truncation logic in `notify/lcd.py` with tests.
+- Firmware draws only: two text lines (max 20 chars each), one big string (max 7 chars), a background colour from `green`, `amber`, `red`, `neutral`. The backend truncates before sending.
 - If no `ping` for 5 s, firmware shows offline on its own.
