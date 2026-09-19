@@ -1,0 +1,618 @@
+"use strict";
+
+/* The phone camera page. Plain ES2020, no build step, no dependencies.
+   It streams JPEG frames to the backend over a secure WebSocket and draws
+   the tickets and questions the backend sends back. */
+
+/* ---- settings ---- */
+
+const FRAME_WIDTH = 640;
+const FRAME_INTERVAL_MS = 125; // about 8 frames a second
+const FRAME_QUALITY = 0.7;
+const FRAME_BYTES_GUESS = 24000; // used before the first frame is measured
+const RESULT_MS = 6000;
+const LEARNED_MS = 2500;
+const HELD_RESULT_MS = 2800; // a held ticket waits for the learned line to finish
+const TOOLTIP_MS = 4000;
+const BACKOFF_MIN_MS = 500;
+const BACKOFF_MAX_MS = 8000;
+const LABEL_MAX = 40;
+
+const TONES = ["green", "amber", "red", "neutral"];
+
+/* ---- elements ---- */
+
+const el = (id) => document.getElementById(id);
+
+const startScreen = el("startScreen");
+const cameraScreen = el("cameraScreen");
+const brandName = el("brandName");
+const startButton = el("startButton");
+const startError = el("startError");
+const video = el("video");
+const status = el("status");
+const statusPill = el("statusPill");
+const statusText = el("statusText");
+const statusTooltip = el("statusTooltip");
+const statusMessage = el("statusMessage");
+const cameraError = el("cameraError");
+const learnedLine = el("learnedLine");
+const resultSheet = el("resultSheet");
+const resultTitle = el("resultTitle");
+const resultMass = el("resultMass");
+const resultFigure = el("resultFigure");
+const resultLine = el("resultLine");
+const askSheet = el("askSheet");
+const askCrop = el("askCrop");
+const askOptions = el("askOptions");
+const askOther = el("askOther");
+const askField = el("askField");
+const askInput = el("askInput");
+const askReadBack = el("askReadBack");
+const askSend = el("askSend");
+const askNote = el("askNote");
+
+/* ---- state ---- */
+
+let stream = null;
+let cameraRunning = false;
+let socket = null;
+let reconnectAttempts = 0;
+let reconnectTimer = 0;
+let frameTimer = 0;
+let rateTimer = 0;
+let encoding = false;
+let framesThisSecond = 0;
+let framesPerSecond = 0;
+let droppedThisSecond = 0;
+let droppedPerSecond = 0;
+let lastFrameBytes = FRAME_BYTES_GUESS;
+let resultTimer = 0;
+let learnedTimer = 0;
+let tooltipTimer = 0;
+let askEventId = null;
+let answering = false;
+let heldResult = null;
+let heldTimer = 0;
+let wakeLock = null;
+
+const canvas = document.createElement("canvas");
+const context = canvas.getContext("2d", { alpha: false });
+
+/* ---- small helpers ---- */
+
+function text(value, max) {
+  if (typeof value !== "string") return "";
+  return value.replace(/\s+/g, " ").trim().slice(0, max);
+}
+
+function wholeNumber(value) {
+  return new Intl.NumberFormat(undefined, { maximumFractionDigits: 0 }).format(value);
+}
+
+function percent(value) {
+  if (typeof value !== "number" || !isFinite(value)) return "";
+  const clamped = Math.min(1, Math.max(0, value));
+  return new Intl.NumberFormat(undefined, { style: "percent", maximumFractionDigits: 0 }).format(clamped);
+}
+
+function show(node, message) {
+  node.textContent = message;
+  node.hidden = false;
+}
+
+function hide(node) {
+  node.hidden = true;
+  node.textContent = "";
+}
+
+function setThemeColour() {
+  const paper = getComputedStyle(document.documentElement).getPropertyValue("--paper").trim();
+  const meta = el("themeColor");
+  if (paper && meta) meta.setAttribute("content", paper);
+}
+
+/* ---- the product name ---- */
+
+async function loadBrand() {
+  brandName.textContent = document.title;
+  try {
+    const res = await fetch("/brand.json", { cache: "no-store" });
+    if (!res.ok) return;
+    const data = await res.json();
+    const name = text(data && data.name, 40);
+    if (!name) return;
+    document.title = name;
+    brandName.textContent = name;
+  } catch (err) {
+    // The page keeps its own title when the brand file cannot be read.
+  }
+}
+
+/* ---- the camera ---- */
+
+function cameraSentence(err) {
+  const name = err && err.name ? err.name : "";
+  if (name === "NotAllowedError" || name === "SecurityError") {
+    return "Camera access was refused. Allow the camera for this page in your browser settings, then tap Start camera again.";
+  }
+  if (name === "NotFoundError" || name === "OverconstrainedError" || name === "DevicesNotFoundError") {
+    return "No camera was found on this device.";
+  }
+  if (name === "NotReadableError" || name === "TrackStartError" || name === "AbortError") {
+    return "The camera is busy in another app. Close that app, then tap Start camera again.";
+  }
+  return "The camera did not start. Tap Start camera again.";
+}
+
+async function startCamera() {
+  hide(startError);
+  if (!window.isSecureContext) {
+    show(startError, "This page must be opened over HTTPS. Browsers keep the camera off on an insecure connection.");
+    return;
+  }
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+    show(startError, "This browser does not let a web page use the camera.");
+    return;
+  }
+
+  startButton.disabled = true;
+  try {
+    stream = await navigator.mediaDevices.getUserMedia({
+      video: { facingMode: { ideal: "environment" }, width: { ideal: 1280 } },
+    });
+  } catch (err) {
+    startButton.disabled = false;
+    show(startError, cameraSentence(err));
+    return;
+  }
+
+  video.srcObject = stream;
+  stream.getVideoTracks().forEach((track) => {
+    track.addEventListener("ended", () => {
+      show(cameraError, "The camera stopped. Reload this page and tap Start camera again.");
+    });
+  });
+  try {
+    await video.play();
+  } catch (err) {
+    // Some browsers resolve the stream but defer play. The frame timer waits
+    // for readyState, so a deferred play costs nothing.
+  }
+
+  cameraRunning = true;
+  startScreen.hidden = true;
+  cameraScreen.hidden = false;
+  startButton.disabled = false;
+
+  requestWakeLock();
+  connect();
+  startFrameTimer();
+}
+
+function startFrameTimer() {
+  if (frameTimer) return;
+  frameTimer = setInterval(sendFrame, FRAME_INTERVAL_MS);
+  rateTimer = setInterval(() => {
+    framesPerSecond = framesThisSecond;
+    droppedPerSecond = droppedThisSecond;
+    framesThisSecond = 0;
+    droppedThisSecond = 0;
+    updateTooltipText();
+  }, 1000);
+}
+
+function sendFrame() {
+  if (!cameraRunning || encoding) return;
+  if (!socket || socket.readyState !== WebSocket.OPEN) return;
+  if (video.readyState < 2 || !video.videoWidth) return;
+
+  const scale = FRAME_WIDTH / video.videoWidth;
+  const width = FRAME_WIDTH;
+  const height = Math.max(1, Math.round(video.videoHeight * scale));
+  if (canvas.width !== width || canvas.height !== height) {
+    canvas.width = width;
+    canvas.height = height;
+  }
+  context.drawImage(video, 0, 0, width, height);
+
+  encoding = true;
+  canvas.toBlob(
+    (blob) => {
+      encoding = false;
+      if (!blob || !socket || socket.readyState !== WebSocket.OPEN) return;
+      // Drop a frame rather than queue it. A slow link must not build latency.
+      if (socket.bufferedAmount > lastFrameBytes * 2) {
+        droppedThisSecond += 1;
+        return;
+      }
+      socket.send(blob);
+      lastFrameBytes = blob.size;
+      framesThisSecond += 1;
+    },
+    "image/jpeg",
+    FRAME_QUALITY
+  );
+}
+
+/* ---- the socket ---- */
+
+function socketUrl() {
+  const scheme = location.protocol === "https:" ? "wss:" : "ws:";
+  return scheme + "//" + location.host + "/ws/phone";
+}
+
+function connect() {
+  if (reconnectTimer) {
+    clearTimeout(reconnectTimer);
+    reconnectTimer = 0;
+  }
+  let ws;
+  try {
+    ws = new WebSocket(socketUrl());
+  } catch (err) {
+    scheduleReconnect();
+    return;
+  }
+  socket = ws;
+
+  ws.addEventListener("open", () => {
+    if (socket !== ws) return;
+    reconnectAttempts = 0;
+    setStatus("live");
+    hide(statusMessage);
+    send({ type: "hello", ua: navigator.userAgent });
+  });
+
+  ws.addEventListener("message", (event) => {
+    if (socket !== ws) return;
+    if (typeof event.data !== "string") return;
+    let message;
+    try {
+      message = JSON.parse(event.data);
+    } catch (err) {
+      return;
+    }
+    if (!message || typeof message.type !== "string") return;
+    handle(message);
+  });
+
+  ws.addEventListener("close", () => {
+    if (socket !== ws) return;
+    socket = null;
+    scheduleReconnect();
+  });
+
+  ws.addEventListener("error", () => {
+    if (socket !== ws) return;
+    try {
+      ws.close();
+    } catch (err) {
+      // close on a socket that never opened throws in some browsers
+    }
+  });
+}
+
+function scheduleReconnect() {
+  setStatus("reconnecting");
+  if (reconnectAttempts >= 2) {
+    show(statusMessage, "The connection dropped. Trying again.");
+  }
+  const delay = Math.min(BACKOFF_MAX_MS, BACKOFF_MIN_MS * Math.pow(2, reconnectAttempts));
+  reconnectAttempts += 1;
+  if (reconnectTimer) clearTimeout(reconnectTimer);
+  reconnectTimer = setTimeout(connect, delay);
+}
+
+function send(message) {
+  if (!socket || socket.readyState !== WebSocket.OPEN) return;
+  socket.send(JSON.stringify(message));
+}
+
+function handle(message) {
+  if (message.type === "ping") {
+    send({ type: "pong" });
+    return;
+  }
+  if (message.type === "result") {
+    showResult(message);
+    return;
+  }
+  if (message.type === "ask") {
+    showAsk(message);
+    return;
+  }
+  if (message.type === "idle") {
+    closeResult();
+    closeAsk();
+  }
+}
+
+/* ---- status pill ---- */
+
+function setStatus(state) {
+  status.dataset.state = state;
+  statusText.textContent = state === "live" ? "Live" : "Reconnecting";
+}
+
+function updateTooltipText() {
+  let line = framesPerSecond
+    ? wholeNumber(framesPerSecond) + " frames a second"
+    : "No frames are going out";
+  if (droppedPerSecond) line += ", " + wholeNumber(droppedPerSecond) + " dropped";
+  statusTooltip.textContent = line;
+  statusPill.title = line;
+}
+
+function toggleTooltip() {
+  if (!statusTooltip.hidden) {
+    statusTooltip.hidden = true;
+    return;
+  }
+  updateTooltipText();
+  statusTooltip.hidden = false;
+  if (tooltipTimer) clearTimeout(tooltipTimer);
+  tooltipTimer = setTimeout(() => {
+    statusTooltip.hidden = true;
+  }, TOOLTIP_MS);
+}
+
+/* ---- sheets ---- */
+
+function openSheet(sheet) {
+  sheet.dataset.open = "true";
+  sheet.inert = false;
+}
+
+function closeSheet(sheet) {
+  sheet.dataset.open = "false";
+  sheet.inert = true;
+}
+
+function tone(value) {
+  return TONES.indexOf(value) === -1 ? "neutral" : value;
+}
+
+function showResult(message) {
+  // A question on screen is never taken away under someone's thumb. A result
+  // that lands while an ask is open waits here and rises once the question is
+  // off the screen, so neither the question nor the ticket is lost.
+  if (askSheet.dataset.open === "true") {
+    heldResult = message;
+    return;
+  }
+  // A newer ticket takes the place of one still waiting its turn.
+  clearHeld();
+  drawResult(message);
+}
+
+function clearHeld() {
+  if (heldTimer) {
+    clearTimeout(heldTimer);
+    heldTimer = 0;
+  }
+  heldResult = null;
+}
+
+function drawResult(message) {
+  resultSheet.dataset.tone = tone(message.tone);
+  resultTitle.textContent = text(message.title, 60) || "Ticket";
+  const big = text(message.big, 12);
+  resultFigure.textContent = big;
+  // The backend sends the figure already shaped for the LCD, so the page reads
+  // the sign off the front of it rather than formatting the number again.
+  resultFigure.dataset.sign = big.startsWith("-") || big.startsWith("(") ? "negative" : "positive";
+  resultLine.textContent = text(message.line, 80);
+
+  const grams = typeof message.mass_g === "number" && isFinite(message.mass_g) ? message.mass_g : null;
+  if (grams === null) {
+    resultMass.hidden = true;
+    resultMass.textContent = "";
+  } else {
+    // Thin space between the number and its unit, DESIGN.md section 2.
+    resultMass.textContent = wholeNumber(grams) + " g";
+    resultMass.hidden = false;
+  }
+
+  openSheet(resultSheet);
+  if (typeof navigator.vibrate === "function") {
+    try {
+      navigator.vibrate(10);
+    } catch (err) {
+      // iOS has no vibrate. Nothing to report to the person here.
+    }
+  }
+  if (resultTimer) clearTimeout(resultTimer);
+  resultTimer = setTimeout(closeResult, RESULT_MS);
+}
+
+function closeResult() {
+  if (resultTimer) {
+    clearTimeout(resultTimer);
+    resultTimer = 0;
+  }
+  closeSheet(resultSheet);
+}
+
+function showAsk(message) {
+  closeResult();
+  // A new question stops a held ticket rising over it. The ticket waits again.
+  if (heldTimer) {
+    clearTimeout(heldTimer);
+    heldTimer = 0;
+  }
+  const eventId = Number.isInteger(message.event_id) ? message.event_id : null;
+  askEventId = eventId;
+  answering = false;
+
+  const candidates = Array.isArray(message.candidates) ? message.candidates.slice(0, 4) : [];
+  askOptions.textContent = "";
+  candidates.forEach((candidate) => {
+    const label = text(candidate && candidate.label, LABEL_MAX);
+    if (!label) return;
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "button button--candidate";
+    const name = document.createElement("span");
+    name.textContent = label;
+    const p = document.createElement("span");
+    p.className = "ask__p";
+    p.textContent = percent(candidate.p);
+    button.append(name, p);
+    button.addEventListener("click", () => answer(label));
+    askOptions.append(button);
+  });
+
+  askCrop.hidden = true;
+  if (eventId !== null) {
+    askCrop.src = "/media/" + eventId + "/crop.jpg";
+  }
+
+  askField.hidden = true;
+  askInput.value = "";
+  askReadBack.textContent = "";
+  askSend.disabled = true;
+  askOther.hidden = false;
+  hide(askNote);
+  openSheet(askSheet);
+}
+
+function closeAsk() {
+  askEventId = null;
+  closeSheet(askSheet);
+  if (!heldResult || heldTimer) return;
+  // The held ticket rises after the quiet learned line has had its moment, so
+  // the two never sit on top of each other at the bottom of the screen.
+  heldTimer = setTimeout(() => {
+    heldTimer = 0;
+    const waiting = heldResult;
+    heldResult = null;
+    if (!waiting) return;
+    hide(learnedLine);
+    drawResult(waiting);
+  }, HELD_RESULT_MS);
+}
+
+/* ---- the free text answer ----
+   Typed text never travels as an instruction. It is read into one field with a
+   fixed shape: trimmed, lowercased, letters, digits, spaces and hyphens only,
+   at most 40 characters. The person sees what was understood and what was
+   dropped before it is sent. The backend reads it again the same way. */
+
+function readLabel(raw) {
+  const notes = [];
+  const original = typeof raw === "string" ? raw : "";
+  let value = original.trim();
+  const whitelisted = value.replace(/[^A-Za-z0-9 -]/g, "");
+  if (whitelisted !== value) {
+    notes.push("Anything that was not a letter, digit, space or hyphen was left out.");
+  }
+  value = whitelisted.replace(/ +/g, " ").trim().toLowerCase();
+  if (value.length > LABEL_MAX) {
+    value = value.slice(0, LABEL_MAX).trim();
+    notes.push("Only the first " + LABEL_MAX + " characters were kept.");
+  }
+  return { value: value, notes: notes };
+}
+
+function onLabelInput() {
+  const read = readLabel(askInput.value);
+  askSend.disabled = read.value.length === 0 || answering;
+  if (!askInput.value.trim()) {
+    askReadBack.textContent = "";
+    return;
+  }
+  if (!read.value) {
+    askReadBack.textContent = "Nothing usable yet. Use letters, digits, spaces or hyphens.";
+    return;
+  }
+  const parts = ["Understood as “" + read.value + "”."];
+  askReadBack.textContent = parts.concat(read.notes).join(" ");
+}
+
+function revealOther() {
+  askOther.hidden = true;
+  askField.hidden = false;
+  askInput.focus();
+}
+
+/* ---- answering ---- */
+
+async function answer(label) {
+  if (answering || askEventId === null) return;
+  const read = readLabel(label);
+  if (!read.value) return;
+  answering = true;
+  setAskDisabled(true);
+  hide(askNote);
+
+  try {
+    const res = await fetch("/api/corrections", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ event_id: askEventId, label: read.value }),
+    });
+    if (!res.ok) throw new Error("rejected");
+  } catch (err) {
+    answering = false;
+    setAskDisabled(false);
+    show(askNote, "The answer did not send. Tap it again.");
+    return;
+  }
+
+  answering = false;
+  closeAsk();
+  show(learnedLine, "Learned. Next time this is recognised without asking.");
+  if (learnedTimer) clearTimeout(learnedTimer);
+  learnedTimer = setTimeout(() => hide(learnedLine), LEARNED_MS);
+}
+
+function setAskDisabled(disabled) {
+  const buttons = askSheet.querySelectorAll("button");
+  buttons.forEach((button) => {
+    button.disabled = disabled;
+  });
+  if (!disabled) onLabelInput();
+}
+
+/* ---- wake lock ---- */
+
+async function requestWakeLock() {
+  if (!("wakeLock" in navigator)) return;
+  try {
+    wakeLock = await navigator.wakeLock.request("screen");
+    wakeLock.addEventListener("release", () => {
+      wakeLock = null;
+    });
+  } catch (err) {
+    // A browser without screen wake lock just keeps its own screen timeout.
+  }
+}
+
+/* ---- wiring ---- */
+
+startButton.addEventListener("click", startCamera);
+statusPill.addEventListener("click", toggleTooltip);
+resultSheet.addEventListener("click", closeResult);
+askOther.addEventListener("click", revealOther);
+askInput.addEventListener("input", onLabelInput);
+askSend.addEventListener("click", () => answer(askInput.value));
+askCrop.addEventListener("error", () => {
+  askCrop.hidden = true;
+});
+askCrop.addEventListener("load", () => {
+  askCrop.hidden = false;
+});
+
+document.addEventListener("visibilitychange", () => {
+  if (document.visibilityState === "visible" && cameraRunning) requestWakeLock();
+});
+
+closeSheet(resultSheet);
+closeSheet(askSheet);
+setThemeColour();
+loadBrand();
+
+if (!window.isSecureContext) {
+  show(startError, "This page must be opened over HTTPS. Browsers keep the camera off on an insecure connection.");
+}
