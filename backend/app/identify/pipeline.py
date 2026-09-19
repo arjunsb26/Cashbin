@@ -50,6 +50,7 @@ MAX_ASK_CANDIDATES = 4
 MAX_CONTEXT_LABELS = 60
 MAX_CONTEXT_TAGS = 40
 UNKNOWN_LABEL = "unknown object"
+LOCAL_PROVIDER = "local"
 
 OnFinal = Callable[[int, str, ItemClass, IdentifyMethod], Awaitable[None]]
 
@@ -378,6 +379,7 @@ async def identify_event(
                 candidates=[(asset.tag, 1.0)],
                 posterior={asset.tag: 1.0},
                 latency_ms=_elapsed(started),
+                usage=_local_usage("qr-tag"),
                 is_final=True,
             )
             return await _finalise(session, event, row, active, started)
@@ -406,6 +408,7 @@ async def identify_event(
                     candidates=sorted(votes.items(), key=lambda kv: -kv[1]),
                     posterior=votes,
                     latency_ms=_elapsed(started),
+                    usage=_local_usage(active.embedder.name),
                     is_final=True,
                 )
                 return await _finalise(session, event, row, active, started)
@@ -472,6 +475,7 @@ async def identify_event(
                 posterior=final_dist,
                 used_mass_prior=True,
                 latency_ms=_elapsed(started),
+                usage=_local_usage("mass-prior-fusion"),
             )
 
         # 5. Decide.
@@ -491,6 +495,14 @@ async def identify_event(
 
 
 _NO_PRIOR = MassPrior(mean_g=0.0, var=0.0, n=0)
+
+
+def _local_usage(model: str) -> CallUsage:
+    """A stage that ran here. CLAUDE.md: every row says what served it, and this cost nothing."""
+    return CallUsage(
+        provider=LOCAL_PROVIDER, model=model, tokens_in=0, tokens_out=0,
+        cost_microusd=0, price_known=True,
+    )
 
 
 def _elapsed(started: float) -> int:

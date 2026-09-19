@@ -143,7 +143,8 @@ async def test_a_tagged_asset_is_identified_with_no_call(settings: Settings) -> 
     assert [r.method for r in rows] == [IdentifyMethod.qr]
     assert rows[0].confidence == 1.0
     assert rows[0].is_final is True
-    assert rows[0].cost_microusd is None
+    assert (rows[0].provider, rows[0].model) == ("local", "qr-tag")
+    assert rows[0].cost_microusd == 0
     assert deps.providers.vision.calls == 0  # type: ignore[attr-defined]
 
     with session_scope() as session:
@@ -241,7 +242,8 @@ async def test_the_second_toss_of_the_same_thing_comes_from_memory(settings: Set
     assert outcome.label == "cracked phone"
     assert outcome.method is IdentifyMethod.memory
     row = rows_for(second)[-1]
-    assert row.cost_microusd is None
+    assert row.cost_microusd == 0
+    assert (row.provider, row.model) == ("local", "baseline-hsv-thumb")
     assert row.confidence == 1.0
     assert get_expect_queue().pending() == 1  # nothing asked the stub anything
 

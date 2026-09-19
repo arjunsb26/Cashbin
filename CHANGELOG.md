@@ -2,6 +2,48 @@
 
 Newest first. Each lane writes under its own heading.
 
+## 2026-09-19, lane c: identification, the ask loop, corrections and metrics
+
+- Added `app/identify/embed.py` `BaselineEmbedder`: an 8x8x8 HSV histogram beside
+  a 16x16 grayscale thumbnail, each block L2 normalised before they are joined,
+  768 wide, deterministic. The thumbnail has its own mean removed first, because
+  raw brightness is the same for every crop under the same lamp.
+- Added `app/identify/memory.py`: the kNN index over the exemplar table, cosine
+  distance, the 4 of 5 vote rule scaled for a small table, and `add` so an answer
+  counts on the very next toss.
+- Added `app/identify/qr.py`: QR tags read off the after and peak frames with
+  `cv2.QRCodeDetector`, every payload through `normalise_label`, then an exact
+  match against the asset register.
+- Added `app/identify/priors.py`: Bayesian mass fusion with a Normal likelihood
+  over `prior_var + mass_err^2`, labels with fewer than three weighings skipped
+  and given the average likelihood, plus the Welford update that keeps a seeded
+  catalog variance instead of discarding it.
+- Added `app/identify/stub.py`: the deterministic vision and estimator providers
+  and the `POST /api/sim/expect` queue behind them. A catalog label answers at
+  0.95 and anything else at 0.55, so the ask path is exercised without breaking
+  anything.
+- Added `app/identify/openai_provider.py`: the official `openai` SDK through
+  Chat Completions, the crop as a base64 data URL, a strict JSON schema
+  generated from `VisionResult` itself, one retry, then a low confidence answer
+  so the ask opens. Catalog labels and asset tags travel in a JSON data block,
+  never in the instruction text.
+- Added `app/identify/cost.py`: prices read from `data/llm_prices.csv`, tokens
+  turned into microdollars, and no price meaning no number rather than a zero.
+- Added `app/identify/pipeline.py`: QR, memory, cloud, fusion, decide, with an
+  `identification` row per stage and the ask published to the dashboard, the
+  phone and the LCD. The cloud call runs in a thread under `llm_timeout_s` and
+  never raises into ingest.
+- Added `app/learn/corrections.py`, `rounds.py` and `metrics.py`: one answer
+  settles the ticket, stores an exemplar, moves the mass prior and, when it
+  overrules a confident answer, moves the event out of the first-try column.
+- Filled the handlers for `POST /api/corrections`, `GET /api/metrics/rounds`,
+  `POST /api/metrics/rounds/start`, `GET /api/summary`, `GET` and `PATCH
+  /api/settings`, and `POST /api/sim/expect`.
+- Added `llm_base_url`, `llm_agent_model`, `llm_vision_effort`, `llm_text_effort`
+  and `openai_api_key` to `config.py`. None of them is readable through the API.
+- Added 14 test files, 161 cases, including the full attack set against the ask
+  answer, the photographed sign and the request body.
+
 ## 2026-09-19, lane b: engine, ledger, seed data
 
 - Added `backend/data/README.md` explaining every seed file, where its numbers
