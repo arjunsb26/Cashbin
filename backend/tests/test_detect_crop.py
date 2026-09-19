@@ -103,8 +103,8 @@ def test_pick_frames_chooses_before_after_and_peak() -> None:
     base = background()
     step = a_step()
     frames = [
+        Frame(t_ms=900.0, jpeg=jpeg(base)),
         Frame(t_ms=1000.0, jpeg=jpeg(base)),
-        Frame(t_ms=1600.0, jpeg=jpeg(base)),
         Frame(t_ms=2100.0, jpeg=jpeg(np.full_like(base, 255))),
         Frame(t_ms=2400.0, jpeg=jpeg(with_rect(base, RECT, (40, 160, 220)))),
         Frame(t_ms=2900.0, jpeg=jpeg(with_rect(base, RECT, (40, 160, 220)))),
@@ -114,7 +114,7 @@ def test_pick_frames_chooses_before_after_and_peak() -> None:
     pick = pick_frames(frames, step)
 
     assert pick.complete
-    assert pick.before is not None and pick.before.t_ms == 1600.0
+    assert pick.before is not None and pick.before.t_ms == 1000.0
     assert pick.after is not None and pick.after.t_ms == 2900.0
     assert pick.peak is not None and pick.peak.t_ms == 2100.0
 

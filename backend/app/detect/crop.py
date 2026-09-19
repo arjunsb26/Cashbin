@@ -47,7 +47,13 @@ class BBox(BaseModel):
 
 
 class CropParams(BaseModel):
-    before_lead_ms: float = 300.0
+    # How far before the step opens the `before` frame must sit. PLAN.md section 7
+    # says 300 ms, which assumes the item appears in frame at the moment it lands.
+    # It does not: it is in shot for the whole flight, and the simulator gives it a
+    # 300 ms flight. A lead equal to the flight time picks a frame that already has
+    # the item in it and the diff comes back empty, so this has to be longer. The
+    # phone ring buffer covers 4 s, so 600 ms costs nothing.
+    before_lead_ms: float = 600.0
     blur_ksize: int = 5
     threshold: int = 25
     close_ksize: int = 15
