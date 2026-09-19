@@ -72,18 +72,25 @@ def test_init_db_is_idempotent(settings: Settings) -> None:
     assert set(ALL_TABLES).issubset(set(inspect(get_engine()).get_table_names()))
 
 
-# The register, the catalog and the journal are built, so they are not stubs any more.
-# They are covered by test_api_assets.py, test_api_catalog.py and test_api_journal.py.
+# Routes still waiting for the lane that fills them. A lane deletes its line here in the
+# same commit as the handler, so this list is always what is genuinely unbuilt.
 STUB_ROUTES = [
     ("get", "/api/events"),
     ("get", "/api/events/1"),
     ("post", "/api/events/1/void"),
+    ("get", "/api/close/1"),
+    ("post", "/api/device/tare"),
+]
+
+# Built routes answer 200 on an empty database.
+BUILT_ROUTES = [
+    ("get", "/api/assets"),
+    ("get", "/api/catalog"),
+    ("get", "/api/journal"),
     ("get", "/api/metrics/rounds"),
     ("post", "/api/metrics/rounds/start"),
     ("get", "/api/summary"),
-    ("get", "/api/close/1"),
     ("get", "/api/settings"),
-    ("post", "/api/device/tare"),
 ]
 
 
@@ -99,16 +106,24 @@ def test_every_section_14_route_exists_and_says_not_built_yet(
     assert "Lane" not in response.json()["detail"]
 
 
+@pytest.mark.parametrize(
+    ("method", "path"), BUILT_ROUTES, ids=[f"{m}-{p}" for m, p in BUILT_ROUTES]
+)
+def test_the_built_routes_answer(client: TestClient, method: str, path: str) -> None:
+    assert getattr(client, method)(path).status_code == 200, path
+
+
 def test_body_routes_exist(client: TestClient) -> None:
     correction = client.post("/api/corrections", json={"event_id": 1, "label": "bagel"})
-    assert correction.status_code == 501
+    # No such ticket, which is a refusal a person can read, not a missing route.
+    assert correction.status_code == 409
     assert (
         client.post(
             "/api/close", json={"period_start": "2026-09-01", "period_end": "2026-09-30"}
         ).status_code
         == 501
     )
-    assert client.patch("/api/settings", json={"tax_rate": 0.25}).status_code == 501
+    assert client.patch("/api/settings", json={"tax_rate": 0.25}).status_code == 200
 
 
 def test_sim_routes_are_hidden_without_dev_tools(client: TestClient) -> None:
@@ -121,7 +136,7 @@ def test_sim_routes_appear_with_dev_tools(dev_client: TestClient) -> None:
     assert (
         dev_client.post("/api/sim/toss", json={"label": "bagel", "mass_g": 90.0}).status_code == 501
     )
-    assert dev_client.post("/api/sim/expect", json={"label": "bagel"}).status_code == 501
+    assert dev_client.post("/api/sim/expect", json={"label": "bagel"}).status_code == 200
 
 
 def test_docs_are_hidden_without_dev_tools(client: TestClient, dev_client: TestClient) -> None:
