@@ -546,6 +546,7 @@ class ItemRecordRead(ApiModel):
     label: str
     item_class: ItemClass = Field(alias="class")
     mass_g: float
+    condition: Literal["working", "broken", "unknown"] = "unknown"
     material_mix: dict[str, float] = Field(default_factory=dict)
     regulatory_flags: list[str] = Field(default_factory=list)
     book_value_cents: int = 0

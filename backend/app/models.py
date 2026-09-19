@@ -227,6 +227,8 @@ class ItemRecord(Base):
         "class", _enum(ItemClass, "item_class"), nullable=False
     )
     mass_g: Mapped[float] = mapped_column(Float, nullable=False)
+    # The repair rule needs the item's condition. PLAN.md 21a item 8 added this column.
+    condition: Mapped[str] = mapped_column(String(16), nullable=False, default="unknown")
     material_mix_json: Mapped[str | None] = mapped_column(Text)
     regulatory_flags_json: Mapped[str | None] = mapped_column(Text)
     book_value_cents: Mapped[int] = mapped_column(Integer, nullable=False, default=0)

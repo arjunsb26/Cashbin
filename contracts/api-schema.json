@@ -1458,6 +1458,15 @@
         "class": {
           "$ref": "#/$defs/ItemClass"
         },
+        "condition": {
+          "default": "unknown",
+          "enum": [
+            "working",
+            "broken",
+            "unknown"
+          ],
+          "type": "string"
+        },
         "cost_basis_cents": {
           "default": 0,
           "type": "integer"

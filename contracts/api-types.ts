@@ -550,6 +550,7 @@ export interface ItemRecordRead {
   asset_id?: number | null;
   book_value_cents?: number;
   class: ItemClass;
+  condition?: "working" | "broken" | "unknown";
   cost_basis_cents?: number;
   event_id: number;
   fmv?: EstimateRef;
