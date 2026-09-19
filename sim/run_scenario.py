@@ -131,7 +131,10 @@ async def drive(
     await wait_nominal(bin_sim, lead_s)
 
     for index, step in enumerate(scenario.steps, start=1):
-        if expect_url and step.kind == "toss":
+        if expect_url and step.kind == "toss" and not step.tag:
+            # A tagged item is identified by its tag before any provider is asked, so an
+            # expectation for it would never be taken off the queue and every later toss
+            # would get the wrong one.
             log(await post_expect(expect_url, step.label, step.mass_g, insecure))
         log(f"step {index}/{len(scenario.steps)}: {step.kind} {step.label}")
         if step.kind == "toss":

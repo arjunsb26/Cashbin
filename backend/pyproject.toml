@@ -95,5 +95,5 @@ no_implicit_optional = true
 plugins = ["pydantic.mypy"]
 
 [[tool.mypy.overrides]]
-module = ["cv2.*", "hypercorn.*", "scripts.*"]
+module = ["cv2.*", "hypercorn.*", "scripts.*", "sim.*"]
 ignore_missing_imports = true

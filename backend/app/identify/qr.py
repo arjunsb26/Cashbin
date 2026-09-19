@@ -15,7 +15,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.identify.embed import decode_jpeg
-from app.models import Asset
+from app.models import Asset, AssetStatus
 from app.schemas import normalise_label
 
 
@@ -52,9 +52,20 @@ def read_tags(frames: Sequence[bytes]) -> list[str]:
 
 
 def match_asset(tags: Sequence[str], session: Session) -> Asset | None:
-    """The first tag that is an exact asset tag. No fuzzy matching: a tag is a key."""
+    """The first tag that is an exact tag on an asset still on the register.
+
+    No fuzzy matching: a tag is a key. An asset that has already been disposed of is not a
+    match, because a tag that stays in shot after its item was thrown out would otherwise
+    claim every later toss as the same disposal.
+    """
     for tag in tags:
-        asset = session.execute(select(Asset).where(Asset.tag == tag)).scalars().first()
+        asset = (
+            session.execute(
+                select(Asset).where(Asset.tag == tag, Asset.status == AssetStatus.active)
+            )
+            .scalars()
+            .first()
+        )
         if asset is not None:
             return asset
     return None

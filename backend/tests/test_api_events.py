@@ -10,6 +10,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from fastapi.testclient import TestClient
+from sqlalchemy import delete
 
 from app.config import Settings
 from app.db import session_scope
@@ -43,10 +44,13 @@ def test_a_missing_event_is_a_404(client: TestClient) -> None:
 
 
 def test_an_injected_toss_becomes_an_event(dev_client: TestClient) -> None:
+    # The glue is attached now, so an injected toss runs the whole pipeline and comes
+    # back posted rather than stopping at detected.
+    dev_client.post("/api/sim/expect", json={"label": "bagel"})
     posted = dev_client.post("/api/sim/toss", json=BAGEL)
     assert posted.status_code == 200
     body = posted.json()
-    assert body["status"] == EventStatus.detected
+    assert body["status"] == EventStatus.posted
 
     listed = dev_client.get("/api/events").json()["events"]
     assert len(listed) == 1
@@ -88,11 +92,13 @@ def test_the_list_is_newest_first_and_filters(dev_client: TestClient) -> None:
     with session_scope() as session:
         row = session.get(Event, listed[0]["id"])
         assert row is not None
-        row.status = EventStatus.posted
+        # Void, because the pipeline posts every toss it identifies and a filter test
+        # needs a status only this test has set.
+        row.status = EventStatus.void
         row.round_id = None
 
-    posted = dev_client.get("/api/events", params={"status": "posted"}).json()["events"]
-    assert [row["id"] for row in posted] == [listed[0]["id"]]
+    voided = dev_client.get("/api/events", params={"status": "void"}).json()["events"]
+    assert [row["id"] for row in voided] == [listed[0]["id"]]
     assert dev_client.get("/api/events", params={"round": 7}).json()["events"] == []
 
 
@@ -100,6 +106,10 @@ def test_detail_carries_the_trace_and_the_later_tables(dev_client: TestClient) -
     event_id = dev_client.post("/api/sim/toss", json=BAGEL).json()["event_id"]
 
     with session_scope() as session:
+        # This case reads hand made rows, so the pipeline's own rows for the same event
+        # are cleared first rather than fought with.
+        for table in (Identification, ItemRecord, OptionScore):
+            session.execute(delete(table).where(table.event_id == event_id))
         session.add(
             Identification(
                 event_id=event_id,

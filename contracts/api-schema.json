@@ -2390,6 +2390,18 @@
       },
       "type": "object"
     },
+    "SetupResponse": {
+      "description": "The setup checklist: every seed cell a person still has to fill in.\n\nPLAN.md section 17. One line per cell, so nothing fake can slip into the demo\nunnoticed. An empty list means the seed files are complete.",
+      "properties": {
+        "items": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        }
+      },
+      "type": "object"
+    },
     "SimExpectRequest": {
       "description": "Dev only. Tells the stub identification provider what the simulator is about to toss.",
       "properties": {
@@ -3115,6 +3127,9 @@
     },
     "SettingsUpdate": {
       "$ref": "#/$defs/SettingsUpdate"
+    },
+    "SetupResponse": {
+      "$ref": "#/$defs/SetupResponse"
     },
     "SimExpectRequest": {
       "$ref": "#/$defs/SimExpectRequest"

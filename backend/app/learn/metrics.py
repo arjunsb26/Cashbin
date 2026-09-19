@@ -13,6 +13,7 @@ from sqlalchemy.orm import Session
 from app.models import (
     Correction,
     Event,
+    EventKind,
     EventStatus,
     Exemplar,
     Identification,
@@ -87,8 +88,12 @@ def list_rounds(session: Session, learned: int = DEFAULT_LEARNED) -> RoundListRe
 
 def summary(session: Session) -> SummaryResponse:
     """The four header numbers. Saved and diverted come from the engine's option rows."""
+    # Tosses, which is the word the header uses. A bag going out is a row on the chart,
+    # not something anyone threw away, so it is not counted here.
     events = session.execute(
-        select(func.count(Event.id)).where(Event.status != EventStatus.void)
+        select(func.count(Event.id)).where(
+            Event.status != EventStatus.void, Event.kind == EventKind.toss
+        )
     ).scalar_one()
 
     saved_cents = 0

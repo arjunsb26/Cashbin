@@ -82,7 +82,12 @@ def test_a_staircase_becomes_one_event_row_per_step(
     masses = [row["mass_g"] for row in reversed(rows)]
     for got, wanted in zip(masses, [95.0, 780.0, 62.0, 172.0, -1109.0], strict=True):
         assert abs(got - wanted) < 3.0, f"{got} is not {wanted}"
-    assert {row["status"] for row in rows} == {EventStatus.detected}
+    # Every toss goes the whole way now. A bag change identifies nothing, so it keeps the
+    # status the event builder gave it.
+    tosses = [row for row in rows if row["kind"] == EventKind.toss]
+    assert {row["status"] for row in tosses} == {EventStatus.posted}
+    changes = [row for row in rows if row["kind"] == EventKind.bag_change]
+    assert {row["status"] for row in changes} == {EventStatus.detected}
 
 
 def test_the_dashboard_sees_weight_and_the_event(app: FastAPI, client: TestClient) -> None:
