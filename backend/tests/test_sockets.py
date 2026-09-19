@@ -13,8 +13,11 @@ def test_bin_socket_greets_then_answers_ping(client: TestClient) -> None:
         assert socket.receive_json() == {"type": "ping"}
         socket.send_json({"type": "ping"})
         assert socket.receive_json() == {"type": "pong"}
+        # A pong ends the exchange. Step 0 answered it with a ping, which the real bin
+        # answers with a pong, and the two of them fill the wire. Lane A stopped that.
         socket.send_json({"type": "pong", "t": 123999})
-        assert socket.receive_json() == {"type": "ping"}
+        socket.send_json({"type": "ping"})
+        assert socket.receive_json() == {"type": "pong"}
 
 
 def test_bin_socket_refuses_a_bad_hello(client: TestClient) -> None:
@@ -40,7 +43,8 @@ def test_phone_socket_greets_then_answers_ping(client: TestClient) -> None:
         socket.send_json({"type": "hello", "ua": "Mozilla/5.0 (iPhone)"})
         assert socket.receive_json() == {"type": "ping"}
         socket.send_json({"type": "pong"})
-        assert socket.receive_json() == {"type": "ping"}
+        socket.send_json({"type": "ping"})
+        assert socket.receive_json() == {"type": "pong"}
 
 
 def test_phone_socket_accepts_binary_frames_quietly(client: TestClient) -> None:

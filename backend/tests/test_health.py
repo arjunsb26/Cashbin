@@ -75,11 +75,7 @@ def test_init_db_is_idempotent(settings: Settings) -> None:
 # Routes still waiting for the lane that fills them. A lane deletes its line here in the
 # same commit as the handler, so this list is always what is genuinely unbuilt.
 STUB_ROUTES = [
-    ("get", "/api/events"),
-    ("get", "/api/events/1"),
-    ("post", "/api/events/1/void"),
     ("get", "/api/close/1"),
-    ("post", "/api/device/tare"),
 ]
 
 # Built routes answer 200 on an empty database.
@@ -133,8 +129,9 @@ def test_sim_routes_are_hidden_without_dev_tools(client: TestClient) -> None:
 
 
 def test_sim_routes_appear_with_dev_tools(dev_client: TestClient) -> None:
+    # Lane A filled /toss, so it answers. /expect is Lane C's and still says so.
     assert (
-        dev_client.post("/api/sim/toss", json={"label": "bagel", "mass_g": 90.0}).status_code == 501
+        dev_client.post("/api/sim/toss", json={"label": "bagel", "mass_g": 90.0}).status_code == 200
     )
     assert dev_client.post("/api/sim/expect", json={"label": "bagel"}).status_code == 200
 

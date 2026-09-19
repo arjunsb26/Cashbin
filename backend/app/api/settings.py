@@ -17,11 +17,11 @@ from fastapi import APIRouter, Depends
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.api import not_implemented
 from app.config import RUNTIME_SETTING_KEYS, Settings, get_settings
 from app.db import get_db
 from app.models import Setting
-from app.schemas import DeviceTareResponse, SettingsRead, SettingsUpdate
+from app.notify.bus import CHANNEL_BIN, get_bus
+from app.schemas import BinTare, DeviceTareResponse, SettingsRead, SettingsUpdate
 
 log = logging.getLogger(__name__)
 
@@ -84,4 +84,11 @@ def update_settings(body: SettingsUpdate, session: Session = Depends(get_db)) ->
 
 @router.post("/device/tare", response_model=DeviceTareResponse)
 def tare_device() -> DeviceTareResponse:
-    not_implemented("Lane A", "Taring the scale")
+    """Send the scale back to zero.
+
+    The command goes on the `bin` channel and the bin socket forwards it. `sent` says
+    whether a bin was there to receive it, so the dashboard can say "no bin connected"
+    instead of pretending the button did something.
+    """
+    delivered = get_bus().publish(BinTare(), CHANNEL_BIN)
+    return DeviceTareResponse(sent=delivered > 0)
