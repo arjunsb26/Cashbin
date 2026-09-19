@@ -1,0 +1,46 @@
+"""Provider interfaces from PLAN.md section 9. Step 0 owns this file. Lane C writes the providers.
+
+Nothing here has an implementation on purpose. A provider is anything that satisfies the
+Protocol, so the stub and the real adapter can live side by side and swap by config.
+"""
+
+from __future__ import annotations
+
+from dataclasses import dataclass, field
+from typing import Protocol, runtime_checkable
+
+from app.schemas import ValueEstimate, VisionResult
+
+
+@dataclass(frozen=True)
+class IdentifyContext:
+    """What a provider is allowed to know about the toss it is looking at.
+
+    Every field is code-built data. Nothing a person typed reaches a provider as instructions.
+    """
+
+    event_id: int
+    mass_g: float
+    mass_err_g: float
+    timeout_s: float
+    catalog_labels: tuple[str, ...] = ()
+    asset_tags: tuple[str, ...] = ()
+    hints: dict[str, str] = field(default_factory=dict)
+
+
+@runtime_checkable
+class VisionProvider(Protocol):
+    """Identify an item from its crop."""
+
+    name: str
+
+    def identify(self, crop: bytes, context: IdentifyContext) -> VisionResult: ...
+
+
+@runtime_checkable
+class EstimatorProvider(Protocol):
+    """Estimate fair market value, repair, replacement and scrap for an unknown object."""
+
+    name: str
+
+    def estimate(self, label: str, vision: VisionResult, mass_g: float) -> ValueEstimate: ...
