@@ -75,8 +75,9 @@ def test_blank_lines_and_junk_do_not_stop_the_link(app: FastAPI, client: TestCli
     replies = [json.loads(line) for line in out.getvalue().splitlines()]
     assert replies[0] == {"type": "ping"}
     assert {"type": "error", "detail": "not json"} in replies
-    # A pong is answered with a ping, same as on the socket.
-    assert replies[-1] == {"type": "ping"}
+    # The hello ping and the junk error, and nothing for the pong. Answering a pong
+    # with a ping is the loop the socket tests cover.
+    assert len(replies) == 2
 
 
 def test_traffic_before_a_hello_closes_the_link(settings: Settings) -> None:
