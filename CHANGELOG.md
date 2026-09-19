@@ -2,6 +2,20 @@
 
 Newest first. Each lane writes under its own heading.
 
+## 2026-09-19, lane i: the M1 to M5 acceptance pass and hardening
+
+- PLAN.md 21a item 17. Repair is offered when the condition is `broken`, or when it
+  is `unknown` and the repair estimate comes in under half the replacement cost
+  (`backend/app/engine/tax.py`). Before this a nine dollar charger's best option was
+  "repair it", which is the rule as section 10 wrote it but reads as nonsense on the
+  bin.
+- PLAN.md 21a item 18. `EventSummary` carries `is_estimate`, true when the item
+  record's fair market value came from a model estimate. One flag on the row the tape
+  already reads, so an estimate is marked without a second request.
+- PLAN.md 21a item 19. `sim/run_scenario.py` waits 7 seconds between tosses by
+  default, because a real vision call takes about 2 and the result has to land on the
+  bin before the next item does.
+
 ## 2026-09-19, lane f: period close and the investigator
 
 - `backend/app/ledger/close.py` runs a period close over the tables: write-offs by

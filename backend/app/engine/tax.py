@@ -22,6 +22,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from app.engine import carbon
 from app.engine.records import (
     AssetInfo,
+    Condition,
     EngineSettings,
     ItemClass,
     ItemRecord,
@@ -268,11 +269,20 @@ def donate_untracked(record: ItemRecord, settings: EngineSettings) -> TaxEffect 
 
 
 def _repair_offered(record: ItemRecord) -> bool:
-    return (
-        record.condition.value in {"broken", "unknown"}
-        and record.repair_mid is not None
-        and record.replacement_cents is not None
-    )
+    """PLAN.md 21a item 17.
+
+    A thing somebody watched break is worth repairing whatever the quote says. A thing
+    nobody is sure about is worth repairing only when the repair comes in under half a new
+    one, because otherwise every nine dollar charger comes back as "repair it" and the bin
+    stops being believable.
+    """
+    if record.repair_mid is None or record.replacement_cents is None:
+        return False
+    if record.condition is Condition.broken:
+        return True
+    if record.condition is Condition.unknown:
+        return record.repair_mid * 2 < record.replacement_cents
+    return False
 
 
 def repair_fixed_asset(

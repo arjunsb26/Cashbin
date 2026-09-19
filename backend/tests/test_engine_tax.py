@@ -335,6 +335,30 @@ def test_repair_is_not_offered_for_inventory() -> None:
     assert tax.tax_effect_for(Option.repair, item, SETTINGS) is None
 
 
+def test_repair_is_not_offered_when_an_unknown_item_is_not_worth_repairing() -> None:
+    """PLAN.md 21a item 17. The charger case: a repair at half the replacement or more."""
+    item = record(
+        condition=Condition.unknown,
+        repair_mid=1500,
+        repair_source=EstimateSource.model_estimate,
+        replacement_cents=3000,
+    )
+    assert tax.tax_effect_for(Option.repair, item, SETTINGS) is None
+
+
+def test_repair_is_offered_for_a_broken_item_however_dear_the_repair() -> None:
+    """A thing a person saw break is worth repairing even at nine tenths of a new one."""
+    item = record(
+        condition=Condition.broken,
+        repair_mid=2800,
+        repair_source=EstimateSource.model_estimate,
+        replacement_cents=3000,
+    )
+    effect = tax.tax_effect_for(Option.repair, item, SETTINGS)
+    assert effect is not None
+    assert effect.cash_cents == -2800
+
+
 def test_repair_an_untracked_item_is_offered() -> None:
     item = record(
         condition=Condition.unknown,
