@@ -32,8 +32,9 @@ export function EvidenceBody({ evidence }: { evidence: EvidenceBundle }) {
           </div>
         </div>
         <p className="text-caption text-ink-soft">
-          Settled at {formatMass(evidence.trace.points[evidence.trace.points.length - 1]?.g ?? 0)},
-          baseline {formatMass(evidence.trace.baseline_g)}.
+          The scale settled at{" "}
+          {formatMass(evidence.trace.points[evidence.trace.points.length - 1]?.g ?? 0)}, from a
+          baseline of {formatMass(evidence.trace.baseline_g)}.
         </p>
       </section>
 

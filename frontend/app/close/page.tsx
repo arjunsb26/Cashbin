@@ -85,7 +85,7 @@ function Statement({ report }: { report: CloseReport }) {
 
       <section>
         <SectionTitle right={<Total cents={writeOffTotal} />}>Write-offs</SectionTitle>
-        <table className="w-full border-collapse text-body">
+        <table className="ledger w-full border-collapse text-body">
           <tbody>
             {report.write_offs.map((row) => (
               <tr key={row.event_id} className="h-row border-b border-rule hover:bg-bar">
@@ -106,7 +106,7 @@ function Statement({ report }: { report: CloseReport }) {
 
       <section>
         <SectionTitle>Asset disposals</SectionTitle>
-        <table className="w-full border-collapse text-body">
+        <table className="ledger w-full border-collapse text-body">
           <thead>
             <tr className="border-b border-rule text-caption text-ink-soft">
               <th className="py-1 font-normal">Tag</th>
@@ -147,7 +147,7 @@ function Statement({ report }: { report: CloseReport }) {
 
       <section>
         <SectionTitle>Tax items</SectionTitle>
-        <table className="w-full border-collapse text-body">
+        <table className="ledger w-full border-collapse text-body">
           <tbody>
             {report.tax_items.map((row) => (
               <tr key={row.label} className="h-row border-b border-rule">
@@ -193,7 +193,7 @@ function Statement({ report }: { report: CloseReport }) {
 
       <section>
         <SectionTitle right={<Total cents={missed} />}>Missed opportunity</SectionTitle>
-        <table className="w-full border-collapse text-body">
+        <table className="ledger w-full border-collapse text-body">
           <tbody>
             {report.missed.map((row) => (
               <tr key={row.option} className="h-row border-b border-rule">

@@ -1,5 +1,9 @@
-// Starts the built app in mock mode and captures every route at both sizes in
-// every state it can be in. Run with: pnpm screenshots
+// Builds the app in mock mode, starts it, and captures every route at both sizes
+// in every state it can be in. Run with: pnpm screenshots
+//
+// The build has to happen here. NEXT_PUBLIC_API_MOCK is baked into the bundle when
+// the app is compiled, so setting it on `next start` alone leaves the pages talking
+// to a backend that is not there. This overwrites .next with a mock build.
 import { spawn } from "node:child_process";
 import { mkdirSync, rmSync } from "node:fs";
 import { join } from "node:path";
@@ -72,6 +76,22 @@ function waitForServer(url, attempts = 90) {
 
 rmSync(OUT, { recursive: true, force: true });
 mkdirSync(OUT, { recursive: true });
+
+function run(args) {
+  return new Promise((resolve, reject) => {
+    const child = spawn("node", ["node_modules/next/dist/bin/next", ...args], {
+      env: { ...process.env, NEXT_PUBLIC_API_MOCK: "1" },
+      stdio: "inherit",
+      shell: false,
+    });
+    child.on("exit", (code) =>
+      code === 0 ? resolve() : reject(new Error(`next ${args[0]} exited with ${code}`)),
+    );
+  });
+}
+
+console.log("Building in mock mode.");
+await run(["build"]);
 
 const server = spawn("node", ["node_modules/next/dist/bin/next", "start", "-p", String(PORT)], {
   env: { ...process.env, NEXT_PUBLIC_API_MOCK: "1" },

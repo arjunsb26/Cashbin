@@ -10,6 +10,7 @@ import {
   formatCo2e,
   formatPercent,
   formatCount,
+  entrySides,
   formatMicroUsd,
   formatProbability,
   readLabel,
@@ -115,4 +116,22 @@ test("cost per toss keeps four decimals, because a toss costs a fraction of a ce
   assert.equal(formatMicroUsd(3200), "0.0032");
   assert.equal(formatMicroUsd(0), "0.0000");
   assert.equal(formatMicroUsd(1_250_000), "1.2500");
+});
+
+test("an entry with no amount still puts its lines on the right side", () => {
+  assert.deepEqual(
+    entrySides([
+      { debit_cents: 10000, credit_cents: 0 },
+      { debit_cents: 2000, credit_cents: 0 },
+      { debit_cents: 0, credit_cents: 12000 },
+    ]),
+    ["debit", "debit", "credit"],
+  );
+  assert.deepEqual(
+    entrySides([
+      { debit_cents: 0, credit_cents: 0 },
+      { debit_cents: 0, credit_cents: 0 },
+    ]),
+    ["debit", "credit"],
+  );
 });

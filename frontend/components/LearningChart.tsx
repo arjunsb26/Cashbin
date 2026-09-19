@@ -33,8 +33,7 @@ export function LearningChart({ rounds }: { rounds: Round[] }) {
   return (
     <svg
       viewBox={`0 0 ${width} ${height}`}
-      width="100%"
-      height={height}
+      className="h-auto w-full"
       role="img"
       aria-label="Right first try, asked a person, and cost per toss, by round"
     >

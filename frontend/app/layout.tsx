@@ -27,7 +27,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <Providers>
           <div className="flex min-h-dvh">
             <Rail />
-            <main className="min-w-0 flex-1 px-[var(--gutter)] py-6">{children}</main>
+            <main className="min-w-0 flex-1 border-l border-rule px-[var(--gutter)] py-6">
+              {children}
+            </main>
           </div>
           <ServiceWorker />
         </Providers>

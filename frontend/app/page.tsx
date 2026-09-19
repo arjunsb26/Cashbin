@@ -72,7 +72,7 @@ export default function LivePage() {
         <section aria-label="Tape" className="min-w-0">
           <SectionTitle
             right={
-              <span className="text-caption text-ink-soft">
+              <span className="hidden text-caption text-ink-soft sm:inline">
                 j and k move, Enter opens, e shows the evidence
               </span>
             }

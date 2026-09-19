@@ -107,7 +107,7 @@ function ThresholdForm() {
           <Skeleton className="h-9 w-full" />
         </div>
       ) : (
-        <div className="flex flex-col gap-4 pt-3">
+        <div className="flex max-w-[320px] flex-col gap-4 pt-3">
           <Field
             label="Confident enough"
             hint={`Below this the system asks a person. Now at ${formatPercent(draft.confident_p)}.`}

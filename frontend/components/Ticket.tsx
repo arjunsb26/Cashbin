@@ -134,7 +134,9 @@ export function Ticket({
                 isNegativeCents(figure.cents) && "text-red-ink",
               )}
             >
-              {identified ? formatMoney(counted) : formatMass(detail.event.mass_g)}
+              {identified
+                ? formatMoney(counted, { symbol: true })
+                : formatMass(detail.event.mass_g)}
             </span>
             <span className="pb-2 text-body text-ink-soft">
               {identified ? figure.caption : "on the scale"}
@@ -198,13 +200,13 @@ export function OptionTable({ detail }: { detail: EventDetail }) {
   return (
     <section className="pt-5">
       <h3 className="text-section">What you could have done</h3>
-      <table className="mt-2 w-full border-collapse text-body">
+      <table className="ledger mt-2 w-full border-collapse text-body">
         <thead>
           <tr className="border-b border-rule bg-bar text-caption text-ink-soft">
-            <th className="py-1 pl-2 font-normal">Option</th>
+            <th className="py-1 font-normal">Option</th>
             <th className="py-1 text-right font-normal">After tax ($)</th>
-            <th className="py-1 text-right font-normal">CO2e</th>
-            <th className="py-1 pr-2 text-right font-normal">To landfill</th>
+            <th className="py-1 text-right font-normal">CO2e (kg)</th>
+            <th className="py-1 text-right font-normal">Landfill (g)</th>
           </tr>
         </thead>
         <tbody className="animate-fade-in">
@@ -219,7 +221,7 @@ export function OptionTable({ detail }: { detail: EventDetail }) {
                   !option.allowed && "text-red-ink",
                 )}
               >
-                <td className={cx("pl-2", !option.allowed && "line-through")}>
+                <td className={cx(!option.allowed && "line-through")}>
                   {OPTION_WORDS[option.option]}
                   {isBest ? <span className="pl-2 text-caption text-kept">best</span> : null}
                   {option.needs_human_review ? (
@@ -242,13 +244,15 @@ export function OptionTable({ detail }: { detail: EventDetail }) {
                     kg={option.kg_co2e}
                     eventId={detail.event.id}
                     focus={`${option.option} carbon`}
+                    unit={false}
                   />
                 </td>
-                <td className="pr-2 text-right">
+                <td className="text-right">
                   <Mass
                     grams={option.kg_landfill * 1000}
                     eventId={detail.event.id}
                     focus={`${option.option} landfill`}
+                    unit={false}
                   />
                 </td>
               </tr>

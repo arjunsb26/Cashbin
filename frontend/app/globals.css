@@ -58,6 +58,23 @@
   .green-bar tbody tr:nth-child(even) {
     background: var(--bar);
   }
+
+  /* Ruled columns need air between them, or a number runs into the next label. */
+  .ledger th,
+  .ledger td {
+    padding-left: 12px;
+    padding-right: 12px;
+  }
+
+  .ledger th:first-child,
+  .ledger td:first-child {
+    padding-left: 8px;
+  }
+
+  .ledger th:last-child,
+  .ledger td:last-child {
+    padding-right: 8px;
+  }
 }
 
 @media print {

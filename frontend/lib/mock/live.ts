@@ -17,7 +17,7 @@ export function emptyLiveState(): LiveState {
   return {
     connected: false,
     weight_g: 0,
-    samples: flatSamples(0),
+    samples: Array.from({ length: WINDOW }, () => 0),
     steps: [],
     tape: [],
     ticket: null,
@@ -37,6 +37,7 @@ export function startMockLive(
     setState(() => ({
       ...emptyLiveState(),
       connected: view !== "error",
+      samples: view === "error" ? emptyLiveState().samples : flatSamples(0),
       device:
         view === "error"
           ? { ...OFFLINE }

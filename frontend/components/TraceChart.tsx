@@ -26,8 +26,8 @@ export function TraceChart({ trace, height = 72 }: { trace: WeightTrace; height?
     <figure className="m-0">
       <svg
         viewBox={`0 0 ${width} ${height}`}
-        width="100%"
-        height={height}
+        className="h-auto w-full"
+        preserveAspectRatio="none"
         role="img"
         aria-label={`Weight trace, settling at ${formatMass(values[values.length - 1] ?? 0)}`}
       >

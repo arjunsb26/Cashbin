@@ -90,16 +90,16 @@ export default function AssetsPage() {
 
       {rows.length > 0 ? (
         <div className="overflow-x-auto">
-          <table className="green-bar w-full min-w-[820px] border-collapse text-body">
+          <table className="ledger green-bar w-full min-w-[860px] border-collapse text-body">
             <thead>
               <tr className="border-b border-rule text-caption text-ink-soft">
-                <th className="py-1 pl-2 font-normal">Tag</th>
+                <th className="py-1 font-normal">Tag</th>
                 <th className="py-1 font-normal">Description</th>
                 <th className="py-1 text-right font-normal">Cost ($)</th>
                 <th className="py-1 font-normal">In service</th>
-                <th className="py-1 text-right font-normal">Book value</th>
-                <th className="py-1 text-right font-normal">Tax basis</th>
-                <th className="py-1 pr-2 font-normal">Status</th>
+                <th className="py-1 text-right font-normal">Book value ($)</th>
+                <th className="py-1 text-right font-normal">Tax basis ($)</th>
+                <th className="py-1 font-normal">Status</th>
               </tr>
             </thead>
             <tbody>
@@ -119,12 +119,12 @@ export default function AssetsPage() {
 function AssetRow({ asset }: { asset: Asset }) {
   return (
     <tr className="h-row border-b border-rule hover:bg-bar">
-      <td className="pl-2 font-condensed">{asset.tag}</td>
+      <td className="font-condensed">{asset.tag}</td>
       <td>{asset.description}</td>
       <td className="text-right">
         <Money cents={asset.cost_cents} eventId={asset.disposed_event_id} focus="cost" />
       </td>
-      <td className="text-ink-soft">{formatDate(asset.in_service_date)}</td>
+      <td className="whitespace-nowrap text-ink-soft">{formatDate(asset.in_service_date)}</td>
       <td className="text-right">
         <Money
           cents={asset.book_value_cents}
@@ -135,8 +135,8 @@ function AssetRow({ asset }: { asset: Asset }) {
       <td className="text-right">
         <Money cents={asset.tax_basis_cents} eventId={asset.disposed_event_id} focus="tax basis" />
       </td>
-      <td className="pr-2">
-        <span className="flex items-center gap-2">
+      <td>
+        <span className="flex items-center gap-2 whitespace-nowrap">
           <StatusDot tone={STATUS_TONES[asset.status]} />
           {STATUS_WORDS[asset.status]}
         </span>

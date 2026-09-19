@@ -137,6 +137,26 @@ export function formatProbability(p: number): string {
   return formatPercent(p, 0);
 }
 
+export type PostedSide = "debit" | "credit";
+
+/**
+ * Which side of an entry each line sits on. A line with an amount says so itself.
+ * A line worth nothing still belongs on a side, and an entry is written debits
+ * first, so the first amountless line is a debit and the rest are credits.
+ */
+export function entrySides(
+  lines: { debit_cents: number; credit_cents: number }[],
+): PostedSide[] {
+  let blankSeen = false;
+  return lines.map((line) => {
+    if (line.credit_cents > 0) return "credit";
+    if (line.debit_cents > 0) return "debit";
+    if (blankSeen) return "credit";
+    blankSeen = true;
+    return "debit";
+  });
+}
+
 /**
  * Free text typed by a person is never passed along as written.
  * Same rule as the backend: trimmed, max 40 characters, letters digits spaces

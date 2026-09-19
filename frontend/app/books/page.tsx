@@ -4,7 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import * as Tabs from "@radix-ui/react-tabs";
 import { useJournal, useTrialBalance } from "@/lib/api";
-import { formatDate, formatMoney } from "@/lib/format";
+import { entrySides, formatDate, formatMoney } from "@/lib/format";
 import type { Basis } from "@/lib/types";
 import { Money } from "@/components/Figure";
 import {
@@ -61,62 +61,69 @@ export default function BooksPage() {
             <EmptyState title="No entries in this view yet. They post as tickets are finalised." />
           ) : null}
           {entries.length > 0 ? (
-            <table className="green-bar w-full border-collapse text-body">
-              <thead>
-                <tr className="border-b border-rule text-caption text-ink-soft">
-                  <th className="py-1 pl-2 font-normal">Posted</th>
-                  <th className="py-1 font-normal">Account</th>
-                  <th className="py-1 font-normal">Memo</th>
-                  <th className="py-1 font-normal">Basis</th>
-                  <th className="py-1 text-right font-normal">Debit ($)</th>
-                  <th className="py-1 text-right font-normal">Credit ($)</th>
-                  <th className="py-1 pr-2 text-right font-normal">Ticket</th>
-                </tr>
-              </thead>
-              <tbody>
-                {entries.flatMap((entry) =>
-                  entry.lines.map((line, i) => (
-                    <tr
-                      key={`${entry.id}-${line.account}`}
-                      className="h-row border-b border-rule hover:bg-bar"
-                    >
-                      <td className="pl-2 text-ink-soft">
-                        {i === 0 ? formatDate(entry.posted_at) : ""}
-                      </td>
-                      <td>{line.account}</td>
-                      <td className="text-ink-soft">{i === 0 ? entry.memo : ""}</td>
-                      <td className="text-ink-soft">
-                        {entry.basis === "book" ? "Book" : "Tax memo"}
-                      </td>
-                      <td className="text-right">
-                        {line.debit_cents > 0 ? (
-                          <Money cents={line.debit_cents} eventId={entry.event_id} focus="debit" />
-                        ) : null}
-                      </td>
-                      <td className="text-right">
-                        {line.credit_cents > 0 ? (
-                          <Money
-                            cents={line.credit_cents}
-                            eventId={entry.event_id}
-                            focus="credit"
-                          />
-                        ) : null}
-                      </td>
-                      <td className="pr-2 text-right">
-                        {entry.event_id && i === 0 ? (
-                          <Link
-                            className="underline underline-offset-2"
-                            href={`/events/${entry.event_id}`}
-                          >
-                            {entry.event_id}
-                          </Link>
-                        ) : null}
-                      </td>
-                    </tr>
-                  )),
-                )}
-              </tbody>
-            </table>
+            <div className="overflow-x-auto">
+              <table className="ledger green-bar w-full min-w-[840px] border-collapse text-body">
+                <thead>
+                  <tr className="border-b border-rule text-caption text-ink-soft">
+                    <th className="py-1 font-normal">Posted</th>
+                    <th className="py-1 font-normal">Account</th>
+                    <th className="py-1 font-normal">Memo</th>
+                    <th className="py-1 font-normal">Basis</th>
+                    <th className="py-1 text-right font-normal">Debit ($)</th>
+                    <th className="py-1 text-right font-normal">Credit ($)</th>
+                    <th className="py-1 text-right font-normal">Ticket</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {entries.flatMap((entry) => {
+                    const sides = entrySides(entry.lines);
+                    return entry.lines.map((line, i) => (
+                      <tr
+                        key={`${entry.id}-${line.account}`}
+                        className="h-row border-b border-rule hover:bg-bar"
+                      >
+                        <td className="whitespace-nowrap text-ink-soft">
+                          {i === 0 ? formatDate(entry.posted_at) : ""}
+                        </td>
+                        <td>{line.account}</td>
+                        <td className="text-ink-soft">{i === 0 ? entry.memo : ""}</td>
+                        <td className="whitespace-nowrap text-ink-soft">
+                          {entry.basis === "book" ? "Book" : "Tax memo"}
+                        </td>
+                        <td className="text-right">
+                          {sides[i] === "debit" ? (
+                            <Money
+                              cents={line.debit_cents}
+                              eventId={entry.event_id}
+                              focus="debit"
+                            />
+                          ) : null}
+                        </td>
+                        <td className="text-right">
+                          {sides[i] === "credit" ? (
+                            <Money
+                              cents={line.credit_cents}
+                              eventId={entry.event_id}
+                              focus="credit"
+                            />
+                          ) : null}
+                        </td>
+                        <td className="text-right">
+                          {entry.event_id && i === 0 ? (
+                            <Link
+                              className="underline underline-offset-2"
+                              href={`/events/${entry.event_id}`}
+                            >
+                              {entry.event_id}
+                            </Link>
+                          ) : null}
+                        </td>
+                      </tr>
+                    ));
+                  })}
+                </tbody>
+              </table>
+            </div>
           ) : null}
         </Tabs.Content>
 
@@ -148,35 +155,37 @@ function TrialBalance({
   const debits = rows.reduce((sum, r) => sum + r.debit_cents, 0);
   const credits = rows.reduce((sum, r) => sum + r.credit_cents, 0);
   return (
-    <table className="green-bar w-full max-w-[720px] border-collapse text-body">
-      <thead>
-        <tr className="border-b border-rule text-caption text-ink-soft">
-          <th className="py-1 pl-2 font-normal">Account</th>
-          <th className="py-1 text-right font-normal">Debit ($)</th>
-          <th className="py-1 pr-2 text-right font-normal">Credit ($)</th>
-        </tr>
-      </thead>
-      <tbody>
-        {rows.map((row) => (
-          <tr key={row.account} className="h-row border-b border-rule hover:bg-bar">
-            <td className="pl-2">{row.account}</td>
-            <td className="text-right">
-              {row.debit_cents > 0 ? formatMoney(row.debit_cents) : ""}
-            </td>
-            <td className="pr-2 text-right">
-              {row.credit_cents > 0 ? formatMoney(row.credit_cents) : ""}
-            </td>
+    <div className="overflow-x-auto">
+      <table className="ledger green-bar w-full min-w-[420px] max-w-[720px] border-collapse text-body">
+        <thead>
+          <tr className="border-b border-rule text-caption text-ink-soft">
+            <th className="py-1 font-normal">Account</th>
+            <th className="py-1 text-right font-normal">Debit ($)</th>
+            <th className="py-1 text-right font-normal">Credit ($)</th>
           </tr>
-        ))}
-      </tbody>
-      <tfoot>
-        <tr className="h-row border-t border-ink">
-          <td className="pl-2">Totals</td>
-          <td className="text-right">{formatMoney(debits, { symbol: true })}</td>
-          <td className="pr-2 text-right">{formatMoney(credits, { symbol: true })}</td>
-        </tr>
-      </tfoot>
-    </table>
+        </thead>
+        <tbody>
+          {rows.map((row) => (
+            <tr key={row.account} className="h-row border-b border-rule hover:bg-bar">
+              <td>{row.account}</td>
+              <td className="text-right">
+                {row.debit_cents > 0 ? formatMoney(row.debit_cents) : ""}
+              </td>
+              <td className="text-right">
+                {row.credit_cents > 0 ? formatMoney(row.credit_cents) : ""}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+        <tfoot>
+          <tr className="h-row border-t border-ink">
+            <td>Totals</td>
+            <td className="text-right">{formatMoney(debits, { symbol: true })}</td>
+            <td className="text-right">{formatMoney(credits, { symbol: true })}</td>
+          </tr>
+        </tfoot>
+      </table>
+    </div>
   );
 }
 

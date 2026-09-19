@@ -46,7 +46,9 @@ export function ScaleStrip({
     if (samples.length === 0) return;
     const min = Math.min(...samples);
     const max = Math.max(...samples);
-    const span = Math.max(max - min, 4);
+    // A fixed floor on the span, so a gram of sensor noise reads as a flat
+    // instrument line instead of filling the strip with a sawtooth.
+    const span = Math.max(max - min, 40);
     const x = (i: number) => (i / (samples.length - 1)) * width;
     const y = (g: number) => height - 8 - ((g - min) / span) * (height - 16);
 
@@ -78,12 +80,11 @@ export function ScaleStrip({
   }, [samples, steps, connected]);
 
   return (
-    <div className="flex items-center gap-4 border-b border-rule py-3">
-      <span className="w-12 shrink-0 text-caption text-ink-soft">scale</span>
-      <div className="min-w-0 flex-1">
+    <div className="flex flex-col gap-1 border-b border-rule py-3 sm:flex-row sm:items-center sm:gap-4">
+      <div className="order-2 min-w-0 flex-1 sm:order-1">
         <canvas ref={canvas} aria-hidden="true" />
       </div>
-      <div className="shrink-0 text-right">
+      <div className="order-1 shrink-0 text-right sm:order-2">
         <span className="font-condensed text-total">{formatCount(Math.round(weight_g))}</span>
         <span className="pl-1 text-body text-ink-soft">g</span>
         <p className="text-caption text-ink-soft">

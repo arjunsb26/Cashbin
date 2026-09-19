@@ -78,11 +78,14 @@ export function Mass({
   eventId,
   focus = "mass",
   className,
+  unit = true,
 }: {
   grams: number;
   eventId?: number | null;
   focus?: string;
   className?: string;
+  /** Off inside a table, where the unit is named once in the column header. */
+  unit?: boolean;
 }) {
   const parts = massParts(grams);
   return (
@@ -93,7 +96,7 @@ export function Mass({
       className={className}
     >
       {parts.value}
-      <span className="pl-[2px] text-ink-soft">{parts.unit}</span>
+      {unit ? <span className="pl-[2px] text-ink-soft">{parts.unit}</span> : null}
     </Clickable>
   );
 }
@@ -103,11 +106,14 @@ export function Co2({
   eventId,
   focus = "carbon",
   className,
+  unit = true,
 }: {
   kg: number | null;
   eventId?: number | null;
   focus?: string;
   className?: string;
+  /** Off inside a table, where the unit is named once in the column header. */
+  unit?: boolean;
 }) {
   const parts = co2eParts(kg);
   return (
@@ -118,7 +124,9 @@ export function Co2({
       className={className}
     >
       {parts.value}
-      {parts.unit ? <span className="pl-[2px] text-ink-soft">{parts.unit}</span> : null}
+      {unit && parts.unit ? (
+        <span className="pl-[2px] text-ink-soft">{parts.unit}</span>
+      ) : null}
     </Clickable>
   );
 }

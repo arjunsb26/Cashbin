@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import type { JournalEntry } from "@/lib/types";
-import { formatMoney } from "@/lib/format";
+import { entrySides, formatMoney } from "@/lib/format";
 import { Button, EmptyState, SectionTitle } from "./ui";
 
 /**
@@ -64,13 +64,15 @@ function TColumn({ title, entries }: { title: string; entries: JournalEntry[] })
   return (
     <div className="flex flex-col gap-4">
       <h3 className="text-section">{title}</h3>
-      {entries.map((entry) => (
+      {entries.map((entry) => {
+        const sides = entrySides(entry.lines);
+        return (
         <div key={entry.id}>
           <p className="border-b border-ink pb-1 text-body">{entry.memo}</p>
           <div className="grid grid-cols-2">
             <ul className="m-0 list-none border-r border-ink p-0 pr-3 pt-2">
               {entry.lines
-                .filter((l) => l.debit_cents > 0 || l.credit_cents === 0)
+                .filter((_, i) => sides[i] === "debit")
                 .map((line) => (
                   <li key={line.account} className="flex justify-between gap-3 py-1 text-body">
                     <span className="min-w-0 truncate">{line.account}</span>
@@ -80,7 +82,7 @@ function TColumn({ title, entries }: { title: string; entries: JournalEntry[] })
             </ul>
             <ul className="m-0 list-none p-0 pl-3 pt-2">
               {entry.lines
-                .filter((l) => l.credit_cents > 0)
+                .filter((_, i) => sides[i] === "credit")
                 .map((line) => (
                   <li key={line.account} className="flex justify-between gap-3 py-1 text-body">
                     <span className="min-w-0 truncate">{line.account}</span>
@@ -91,37 +93,39 @@ function TColumn({ title, entries }: { title: string; entries: JournalEntry[] })
           </div>
           <p className="pt-1 text-caption text-ink-soft">Debits left, credits right.</p>
         </div>
-      ))}
+        );
+      })}
     </div>
   );
 }
 
 export function JournalTable({ entries }: { entries: JournalEntry[] }) {
   return (
-    <table className="green-bar w-full border-collapse text-body">
+    <table className="ledger green-bar w-full border-collapse text-body">
       <thead>
         <tr className="border-b border-rule text-caption text-ink-soft">
-          <th className="py-1 pl-2 font-normal">Account</th>
+          <th className="py-1 font-normal">Account</th>
           <th className="py-1 font-normal">Memo</th>
           <th className="py-1 text-right font-normal">Debit ($)</th>
-          <th className="py-1 pr-2 text-right font-normal">Credit ($)</th>
+          <th className="py-1 text-right font-normal">Credit ($)</th>
         </tr>
       </thead>
       <tbody>
-        {entries.flatMap((entry) =>
-          entry.lines.map((line) => (
+        {entries.flatMap((entry) => {
+          const sides = entrySides(entry.lines);
+          return entry.lines.map((line, i) => (
             <tr key={`${entry.id}-${line.account}`} className="h-row border-b border-rule">
-              <td className="pl-2">{line.account}</td>
+              <td>{line.account}</td>
               <td className="text-ink-soft">{entry.memo}</td>
               <td className="text-right">
-                {line.debit_cents > 0 ? formatMoney(line.debit_cents) : ""}
+                {sides[i] === "debit" ? formatMoney(line.debit_cents) : ""}
               </td>
-              <td className="pr-2 text-right">
-                {line.credit_cents > 0 ? formatMoney(line.credit_cents) : ""}
+              <td className="text-right">
+                {sides[i] === "credit" ? formatMoney(line.credit_cents) : ""}
               </td>
             </tr>
-          )),
-        )}
+          ));
+        })}
       </tbody>
     </table>
   );

@@ -2,6 +2,7 @@
 
 import type { ButtonHTMLAttributes, InputHTMLAttributes, ReactNode } from "react";
 import { forwardRef } from "react";
+import { ChevronDown } from "lucide-react";
 import { FINANCE_FOOTER } from "@/lib/format";
 
 export function cx(...parts: (string | false | null | undefined)[]): string {
@@ -82,15 +83,23 @@ export function Select({
   ...rest
 }: InputHTMLAttributes<HTMLSelectElement> & { children: ReactNode }) {
   return (
-    <select
-      className={cx(
-        "h-9 rounded-control border border-control-border bg-surface px-2 text-body text-ink",
-        className,
-      )}
-      {...rest}
-    >
-      {children}
-    </select>
+    <span className="relative inline-flex items-center">
+      <select
+        className={cx(
+          "h-9 appearance-none rounded-control border border-control-border bg-surface pl-2 pr-8 text-body text-ink",
+          className,
+        )}
+        {...rest}
+      >
+        {children}
+      </select>
+      <ChevronDown
+        size={16}
+        strokeWidth={1.5}
+        aria-hidden="true"
+        className="pointer-events-none absolute right-2 text-ink-soft"
+      />
+    </span>
   );
 }
 
@@ -118,12 +127,12 @@ export function PageHeader({
   description?: string;
 }) {
   return (
-    <div className="flex items-start justify-between gap-4 pb-4">
+    <div className="flex flex-col gap-3 pb-4 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
       <div>
         <h1 className="text-title">{title}</h1>
         {description ? <p className="pt-1 text-caption text-ink-soft">{description}</p> : null}
       </div>
-      {right ? <div className="flex items-center gap-2">{right}</div> : null}
+      {right ? <div className="flex flex-wrap items-center gap-2">{right}</div> : null}
     </div>
   );
 }

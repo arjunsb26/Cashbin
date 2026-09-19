@@ -1,5 +1,6 @@
 "use client";
 
+import { ImageOff } from "lucide-react";
 import { cx } from "./ui";
 
 /**
@@ -33,12 +34,14 @@ export function CropFrame({
   return (
     <div
       className={cx(
-        "flex items-center justify-center border border-dashed border-rule bg-bar p-2 text-center text-caption text-ink-soft",
+        "flex flex-col items-center justify-center gap-1 border border-dashed border-rule bg-bar p-2 text-center text-caption text-ink-soft",
         className,
       )}
       style={{ width: size, height: size }}
+      title="Photo arrives with the phone camera"
     >
-      Photo arrives with the phone camera
+      <ImageOff size={16} strokeWidth={1.5} aria-hidden="true" />
+      {size >= 96 ? <span>Photo arrives with the phone camera</span> : null}
     </div>
   );
 }

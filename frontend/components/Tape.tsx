@@ -65,7 +65,15 @@ export function Tape({ events }: { events: EventSummary[] }) {
                   (event.book_amount_cents ?? 0) < 0 && "text-red-ink",
                 )}
               >
-                {event.book_amount_cents === null ? "" : formatMoney(event.book_amount_cents)}
+                {event.book_amount_cents === null ? (
+                  <span className="text-caption text-ink-soft">
+                    {event.status === "asking" || event.status === "detected"
+                      ? "pending"
+                      : "no entry"}
+                  </span>
+                ) : (
+                  formatMoney(event.book_amount_cents)
+                )}
               </span>
             </span>
           </button>
