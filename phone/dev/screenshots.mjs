@@ -16,7 +16,7 @@ const option = (name, fallback) => {
   return hit ? hit.slice(name.length + 3) : fallback;
 };
 
-const BASE = option("base", "https://localhost:8443");
+const BASE = option("base", "https://localhost:8444");
 const OUT = path.resolve(option("out", "screenshots"));
 const PAGE = `${BASE}/phone/`;
 
@@ -123,10 +123,32 @@ async function main() {
   await wait(300);
   await shot(page, "5-ask-something-else");
   console.log("read back as:", await page.textContent("#askReadBack"));
+
+  // 4c. a result that lands while the question is open has to wait for the answer
+  await post("/api/dev/send", {
+    type: "result",
+    event_id: 19,
+    title: "Bagel",
+    big: "-$0.48",
+    line: "Food waste, composted",
+    tone: "green",
+    mass_g: 95,
+  });
+  await wait(600);
+  const heldBack = await page.getAttribute("#resultSheet", "data-open");
+  console.log(`result sheet while the question is open: data-open=${heldBack}`);
+  if (heldBack !== "false") throw new Error("a result took the question off the screen");
+
   await page.click("#askSend");
   await page.waitForSelector('#askSheet[data-open="false"]');
   await wait(300);
   await shot(page, "6-learned");
+  await page.waitForSelector('#resultSheet[data-open="true"]', { timeout: 3000 });
+  await wait(300);
+  await shot(page, "10-result-after-answer");
+  console.log("the held back result arrived after the answer");
+  await page.click("#resultSheet");
+  await wait(400);
 
   // 5. reconnecting, by killing the socket and keeping the mock closed for a while
   await page.waitForSelector("#learnedLine", { state: "hidden" });

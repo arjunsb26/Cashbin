@@ -330,13 +330,11 @@ body {
   margin: 0;
 }
 
-.result[data-tone="red"] .result__figure,
-.sheet[data-tone="red"] .result__figure {
+/* Money is coloured by its sign, not by the tone of the result, so the figure
+   never says kept while it reads as a loss. The tone lives in the band.
+   DESIGN.md section 2, "Type". */
+.result__figure[data-sign="negative"] {
   color: var(--red-ink);
-}
-
-.sheet[data-tone="green"] .result__figure {
-  color: var(--kept);
 }
 
 .result__dismiss {

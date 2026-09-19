@@ -71,6 +71,7 @@ let learnedTimer = 0;
 let tooltipTimer = 0;
 let askEventId = null;
 let answering = false;
+let heldResult = null;
 let wakeLock = null;
 
 const canvas = document.createElement("canvas");
@@ -371,10 +372,24 @@ function tone(value) {
 }
 
 function showResult(message) {
-  closeAsk();
+  // A question on screen is never taken away under someone's thumb. A result
+  // that lands while an ask is open waits here and rises once the question is
+  // off the screen, so neither the question nor the ticket is lost.
+  if (askSheet.dataset.open === "true") {
+    heldResult = message;
+    return;
+  }
+  drawResult(message);
+}
+
+function drawResult(message) {
   resultSheet.dataset.tone = tone(message.tone);
   resultTitle.textContent = text(message.title, 60) || "Ticket";
-  resultFigure.textContent = text(message.big, 12);
+  const big = text(message.big, 12);
+  resultFigure.textContent = big;
+  // The backend sends the figure already shaped for the LCD, so the page reads
+  // the sign off the front of it rather than formatting the number again.
+  resultFigure.dataset.sign = big.startsWith("-") || big.startsWith("(") ? "negative" : "positive";
   resultLine.textContent = text(message.line, 80);
 
   const grams = typeof message.mass_g === "number" && isFinite(message.mass_g) ? message.mass_g : null;
@@ -448,6 +463,9 @@ function showAsk(message) {
 function closeAsk() {
   askEventId = null;
   closeSheet(askSheet);
+  const waiting = heldResult;
+  heldResult = null;
+  if (waiting) drawResult(waiting);
 }
 
 /* ---- the free text answer ----

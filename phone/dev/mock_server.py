@@ -9,7 +9,7 @@ Run it from the worktree root:
 
     uv run --project backend python phone/dev/mock_server.py
 
-Then open https://<your laptop ip>:8443/phone/ on the phone and accept the
+Then open https://<your laptop ip>:8444/phone/ on the phone and accept the
 certificate once.
 """
 
@@ -277,7 +277,7 @@ app.mount("/phone", StaticFiles(directory=PHONE, html=True), name="phone")
 def main() -> None:
     global script_on
     parser = argparse.ArgumentParser(description="Mock backend for the phone page")
-    parser.add_argument("--port", type=int, default=8443)
+    parser.add_argument("--port", type=int, default=8444)
     parser.add_argument("--host", default="0.0.0.0")
     parser.add_argument("--no-script", action="store_true", help="do not play the scripted result and ask")
     args = parser.parse_args()

@@ -26,7 +26,7 @@ It makes its own certificate in `phone/dev/certs/` on first run, with `localhost
 this laptop's LAN addresses in it, then prints one URL per address. Flags:
 
 ```
---port 8443     the port to bind
+--port 8444     the port to bind
 --host 0.0.0.0  the interface to bind
 --no-script     do not play the scripted result and ask
 ```
@@ -38,7 +38,7 @@ seconds after that an ask, and an idle once an answer is posted.
 
 1. Put the phone and the laptop on the same network. A phone hotspot works and is
    usually faster than venue wifi.
-2. Open the `https://<laptop address>:8443/phone/` line the mock printed.
+2. Open the `https://<laptop address>:8444/phone/` line the mock printed.
 3. The browser warns about the certificate. Accept it once. On iOS Safari tap Show
    details, then Visit this website. On Android Chrome tap Advanced, then Proceed.
 4. Tap Start camera and allow the camera. Frames start at once and the mock logs how
@@ -68,7 +68,7 @@ pnpm screenshots
 ```
 
 Chromium runs at 390x844 with a fake camera and writes to `phone/dev/screenshots/`.
-Pass `--base=https://localhost:8443` or `--out=<folder>` to change either.
+Pass `--base=https://localhost:8444` or `--out=<folder>` to change either.
 
 To also capture the page opened over plain HTTP, serve the folder insecurely in a second
 terminal and pass its LAN address. A browser treats localhost as secure whatever the
