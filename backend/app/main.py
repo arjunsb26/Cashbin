@@ -5,28 +5,22 @@ Step 0 owns this file. Lanes replace the socket bodies in app/ingest and fill th
 
 from __future__ import annotations
 
-import json
 import logging
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
-from fastapi import APIRouter, FastAPI, WebSocket, WebSocketDisconnect
+from fastapi import APIRouter, FastAPI, WebSocket
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
-from pydantic import ValidationError
 
 from app.api import assets, close, corrections, events, journal, metrics, settings, sim
 from app.config import APP_VERSION, REPO_DIR, Settings, get_settings
 from app.db import dispose_db, init_db, table_names
+from app.ingest import bin_socket, phone_socket, ui_socket
+from app.ingest.state import build_state
 from app.models import ALL_TABLES
-from app.notify.bus import CHANNEL_PHONE, CHANNEL_UI, get_bus
-from app.schemas import (
-    BinHello,
-    BrandInfo,
-    HealthResponse,
-    PhoneHello,
-)
+from app.schemas import BrandInfo, HealthResponse
 
 log = logging.getLogger(__name__)
 
@@ -40,9 +34,12 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     active.media_dir.mkdir(parents=True, exist_ok=True)
     init_db(active)
     log.info("database ready with %d tables", len(table_names()))
+    app.state.ingest = build_state(active)
     try:
         yield
     finally:
+        app.state.ingest.close()
+        app.state.ingest = None
         dispose_db()
 
 
@@ -79,93 +76,19 @@ def _brand_route(app: FastAPI, active: Settings) -> None:
 
 
 def _sockets(app: FastAPI) -> None:
-    """Accept, check the hello, answer ping and pong. Lanes A and E add the real handling."""
-    bus = get_bus()
+    """The three sockets. Every body is one call into app.ingest, which owns the rest."""
 
     @app.websocket("/ws/bin")
     async def ws_bin(websocket: WebSocket) -> None:
-        await websocket.accept()
-        greeted = False
-        try:
-            while True:
-                raw = await websocket.receive_text()
-                try:
-                    message = json.loads(raw)
-                except json.JSONDecodeError:
-                    await websocket.send_json({"type": "error", "detail": "not json"})
-                    continue
-                kind = message.get("type") if isinstance(message, dict) else None
-                if kind == "hello":
-                    try:
-                        BinHello.model_validate(message)
-                    except ValidationError:
-                        await websocket.close(code=1008)
-                        return
-                    greeted = True
-                    await websocket.send_json({"type": "ping"})
-                elif not greeted:
-                    await websocket.close(code=1008)
-                    return
-                elif kind in {"ping", "pong"}:
-                    await websocket.send_json({"type": "pong" if kind == "ping" else "ping"})
-        except WebSocketDisconnect:
-            return
+        await bin_socket.serve(websocket)
 
     @app.websocket("/ws/phone")
     async def ws_phone(websocket: WebSocket) -> None:
-        await websocket.accept()
-        greeted = False
-        subscription = bus.subscribe(CHANNEL_PHONE)
-        try:
-            while True:
-                packet = await websocket.receive()
-                if packet.get("type") == "websocket.disconnect":
-                    return
-                raw = packet.get("text")
-                if raw is None:
-                    # Binary frames are JPEG bytes. Lane A gives them a ring buffer.
-                    continue
-                try:
-                    message = json.loads(raw)
-                except json.JSONDecodeError:
-                    continue
-                kind = message.get("type") if isinstance(message, dict) else None
-                if kind == "hello":
-                    try:
-                        PhoneHello.model_validate(message)
-                    except ValidationError:
-                        await websocket.close(code=1008)
-                        return
-                    greeted = True
-                    await websocket.send_json({"type": "ping"})
-                elif not greeted:
-                    await websocket.close(code=1008)
-                    return
-                elif kind in {"ping", "pong"}:
-                    await websocket.send_json({"type": "pong" if kind == "ping" else "ping"})
-        except WebSocketDisconnect:
-            return
-        finally:
-            subscription.close()
+        await phone_socket.serve(websocket)
 
     @app.websocket("/ws/ui")
     async def ws_ui(websocket: WebSocket) -> None:
-        await websocket.accept()
-        subscription = bus.subscribe(CHANNEL_UI)
-        try:
-            while True:
-                raw = await websocket.receive_text()
-                try:
-                    message = json.loads(raw)
-                except json.JSONDecodeError:
-                    continue
-                kind = message.get("type") if isinstance(message, dict) else None
-                if kind in {"ping", "pong"}:
-                    await websocket.send_json({"type": "pong" if kind == "ping" else "ping"})
-        except WebSocketDisconnect:
-            return
-        finally:
-            subscription.close()
+        await ui_socket.serve(websocket)
 
 
 def create_app(active: Settings | None = None) -> FastAPI:

@@ -5,7 +5,8 @@ from __future__ import annotations
 from fastapi import APIRouter
 
 from app.api import not_implemented
-from app.schemas import DeviceTareResponse, SettingsRead, SettingsUpdate
+from app.notify.bus import CHANNEL_BIN, get_bus
+from app.schemas import BinTare, DeviceTareResponse, SettingsRead, SettingsUpdate
 
 router = APIRouter(prefix="/api", tags=["settings"])
 
@@ -22,4 +23,11 @@ def update_settings(body: SettingsUpdate) -> SettingsRead:
 
 @router.post("/device/tare", response_model=DeviceTareResponse)
 def tare_device() -> DeviceTareResponse:
-    not_implemented("Lane A", "Taring the scale")
+    """Send the scale back to zero.
+
+    The command goes on the `bin` channel and the bin socket forwards it. `sent` says
+    whether a bin was there to receive it, so the dashboard can say "no bin connected"
+    instead of pretending the button did something.
+    """
+    delivered = get_bus().publish(BinTare(), CHANNEL_BIN)
+    return DeviceTareResponse(sent=delivered > 0)

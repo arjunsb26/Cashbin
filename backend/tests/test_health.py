@@ -72,10 +72,11 @@ def test_init_db_is_idempotent(settings: Settings) -> None:
     assert set(ALL_TABLES).issubset(set(inspect(get_engine()).get_table_names()))
 
 
+# Routes step 0 stubbed that no lane has filled yet. A lane that lands a route takes
+# its line out of here, because the point of the list is that nothing is forgotten, not
+# that nothing is built. Lane A took out the four it filled: the event list, event
+# detail, void and tare.
 STUB_ROUTES = [
-    ("get", "/api/events"),
-    ("get", "/api/events/1"),
-    ("post", "/api/events/1/void"),
     ("get", "/api/assets"),
     ("get", "/api/catalog"),
     ("get", "/api/journal"),
@@ -84,7 +85,6 @@ STUB_ROUTES = [
     ("get", "/api/summary"),
     ("get", "/api/close/1"),
     ("get", "/api/settings"),
-    ("post", "/api/device/tare"),
 ]
 
 
@@ -132,8 +132,9 @@ def test_sim_routes_are_hidden_without_dev_tools(client: TestClient) -> None:
 
 
 def test_sim_routes_appear_with_dev_tools(dev_client: TestClient) -> None:
+    # Lane A filled /toss, so it answers. /expect is Lane C's and still says so.
     assert (
-        dev_client.post("/api/sim/toss", json={"label": "bagel", "mass_g": 90.0}).status_code == 501
+        dev_client.post("/api/sim/toss", json={"label": "bagel", "mass_g": 90.0}).status_code == 200
     )
     assert dev_client.post("/api/sim/expect", json={"label": "bagel"}).status_code == 501
 
