@@ -2,6 +2,45 @@
 
 Newest first. Each lane writes under its own heading.
 
+## 2026-09-19, lane h: hardware readiness for the bin
+
+- `hardware/uno_q/bridge.py` is the Linux-side program for the UNO Q. It holds the
+  socket to the backend with reconnect and backoff, sends `hello` then `weight` at
+  15 Hz with device milliseconds, answers every `ping` with a `pong`, and passes
+  `screen` and `tare` straight through to a display. Plain Python 3.9 or newer, the
+  standard library and `websockets`, one file to copy to the board.
+- The weight source and the display are adapters, so the same program runs three
+  ways. `BridgeWeightSource` and `BridgeDisplay` call the sketch through Arduino's
+  router bridge (`from arduino.app_utils import Bridge`, then `Bridge.call` for a
+  reading and `Bridge.notify` for a screen). `SerialWeightSource` and `SerialDisplay`
+  carry the same JSON over a serial port, for the case where the board ends up on a
+  plain serial link. `FakeWeightSource` and `PrintDisplay` are a noisy baseline with
+  scripted tosses and the simulator's own LCD text box, so the whole program runs on
+  the laptop today.
+- `hardware/uno_q/sketch/binbooks_bin.ino` is the microcontroller side. It reads an
+  HX711 load cell amplifier with a calibration factor and a tare offset, exposes
+  `read_grams`, `tare` and `show_screen` to the Linux side, and draws the five screens
+  of DESIGN.md section 7 on a 240x320 portrait panel through Adafruit GFX. The driver
+  is a compile-time choice between ILI9341 and ST7789, the tone colours are the
+  DESIGN.md hex values converted to RGB565 with the source hex in a comment, and the
+  bin shows offline on its own after five seconds of silence, which is the only
+  decision it makes without being told.
+- Every pin, the calibration factor and the amplifier's sample rate sit in
+  `hardware/uno_q/sketch/bin_config.h`, each marked `NEEDS_HARDWARE_CHECK` with the
+  question it waits on. Nothing else in the sketch names a pin.
+- `hardware/uno_q/test_bridge_on_laptop.py` is the proof. It starts a backend on free
+  ports with its own database, runs the bridge with the fake scale, types two tosses
+  and a bag change, and checks that the backend created the three events and that the
+  display drew the offline, idle and thinking screens.
+- `hardware/README.md` is the build guide: what to install, how to join the laptop's
+  hotspot, the exact command, the wiring table, the calibration procedure, what each
+  screen shows, a checklist for before the demo, and the six questions still open.
+- `hardware/find_laptop_ip.ps1` prints the address to point the bin at, preferring the
+  mobile hotspot adapter over Wi-Fi, and says so when the hotspot is off.
+- `firmware_contract.md` gains a "How to connect" section: the URL, why the bin uses
+  plain HTTP on port 8000 rather than the self-signed 8443, hello first, and the five
+  second ping timeout. Every JSON example above it is untouched.
+
 ## 2026-09-19, lane f: period close and the investigator
 
 - `backend/app/ledger/close.py` runs a period close over the tables: write-offs by
