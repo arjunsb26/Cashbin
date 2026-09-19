@@ -180,6 +180,16 @@ Newest first. Each lane writes under its own heading.
   value. The enhanced food donation deduction is no longer zero, so donating the
   bagel ranks above binning it.
 
+## 2026-09-19, lane c: the request builders leave the adapter
+
+- Added `app/identify/openai_request.py` holding the prompt text, `strict_schema`, the body
+  assembler and the two `build_*_request` functions. `openai_provider.py` is now 123 lines,
+  89 of them code, down from 284 at the start of the day, and it does one job: send, retry
+  once, validate, record what it cost.
+- Moved the schema and request-shape tests into `tests/test_identify_request.py`, including
+  the attack set run against the builders. One hostile catalog label test stays in
+  `test_injection.py`, because that file is where the rule is claimed.
+
 ## 2026-09-19, lane c follow-ups: contracts, the estimate cache and the tone setting
 
 - Moved the estimate cache into `app/identify/estimate_cache.py` with its own tests. The
