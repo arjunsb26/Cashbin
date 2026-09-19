@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useLearned, useRounds, useSaveThresholds, useThresholds } from "@/lib/api";
-import { formatPercent, formatTime } from "@/lib/format";
+import { formatPercent } from "@/lib/format";
 import type { Thresholds } from "@/lib/types";
 import { LearningChart } from "@/components/LearningChart";
 import {
@@ -76,7 +76,6 @@ export default function LearningPage() {
               {learned.data.map((note) => (
                 <li key={note.id} className="border-b border-rule py-2">
                   <p className="text-body">{note.text}</p>
-                  <p className="text-caption text-ink-soft">{formatTime(note.created_at)}</p>
                 </li>
               ))}
             </ul>

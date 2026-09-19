@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { useAssets } from "@/lib/api";
 import { AssetTag } from "@/components/AssetTag";
 import { Button, EmptyState, ErrorState, PageHeader, Skeleton } from "@/components/ui";
@@ -16,17 +15,9 @@ export default function TagSheetPage() {
           title="Asset tags"
           description="One label per active asset. Print the sheet, or hold a tag up to the camera from this screen."
           right={
-            <>
-              <Link
-                href="/assets"
-                className="inline-flex h-9 items-center rounded-control border border-control-border bg-surface px-3 text-body hover:bg-bar"
-              >
-                Back to the register
-              </Link>
-              <Button tone="primary" onClick={() => window.print()}>
-                Print tags
-              </Button>
-            </>
+            <Button tone="primary" onClick={() => window.print()}>
+              Print tags
+            </Button>
           }
         />
       </div>

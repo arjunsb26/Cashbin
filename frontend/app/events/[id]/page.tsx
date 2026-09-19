@@ -1,7 +1,6 @@
 "use client";
 
 import { use } from "react";
-import Link from "next/link";
 import { useEvent } from "@/lib/api";
 import { formatDate, formatTime } from "@/lib/format";
 import { EvidenceBody } from "@/components/EvidenceBody";
@@ -57,11 +56,6 @@ export default function EventPage({ params }: { params: Promise<{ id: string }> 
       <PageHeader
         title={detail.event.label ?? `Ticket ${detail.event.id}`}
         description={`Ticket ${detail.event.id}, ${formatDate(detail.event.created_at)} at ${formatTime(detail.event.created_at)}`}
-        right={
-          <Link className="text-body underline underline-offset-2" href="/">
-            Back to live
-          </Link>
-        }
       />
 
       <div className="grid grid-cols-1 gap-8 lg:grid-cols-[560px_minmax(0,1fr)]">

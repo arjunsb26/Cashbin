@@ -21,7 +21,6 @@ export default function SetupPage() {
     <div className="max-w-[720px]">
       <PageHeader
         title="Still needs a person"
-        description="Seed values nobody has filled in yet. Each one is marked in its file."
       />
 
       {setup.isPending ? (

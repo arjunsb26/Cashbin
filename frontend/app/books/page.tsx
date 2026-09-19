@@ -27,7 +27,6 @@ export default function BooksPage() {
     <div>
       <PageHeader
         title="Books"
-        description="Every entry links back to the ticket that produced it."
         right={
           <label className="flex items-center gap-2 text-caption text-ink-soft">
             View

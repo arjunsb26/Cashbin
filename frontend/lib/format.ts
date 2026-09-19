@@ -101,11 +101,17 @@ export function formatCount(n: number): string {
   return whole.format(n);
 }
 
-/** Model cost per event, held in millionths of a dollar. */
+const fourDecimal = new Intl.NumberFormat("en-US", {
+  minimumFractionDigits: 4,
+  maximumFractionDigits: 4,
+});
+
+/**
+ * Model cost per toss, held in millionths of a dollar. Four decimals, because a
+ * toss costs a fraction of a cent and two decimals would print every round as zero.
+ */
 export function formatMicroUsd(microUsd: number): string {
-  if (microUsd === 0) return "0.00";
-  const cents = microUsd / 10000;
-  return `${money.format(cents / 100)}`;
+  return fourDecimal.format(microUsd / 1_000_000);
 }
 
 export function formatDate(iso: string): string {

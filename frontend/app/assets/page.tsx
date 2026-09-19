@@ -85,10 +85,7 @@ export default function AssetsPage() {
       ) : null}
 
       {assets.data && rows.length === 0 ? (
-        <EmptyState
-          title="No assets in this view. Add one, or clear the filter."
-          action={<AddAssetDialog />}
-        />
+        <EmptyState title="No assets in this view. Add one, or clear the filter." />
       ) : null}
 
       {rows.length > 0 ? (

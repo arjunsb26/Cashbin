@@ -10,6 +10,7 @@ import {
   formatCo2e,
   formatPercent,
   formatCount,
+  formatMicroUsd,
   formatProbability,
   readLabel,
 } from "./format.ts";
@@ -108,4 +109,10 @@ test("an empty label is not accepted", () => {
 test("html and unicode tricks come back as plain words", () => {
   assert.equal(readLabel("<b>bagel</b>").label, "b bagel b");
   assert.equal(readLabel("BAGEL​").label, "bagel");
+});
+
+test("cost per toss keeps four decimals, because a toss costs a fraction of a cent", () => {
+  assert.equal(formatMicroUsd(3200), "0.0032");
+  assert.equal(formatMicroUsd(0), "0.0000");
+  assert.equal(formatMicroUsd(1_250_000), "1.2500");
 });

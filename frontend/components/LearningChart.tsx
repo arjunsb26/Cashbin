@@ -1,7 +1,7 @@
 "use client";
 
 import type { Round } from "@/lib/types";
-import { formatPercent } from "@/lib/format";
+import { formatMicroUsd, formatPercent } from "@/lib/format";
 
 /**
  * Drawn by hand: faint horizontal rules, no legend box, each line labelled at its
@@ -111,7 +111,7 @@ export function LearningChart({ rounds }: { rounds: Round[] }) {
             fill="var(--ink-soft)"
             fontSize={12.5}
           >
-            Cost per toss {(last.cost_per_event_microusd / 1000000).toFixed(4)}
+            Cost per toss ${formatMicroUsd(last.cost_per_event_microusd)}
           </text>
         </>
       ) : null}

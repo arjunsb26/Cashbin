@@ -1,6 +1,5 @@
 "use client";
 
-import { useState } from "react";
 import * as Dialog from "@radix-ui/react-dialog";
 import * as Popover from "@radix-ui/react-popover";
 import * as Tabs from "@radix-ui/react-tabs";
@@ -360,23 +359,10 @@ export default function KitPage() {
 }
 
 function Block({ title, children }: { title: string; children: React.ReactNode }) {
-  const [open, setOpen] = useState(true);
   return (
     <section>
-      <SectionTitle
-        right={
-          <button
-            type="button"
-            className="text-caption text-ink-soft underline underline-offset-2"
-            onClick={() => setOpen((v) => !v)}
-          >
-            {open ? "Hide" : "Show"}
-          </button>
-        }
-      >
-        {title}
-      </SectionTitle>
-      {open ? <div className="pt-4">{children}</div> : null}
+      <SectionTitle>{title}</SectionTitle>
+      <div className="pt-4">{children}</div>
     </section>
   );
 }

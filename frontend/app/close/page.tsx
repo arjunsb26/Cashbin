@@ -25,7 +25,6 @@ export default function ClosePage() {
     <div className="max-w-[860px]">
       <PageHeader
         title="Close"
-        description="One page a controller can read top to bottom."
         right={
           <Button tone="primary" loading={run.isPending} onClick={() => run.mutate()}>
             Run close

@@ -7,13 +7,18 @@ import { AskPanel } from "@/components/AskPanel";
 import { ScaleStrip } from "@/components/ScaleStrip";
 import { Tape } from "@/components/Tape";
 import { Ticket } from "@/components/Ticket";
-import { useEvidence } from "@/components/Providers";
-import { EmptyState, ErrorState, SectionTitle, Skeleton, cx } from "@/components/ui";
+import {
+  EmptyState,
+  ErrorState,
+  FinanceFooter,
+  SectionTitle,
+  Skeleton,
+  cx,
+} from "@/components/ui";
 
 export default function LivePage() {
   const summary = useSummary();
   const live = useLive();
-  const evidence = useEvidence();
   const ticket = live.ticket;
 
   return (
@@ -77,17 +82,10 @@ export default function LivePage() {
           <div className="pt-2">
             <Tape events={live.tape} />
           </div>
-          {live.tape.length > 0 ? (
-            <button
-              type="button"
-              className="mt-3 text-caption text-ink-soft underline underline-offset-2"
-              onClick={() => evidence.open(live.tape[0]?.id ?? 0, "ticket total")}
-            >
-              Show the evidence for the newest ticket
-            </button>
-          ) : null}
         </section>
       </div>
+
+      <FinanceFooter />
     </div>
   );
 }
