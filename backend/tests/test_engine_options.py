@@ -245,3 +245,76 @@ def test_the_greenest_option_is_reported_alongside_the_cheapest() -> None:
 def test_every_score_carries_its_event_id() -> None:
     for score in score_options(bagel_record(), SETTINGS):
         assert score.event_id == 2
+
+
+# --- tone, PLAN.md section 21a item 10 ----------------------------------------
+
+
+def test_the_tone_is_amber_when_only_the_carbon_is_better() -> None:
+    """A bagel: pennies apart on money, far apart on carbon. That is amber."""
+    scores = score_options(bagel_record(), SETTINGS)
+    ranking = summarise(scores, SETTINGS)
+    table = by_option(scores)
+    money_gap = (
+        table[Option.donate].net_after_tax_cents - table[Option.trash].net_after_tax_cents
+    )
+    assert money_gap < SETTINGS.tie_break_cents
+    assert ranking.best_option is Option.donate
+    assert ranking.tone == TONE_AMBER
+
+
+def test_the_tone_is_red_whenever_the_bin_is_blocked() -> None:
+    keyboard = summarise(score_options(keyboard_record(), SETTINGS, KEYBOARD_ASSET), SETTINGS)
+    assert keyboard.tone == TONE_RED
+    charger = summarise(score_options(charger_record(), SETTINGS), SETTINGS)
+    assert charger.tone == TONE_RED
+
+
+def test_the_tone_is_green_when_the_best_option_is_the_bin() -> None:
+    record = ItemRecord(
+        event_id=21,
+        label="paper napkins",
+        item_class=ItemClass.inventory,
+        mass_g=2.0,
+        event_date=EVENT_DATE,
+        material_mix={"mixed_paper": 1.0},
+        cost_basis_cents=2,
+    )
+    scores = score_options(record, SETTINGS)
+    ranking = summarise(scores, SETTINGS)
+    table = by_option(scores)
+    best = table[ranking.best_option] if ranking.best_option else None
+    trash = table[Option.trash]
+    assert best is not None and best.kg_co2e is not None and trash.kg_co2e is not None
+    assert abs(best.kg_co2e - trash.kg_co2e) < SETTINGS.tone_co2e_kg
+    assert ranking.tone == TONE_GREEN
+
+
+def test_an_unknown_carbon_figure_never_buys_a_green_tone() -> None:
+    """No factor means no claim that the bin was fine, however close the money is."""
+    record = ItemRecord(
+        event_id=22,
+        label="mystery lump",
+        item_class=ItemClass.untracked,
+        mass_g=100.0,
+        event_date=EVENT_DATE,
+        material_mix={"unobtainium": 1.0},
+        scrap_cents=10,
+        scrap_source=EstimateSource.model_estimate,
+    )
+    scores = score_options(record, SETTINGS)
+    assert all(score.kg_co2e is None for score in scores)
+    table = by_option(scores)
+    ranking = summarise(scores, SETTINGS)
+    assert ranking.best_option is Option.recycle
+    money_gap = (
+        table[Option.recycle].net_after_tax_cents - table[Option.trash].net_after_tax_cents
+    )
+    assert 0 < money_gap < SETTINGS.tie_break_cents
+    assert ranking.tone == TONE_AMBER
+
+
+def test_the_carbon_threshold_is_a_setting() -> None:
+    assert SETTINGS.tone_co2e_kg == 0.02
+    wide = EngineSettings(tone_co2e_kg=10.0)
+    assert summarise(score_options(bagel_record(), wide), wide).tone == TONE_GREEN

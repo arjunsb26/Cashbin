@@ -82,7 +82,7 @@ def test_placeholders_store_the_row_with_an_obvious_stand_in(settings: Settings)
     assert assets.skipped == 0
 
     with session_scope() as session:
-        row = session.scalar(select(models.Asset).where(models.Asset.tag == "BB-0002"))
+        row = session.scalar(select(models.Asset).where(models.Asset.tag == "bb-0002"))
         assert row is not None
         assert row.cost_cents == 0
         assert row.tax_method is models.TaxMethod.straight_line
@@ -181,3 +181,57 @@ def test_a_custom_data_dir_is_read_instead(settings: Settings, tmp_path: Path) -
     assert summary.skipped == 0
     assert (catalog, assets) == (1, 1)
     clear_caches()
+
+
+def test_a_mixed_case_tag_is_stored_lowercase_and_upserts(
+    settings: Settings, tmp_path: Path
+) -> None:
+    """Tags are lowercase everywhere: the API lowercases them and so does the seed."""
+    data = tmp_path / "mixed"
+    data.mkdir()
+    (data / "catalog.csv").write_text(
+        "id,label,class,unit_cost_cents,unit_mass_g,price_per_kg_cents,fmv_per_kg_cents,"
+        "material_mix_json,regulatory_flags_json,mass_prior_mean_g,mass_prior_var,"
+        "mass_prior_n,price_source\n",
+        encoding="utf-8",
+    )
+    (data / "assets_seed.csv").write_text(
+        "id,tag,description,category,cost_cents,in_service_date,book_life_months,"
+        "salvage_cents,tax_method,tax_basis_cents_override,status,disposed_event_id,"
+        "insured,location,note\n"
+        "1,BB-0002,Mechanical keyboard,peripheral,12000,2025-03-15,36,0,bonus_100,,"
+        "active,,false,hack table,\n",
+        encoding="utf-8",
+    )
+    init_db(settings)
+    with session_scope() as session:
+        first = seed_all(session, data_dir=data)
+    assert first.inserted == 1
+
+    with session_scope() as session:
+        row = session.scalar(select(models.Asset).where(models.Asset.tag == "bb-0002"))
+        assert row is not None
+        assert row.description == "Mechanical keyboard"
+        assert session.scalar(
+            select(models.Asset).where(models.Asset.tag == "BB-0002")
+        ) is None
+
+    with session_scope() as session:
+        second = seed_all(session, data_dir=data)
+        _, assets = _counts(session)
+    assert second.inserted == 0
+    assert second.updated == 1
+    assert assets == 1
+    clear_caches()
+
+
+def test_the_seeded_register_matches_what_the_api_would_store(
+    settings: Settings, client: TestClient
+) -> None:
+    with session_scope() as session:
+        seed_all(session, allow_placeholders=True)
+    tags = [row["tag"] for row in client.get("/api/assets").json()["assets"]]
+    assert tags == sorted(tags)
+    for tag in tags:
+        assert tag == tag.lower(), tag
+    assert "bb-0002" in tags

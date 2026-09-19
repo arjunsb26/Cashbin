@@ -38,6 +38,7 @@ from app.engine.records import (  # noqa: E402
     load_assets_seed,
     load_catalog,
 )
+from app.schemas import normalise_label  # noqa: E402
 
 # What a placeholder looks like when `--allow-placeholders` is given. Zero cost
 # and today's date are obviously not real, which is the point: the row is
@@ -136,6 +137,10 @@ def seed_assets(
     result = TableResult(table="asset")
     existing = {row.tag: row for row in session.scalars(select(models.Asset))}
     for asset in assets:
+        # A tag is a key, so it goes through the same wall the API puts every
+        # label through. That is what makes a tag typed into the register, a tag
+        # read off a QR code and a tag seeded from this file the same string.
+        tag = normalise_label(asset.tag)
         missing = _missing_required(asset)
         if missing and not allow_placeholders:
             result.skipped += 1
@@ -144,9 +149,9 @@ def seed_assets(
             )
             continue
 
-        row = existing.get(asset.tag)
+        row = existing.get(tag)
         if row is None:
-            row = models.Asset(tag=asset.tag, description=asset.description)
+            row = models.Asset(tag=tag, description=asset.description)
             session.add(row)
             result.inserted += 1
         else:

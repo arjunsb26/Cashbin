@@ -84,6 +84,9 @@ class EngineSettings(BaseModel):
     recycle_fee_cents: int = 0
     capitalization_threshold_cents: int = 50000
     tie_break_cents: int = 50
+    # How much better on carbon another option has to be before the tone stops
+    # calling the bin a fine answer. PLAN.md section 21a item 10.
+    tone_co2e_kg: float = 0.02
 
     @classmethod
     def from_settings(cls, settings: Any) -> EngineSettings:
@@ -101,6 +104,9 @@ class EngineSettings(BaseModel):
             capitalization_threshold_cents=settings.capitalization_threshold_cents,
             tie_break_cents=getattr(
                 settings, "tie_break_cents", cls.model_fields["tie_break_cents"].default
+            ),
+            tone_co2e_kg=getattr(
+                settings, "tone_co2e_kg", cls.model_fields["tone_co2e_kg"].default
             ),
         )
 
