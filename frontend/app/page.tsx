@@ -56,11 +56,20 @@ export default function LivePage() {
         steps={live.steps}
         weight_g={live.weight_g}
         connected={live.device.bin === "connected"}
+        connecting={live.status === "connecting"}
       />
 
       <div className="grid grid-cols-1 gap-8 lg:grid-cols-[560px_minmax(0,1fr)]">
         <section aria-label="Current ticket">
-          {ticket ? (
+          {live.status === "connecting" ? (
+            <div className="flex w-ticket max-w-full flex-col gap-3 border border-rule bg-surface p-5">
+              <Skeleton className="h-[72px] w-[72px]" />
+              <Skeleton className="h-14 w-48" />
+              <Skeleton className="h-row w-full" />
+              <Skeleton className="h-row w-full" />
+              <Skeleton className="h-row w-full" />
+            </div>
+          ) : ticket ? (
             <Ticket detail={ticket.detail} phase={ticket.phase} arrival={ticket.arrival}>
               {live.ask ? <AskPanel ask={live.ask} /> : undefined}
             </Ticket>
@@ -80,7 +89,15 @@ export default function LivePage() {
             Tape
           </SectionTitle>
           <div className="pt-2">
-            <Tape events={live.tape} />
+            {live.status === "connecting" ? (
+              <div className="flex flex-col gap-2">
+                {[0, 1, 2, 3, 4].map((i) => (
+                  <Skeleton key={i} className="h-row w-full" />
+                ))}
+              </div>
+            ) : (
+              <Tape events={live.tape} />
+            )}
           </div>
         </section>
       </div>

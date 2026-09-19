@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useRef, useState } from "react";
 import type { Round } from "@/lib/types";
 import { formatMicroUsd, formatPercent } from "@/lib/format";
 
@@ -9,7 +10,19 @@ import { formatMicroUsd, formatPercent } from "@/lib/format";
  * scale, so it is dashed and labelled with its value.
  */
 export function LearningChart({ rounds }: { rounds: Round[] }) {
-  const width = 900;
+  const host = useRef<HTMLDivElement | null>(null);
+  const [width, setWidth] = useState(900);
+
+  useEffect(() => {
+    const element = host.current;
+    if (!element) return;
+    const measure = () => setWidth(Math.max(element.clientWidth, 480));
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, []);
+
   const height = 280;
   const padLeft = 40;
   const padRight = 150;
@@ -31,12 +44,14 @@ export function LearningChart({ rounds }: { rounds: Round[] }) {
   const last = rounds[rounds.length - 1];
 
   return (
-    <svg
-      viewBox={`0 0 ${width} ${height}`}
-      className="h-auto w-full"
-      role="img"
-      aria-label="Right first try, asked a person, and cost per toss, by round"
-    >
+    <div ref={host}>
+      <svg
+        viewBox={`0 0 ${width} ${height}`}
+        width={width}
+        height={height}
+        role="img"
+        aria-label="Right first try, asked a person, and cost per toss, by round"
+      >
       {[0, 0.25, 0.5, 0.75, 1].map((v) => (
         <g key={v}>
           <line
@@ -113,7 +128,8 @@ export function LearningChart({ rounds }: { rounds: Round[] }) {
             Cost per toss ${formatMicroUsd(last.cost_per_event_microusd)}
           </text>
         </>
-      ) : null}
-    </svg>
+        ) : null}
+      </svg>
+    </div>
   );
 }

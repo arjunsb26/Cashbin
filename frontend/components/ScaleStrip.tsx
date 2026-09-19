@@ -12,11 +12,13 @@ export function ScaleStrip({
   steps,
   weight_g,
   connected,
+  connecting = false,
 }: {
   samples: number[];
   steps: number[];
   weight_g: number;
   connected: boolean;
+  connecting?: boolean;
 }) {
   const canvas = useRef<HTMLCanvasElement | null>(null);
 
@@ -88,7 +90,11 @@ export function ScaleStrip({
         <span className="font-condensed text-total">{formatCount(Math.round(weight_g))}</span>
         <span className="pl-1 text-body text-ink-soft">g</span>
         <p className="text-caption text-ink-soft">
-          {connected ? "Bin connected" : "Bin offline. Reconnecting."}
+          {connecting
+            ? "Connecting to the bin."
+            : connected
+              ? "Bin connected"
+              : "Bin offline. Reconnecting."}
         </p>
       </div>
     </div>

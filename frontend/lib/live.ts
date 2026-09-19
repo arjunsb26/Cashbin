@@ -13,7 +13,11 @@ export type LiveTicket = {
   arrival: number;
 };
 
+/** connecting until the socket opens, live while it is open, offline after it drops. */
+export type LiveStatus = "connecting" | "live" | "offline";
+
 export type LiveState = {
+  status: LiveStatus;
   connected: boolean;
   weight_g: number;
   /** Newest last. About 12 s of samples at 10 Hz. */
@@ -52,9 +56,9 @@ function startSocket(setState: (fn: (prev: LiveState) => LiveState) => void): ()
 
   const open = () => {
     socket = new WebSocket(url);
-    socket.onopen = () => setState((prev) => ({ ...prev, connected: true }));
+    socket.onopen = () => setState((prev) => ({ ...prev, status: "live", connected: true }));
     socket.onclose = () => {
-      setState((prev) => ({ ...prev, connected: false, device: OFFLINE }));
+      setState((prev) => ({ ...prev, status: "offline", connected: false, device: OFFLINE }));
       if (!closed) retry = setTimeout(open, 1500);
     };
     socket.onmessage = (raw) => {

@@ -200,7 +200,8 @@ export function OptionTable({ detail }: { detail: EventDetail }) {
   return (
     <section className="pt-5">
       <h3 className="text-section">What you could have done</h3>
-      <table className="ledger mt-2 w-full border-collapse text-body">
+      <div className="mt-2 overflow-x-auto">
+      <table className="ledger w-full min-w-[320px] border-collapse text-body">
         <thead>
           <tr className="border-b border-rule bg-bar text-caption text-ink-soft">
             <th className="py-1 font-normal">Option</th>
@@ -260,6 +261,7 @@ export function OptionTable({ detail }: { detail: EventDetail }) {
           })}
         </tbody>
       </table>
+      </div>
     </section>
   );
 }

@@ -3,7 +3,7 @@
 import * as fx from "./fixtures";
 import { askOpen, mockState, replayOn } from "./state";
 import type { EventDetail } from "../types";
-import type { LiveState, TicketPhase } from "../live";
+import type { LiveState, LiveStatus, TicketPhase } from "../live";
 
 const WINDOW = 120;
 const BASELINE = 2412;
@@ -15,6 +15,7 @@ export function flatSamples(base: number): number[] {
 
 export function emptyLiveState(): LiveState {
   return {
+    status: "connecting",
     connected: false,
     weight_g: 0,
     samples: Array.from({ length: WINDOW }, () => 0),
@@ -34,14 +35,17 @@ export function startMockLive(
   const view = mockState();
 
   if (view === "loading" || view === "error" || view === "empty") {
+    const status: LiveStatus =
+      view === "loading" ? "connecting" : view === "error" ? "offline" : "live";
     setState(() => ({
       ...emptyLiveState(),
-      connected: view !== "error",
+      status,
+      connected: status === "live",
       samples: view === "error" ? emptyLiveState().samples : flatSamples(0),
       device:
-        view === "error"
-          ? { ...OFFLINE }
-          : { bin: "connected", phone: "connected", last_weight_g: 0 },
+        status === "live"
+          ? { bin: "connected", phone: "connected", last_weight_g: 0 }
+          : { ...OFFLINE },
     }));
     return () => {};
   }
@@ -52,6 +56,7 @@ export function startMockLive(
   const showAsk = askOpen();
 
   setState(() => ({
+    status: "live",
     connected: true,
     weight_g: BASELINE,
     samples: flatSamples(BASELINE),

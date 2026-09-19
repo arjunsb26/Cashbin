@@ -283,7 +283,19 @@ export default function KitPage() {
           weight_g={2412}
           connected
         />
-        <ScaleStrip samples={Array.from({ length: 120 }, () => 0)} steps={[]} weight_g={0} connected={false} />
+        <ScaleStrip
+          samples={Array.from({ length: 120 }, () => 0)}
+          steps={[]}
+          weight_g={0}
+          connected={false}
+          connecting
+        />
+        <ScaleStrip
+          samples={Array.from({ length: 120 }, () => 0)}
+          steps={[]}
+          weight_g={0}
+          connected={false}
+        />
       </Block>
 
       <Block title="The ticket">
