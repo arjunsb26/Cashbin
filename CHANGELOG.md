@@ -1,12 +1,6 @@
 # Changelog
 
-# Changelog
-
 Newest first. Each lane writes under its own heading.
-
-## 2026-09-19, lane e: phone camera page
-
-Newest first, one section per lane.
 
 ## 2026-09-19, lane e: phone camera page
 
@@ -40,8 +34,6 @@ Newest first, one section per lane.
   the result. The tone stays in the band above it.
 - The screenshot run turns the mock's scripted sequence off as it starts and sends every
   result and ask itself, so the same ten shots come out every time.
-
-Newest first. Each lane writes under its own heading.
 
 ## 2026-09-19, lane a part 1: step detection, crop, simulators
 
