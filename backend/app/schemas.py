@@ -863,6 +863,16 @@ class SimExpectResponse(ApiModel):
     mass_g: float | None = None
 
 
+class SetupResponse(ApiModel):
+    """The setup checklist: every seed cell a person still has to fill in.
+
+    PLAN.md section 17. One line per cell, so nothing fake can slip into the demo
+    unnoticed. An empty list means the seed files are complete.
+    """
+
+    items: list[str] = Field(default_factory=list)
+
+
 class ErrorResponse(ApiModel):
     detail: str
     code: str = "error"

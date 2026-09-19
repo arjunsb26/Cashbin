@@ -44,6 +44,9 @@ def settings(tmp_path: Path) -> Iterator[Settings]:
         cert_dir=tmp_path / "certs",
         recordings_dir=tmp_path / "recordings",
         dev_tools=False,
+        # A test owns its own fixtures. The seed files load on a real first start, not
+        # under a test that is about to assert what an empty table looks like.
+        seed_on_start=False,
     )
     reset_settings(conf)
     reset_bus()
@@ -61,6 +64,7 @@ def dev_settings(tmp_path: Path) -> Iterator[Settings]:
         cert_dir=tmp_path / "certs",
         recordings_dir=tmp_path / "recordings",
         dev_tools=True,
+        seed_on_start=False,
     )
     reset_settings(conf)
     reset_bus()

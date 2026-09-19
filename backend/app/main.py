@@ -6,6 +6,7 @@ Step 0 owns this file. Lanes replace the socket bodies in app/ingest and fill th
 from __future__ import annotations
 
 import logging
+import sys
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
@@ -14,12 +15,13 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 
-from app.api import assets, close, corrections, events, journal, metrics, settings, sim
+from app.api import assets, close, corrections, events, journal, metrics, settings, setup, sim
 from app.config import APP_VERSION, REPO_DIR, Settings, get_settings
-from app.db import dispose_db, init_db, table_names
+from app.db import dispose_db, init_db, session_scope, table_names
 from app.ingest import bin_socket, phone_socket, ui_socket
 from app.ingest.state import build_state
 from app.models import ALL_TABLES
+from app.pipeline import build_default_pipeline
 from app.schemas import BrandInfo, HealthResponse
 
 log = logging.getLogger(__name__)
@@ -28,18 +30,56 @@ PHONE_DIR = REPO_DIR / "phone"
 BRAND_FILE = REPO_DIR / "brand.json"
 
 
+def seed_when_empty(active: Settings) -> None:
+    """Load the seed files on a first start, so a fresh database is never a blank demo.
+
+    The seed script lives beside the backend rather than inside it, so the repo root goes
+    on the path first. A seed that cannot run is logged and the app still starts: an empty
+    catalog is a visible problem on the setup page, not a reason to refuse to boot.
+    """
+    if not active.seed_on_start:
+        return
+    if str(REPO_DIR) not in sys.path:
+        sys.path.insert(0, str(REPO_DIR))
+    try:
+        from scripts.seed_db import is_empty, seed_all
+    except ImportError:
+        log.warning("the seed script is not importable, the database was left as it is")
+        return
+    try:
+        with session_scope() as session:
+            if not is_empty(session):
+                return
+            summary = seed_all(session)
+        log.info(
+            "seeded a fresh database: %d rows in, %d waiting on a person",
+            summary.inserted,
+            summary.skipped,
+        )
+        for row in summary.skipped_rows:
+            log.warning("seed row skipped: %s", row)
+    except Exception:
+        log.exception("the seed files could not be loaded")
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     active: Settings = app.state.settings
     active.media_dir.mkdir(parents=True, exist_ok=True)
     init_db(active)
     log.info("database ready with %d tables", len(table_names()))
+    seed_when_empty(active)
     app.state.ingest = build_state(active)
+    # The one place every lane meets. It owns both seams: ingest to identification, and
+    # identification to the engine, the ledger and the three surfaces.
+    app.state.pipeline = build_default_pipeline(active)
+    app.state.pipeline.attach(app.state.ingest)
     try:
         yield
     finally:
         app.state.ingest.close()
         app.state.ingest = None
+        app.state.pipeline = None
         dispose_db()
 
 
@@ -121,6 +161,7 @@ def create_app(active: Settings | None = None) -> FastAPI:
     app.include_router(metrics.router)
     app.include_router(close.router)
     app.include_router(settings.router)
+    app.include_router(setup.router)
     if conf.dev_tools:
         app.include_router(sim.router)
 

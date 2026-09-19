@@ -108,6 +108,11 @@ class Settings(BaseSettings):
     # Off in the demo build. Gates /api/sim/* and every other dev-only surface.
     dev_tools: bool = False
 
+    # Load the seed CSVs on a first start, when both seeded tables are still empty. On by
+    # default, because an unseeded database has no catalog and no register and every
+    # ticket would come back untracked. A test that wants an empty table turns it off.
+    seed_on_start: bool = True
+
     @field_validator(
         "llm_provider",
         "llm_base_url",

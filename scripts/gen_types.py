@@ -107,6 +107,7 @@ EXPORTED: tuple[str, ...] = (
     "SimTossResponse",
     "SimExpectRequest",
     "SimExpectResponse",
+    "SetupResponse",
     "ErrorResponse",
 )
 

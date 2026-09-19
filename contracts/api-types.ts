@@ -110,6 +110,7 @@ export interface BinBooksContracts {
   ScreenThinking?: ScreenThinking;
   SettingsRead?: SettingsRead;
   SettingsUpdate?: SettingsUpdate;
+  SetupResponse?: SetupResponse;
   SimExpectRequest?: SimExpectRequest;
   SimExpectResponse?: SimExpectResponse;
   SimTossRequest?: SimTossRequest;
@@ -810,6 +811,18 @@ export interface SettingsUpdate {
   step_min_g?: number | null;
   tax_rate?: number | null;
   tone_co2e_kg?: number | null;
+}
+/**
+ * The setup checklist: every seed cell a person still has to fill in.
+ *
+ * PLAN.md section 17. One line per cell, so nothing fake can slip into the demo
+ * unnoticed. An empty list means the seed files are complete.
+ *
+ * This interface was referenced by `BinBooksContracts`'s JSON-Schema
+ * via the `definition` "SetupResponse".
+ */
+export interface SetupResponse {
+  items?: string[];
 }
 /**
  * Dev only. Tells the stub identification provider what the simulator is about to toss.
