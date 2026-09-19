@@ -3,6 +3,52 @@
 
 Newest first. Each lane writes under its own heading.
 
+## 2026-09-19, lane a part 2: ingest sockets, events, media, record and replay
+
+- `backend/app/ingest/bin_socket.py`: `/ws/bin` for real. Validates every frame against
+  `BinToBackend`, stamps each weight with the backend clock, feeds the step detector with
+  tuning read from the live settings, publishes `weight` to the dashboard at 10 Hz, and
+  builds the event off the read loop so the stream never stalls behind a slow pipeline.
+  Sends a ping every 2 s, forwards everything on the `bin` bus channel to the device, and
+  says on the dashboard when the bin connects, disconnects or goes quiet for 5 s.
+- The dashboard weight downsampler advances a 100 ms slot instead of restarting the timer
+  from each published sample. Restarting it lands on every second sample of a 15 Hz stream,
+  which is 7.5 Hz, not the 10 Hz PLAN.md section 6 asks for. A test holds the rate.
+- `backend/app/ingest/phone_socket.py`: `/ws/phone`. Binary frames into the ring, text
+  frames validated, anything on the `phone` channel forwarded to the page. Several phones
+  may connect and all of them feed the one ring.
+- `backend/app/ingest/ui_socket.py`: `/ws/ui` forwards the `ui` channel and, on connect,
+  tells the page the current status of every device the backend has heard from.
+- `backend/app/ingest/events.py`: the step to event row join. Writes the row, saves before,
+  after, peak and crop under `media/{event_id}/`, records the paths and the crop quality,
+  publishes `event.created`, puts `thinking` on the LCD, then awaits the `on_event` hook.
+  That hook is the only seam to identification and defaults to doing nothing.
+- A bag change and a removal get their row and their chart line but no `thinking` screen.
+  Nothing identifies them, so nothing would ever come along to clear it off the LCD.
+- `backend/app/ingest/frames.py`: the 4 s camera ring, evicting by the newest stamp rather
+  than by reading the clock, so a ring that stops being fed keeps what it has.
+- `backend/app/ingest/media.py`: image saving and the `/media` URL. The column holds the
+  relative path, so moving the media directory does not rewrite every row.
+- `backend/app/ingest/serial_reader.py`: the PLAN.md section 5 fallback transport. Reads
+  JSON lines off any file-like object into the same `BinSession` the socket uses. `pyserial`
+  stays optional and missing it prints how to install it.
+- `backend/app/ingest/recorder.py`: set `RECORD_DIR` and every bin message and camera frame
+  is written with its arrival time. `scripts/record.py` runs the backend with it on and
+  `scripts/replay.py` plays a recording back as an ordinary bin and phone client, reusing
+  the simulator's connection code rather than copying it.
+- `backend/app/api/events.py`: the event list newest first, the full detail with trace,
+  frame URLs, identifications, item record, options, entries and corrections, and void.
+  Every read works while the later tables are empty, because that is the state every event
+  is in for its first second. Void calls `ledger.queries.void_event` if it exists yet.
+- `POST /api/device/tare` publishes the tare on the `bin` channel and reports whether a bin
+  was there to receive it, so the dashboard can say so instead of pretending.
+- `POST /api/sim/toss` builds a synthetic step and, when an image is named, pushes it into
+  the frame ring first. The image name comes off the wire, so it is resolved against
+  `sim/assets` and refused if it lands anywhere else.
+- The detection clock is a field on the ingest state rather than a call to `time.monotonic`
+  in the middle of the socket, so a test drives a scripted timeline instead of spending
+  twenty real seconds waiting for a staircase to settle.
+
 ## 2026-09-19, lane a part 1: step detection, crop, simulators
 
 - Made the lane's test files pass a plain `uv run mypy`, which checks `app` and

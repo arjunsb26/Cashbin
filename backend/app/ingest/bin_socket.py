@@ -69,7 +69,7 @@ class BinSession:
         self.device = ""
         self.detector = StepDetector(detect_params())
         self._tuning = _tuning_of(self.detector.params)
-        self._last_ui_ms = -UI_WEIGHT_PERIOD_MS
+        self._next_ui_ms = float("-inf")
         self.samples = 0
         self.steps = 0
         self._tasks: set[asyncio.Task[int]] = set()
@@ -135,8 +135,13 @@ class BinSession:
         self.samples += 1
         self._retune()
 
-        if t_ms - self._last_ui_ms >= UI_WEIGHT_PERIOD_MS:
-            self._last_ui_ms = t_ms
+        if t_ms >= self._next_ui_ms:
+            # Advance the slot rather than restarting the clock from this sample.
+            # Waiting 100 ms from each published sample on a 15 Hz grid lands on
+            # every second sample, which is 7.5 Hz, not the 10 Hz PLAN.md asks for.
+            self._next_ui_ms += UI_WEIGHT_PERIOD_MS
+            if self._next_ui_ms <= t_ms:
+                self._next_ui_ms = t_ms + UI_WEIGHT_PERIOD_MS
             self.deps.bus.publish(
                 UiWeight(t=round(t_ms / 1000.0, 4), g=message.g, device_t=message.t),
                 CHANNEL_UI,
