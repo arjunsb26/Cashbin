@@ -4,6 +4,12 @@ Newest first inside each heading.
 
 ## Lane A
 
+- `backend/tests/test_sim_crop.py`: the demo run's camera frames through `pick_frames`
+  and `crop_item`, so the fake camera and the crop are proved to agree the way the
+  fake scale and the detector already were. It also holds the `before_lead_ms` default
+  in place by failing at the 300 ms PLAN.md section 7 suggests.
+- Replaced the "settles inside about 500 ms" claim in the simulator docs with the
+  measured range, 430 ms for a charger to 680 ms for a bag going out.
 - Raised the crop `before_lead_ms` default from the 300 ms in PLAN.md section 7 to
   600 ms. The item is in camera shot for the whole flight, so a lead equal to the
   flight time picks a frame that already contains the item and the diff comes back

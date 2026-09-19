@@ -17,7 +17,8 @@ def background(seed: int = 2) -> np.ndarray:
     rng = np.random.default_rng(seed)
     img = np.full((HEIGHT, WIDTH, 3), 70, dtype=np.uint8)
     noise = rng.integers(-6, 7, size=img.shape, dtype=np.int16)
-    return np.clip(img.astype(np.int16) + noise, 0, 255).astype(np.uint8)
+    mottled: np.ndarray = np.clip(img.astype(np.int16) + noise, 0, 255).astype(np.uint8)
+    return mottled
 
 
 def with_rect(
@@ -68,6 +69,7 @@ def test_crop_finds_the_rectangle_that_appeared() -> None:
     assert result.changed_area_frac == pytest.approx((w * h) / (WIDTH * HEIGHT), rel=0.2)
 
     cut = cv2.imdecode(np.frombuffer(result.jpeg, np.uint8), cv2.IMREAD_COLOR)
+    assert cut is not None
     assert cut.shape[0] == result.bbox.h
     assert cut.shape[1] == result.bbox.w
 

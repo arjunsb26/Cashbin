@@ -14,9 +14,16 @@ SIM_DIR = Path(__file__).resolve().parents[2] / "sim"
 if str(SIM_DIR) not in sys.path:
     sys.path.insert(0, str(SIM_DIR))
 
-from make_assets import ITEMS, KEYBOARD_TAG  # noqa: E402
-from phone_sim import ASSETS, composite_items  # noqa: E402
-from run_scenario import Scenario, load_scenario, phone_url_for, scenario_path  # noqa: E402
+# The simulators live outside the backend package and are put on the path above,
+# which mypy cannot follow from a static read of the file.
+from make_assets import ITEMS, KEYBOARD_TAG  # type: ignore[import-not-found]  # noqa: E402
+from phone_sim import ASSETS, composite_items  # type: ignore[import-not-found]  # noqa: E402
+from run_scenario import (  # type: ignore[import-not-found]  # noqa: E402
+    Scenario,
+    load_scenario,
+    phone_url_for,
+    scenario_path,
+)
 
 SCENARIOS = ("demo", "soak")
 
@@ -110,6 +117,7 @@ def test_the_keyboard_tag_decodes_from_a_composited_camera_frame() -> None:
     ok, buf = cv2.imencode(".jpg", frame, [int(cv2.IMWRITE_JPEG_QUALITY), 70])
     assert ok
     decoded = cv2.imdecode(np.frombuffer(buf.tobytes(), np.uint8), cv2.IMREAD_COLOR)
+    assert decoded is not None
     text, _, _ = cv2.QRCodeDetector().detectAndDecode(decoded)
     assert text == KEYBOARD_TAG
 

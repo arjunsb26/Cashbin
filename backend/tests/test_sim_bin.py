@@ -25,9 +25,18 @@ SIM_DIR = Path(__file__).resolve().parents[2] / "sim"
 if str(SIM_DIR) not in sys.path:
     sys.path.insert(0, str(SIM_DIR))
 
-from bin_sim import BinSim, parse_command  # noqa: E402
-from lcd_box import render_screen, screen_lines  # noqa: E402
-from run_scenario import drive, load_scenario, wait_nominal  # noqa: E402
+# The simulators live outside the backend package and are put on the path above,
+# which mypy cannot follow from a static read of the file.
+from bin_sim import BinSim, parse_command  # type: ignore[import-not-found]  # noqa: E402
+from lcd_box import (  # type: ignore[import-not-found]  # noqa: E402
+    render_screen,
+    screen_lines,
+)
+from run_scenario import (  # type: ignore[import-not-found]  # noqa: E402
+    drive,
+    load_scenario,
+    wait_nominal,
+)
 
 DEMO_MASSES = [95.0, 780.0, 62.0, 172.0]
 
@@ -214,7 +223,7 @@ async def test_the_whole_demo_scenario_produces_its_five_steps() -> None:
             await drive(
                 scenario,
                 bin_sim,
-                phone,  # type: ignore[arg-type]
+                phone,
                 gap_s=3.0,
                 lead_s=2.0,
                 tail_s=3.0,

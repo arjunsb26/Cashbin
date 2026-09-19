@@ -24,8 +24,8 @@ class Signal:
     """Builds a synthetic weight stream the way the bin behaves.
 
     A toss lands as an impact spike of three times the mass that rings down with a
-    damped wobble and settles inside about 500 ms, which is what `sim/bin_sim.py`
-    emits and what the real load cell does.
+    damped wobble that is back inside a gram between 430 ms and 680 ms depending on
+    the mass, which is what `sim/bin_sim.py` emits and what the real load cell does.
     """
 
     def __init__(self, sigma: float = SIGMA, seed: int = 7, start_g: float = 0.0) -> None:

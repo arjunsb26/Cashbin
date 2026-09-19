@@ -1,8 +1,9 @@
 """Fake bin. Speaks the `/ws/bin` protocol from PLAN.md section 6.
 
 It streams a noisy weight baseline, and on command adds a step with an impact spike
-of three times the mass that rings down and settles inside about 500 ms, which is
-what a load cell under a bin actually does. Every `screen` message the backend sends
+of three times the mass that rings down and is back inside a gram between 430 ms
+(a charger) and 680 ms (a full bag), which is what a load cell under a bin actually
+does. Every `screen` message the backend sends
 is printed as an LCD box so the LCD is provable from a terminal log.
 
 Standalone:

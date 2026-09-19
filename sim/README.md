@@ -68,8 +68,9 @@ that mirrors DESIGN.md section 7:
 Line 2 is cut at 20 characters because that is the firmware limit in PLAN.md
 section 6.
 
-A toss lands as an impact spike of three times the mass that rings down and settles
-inside about 500 ms, which is what the detector has to see through.
+A toss lands as an impact spike of three times the mass that rings down and is back
+inside a gram between 430 ms (a charger) and 680 ms (a full bag going out), which is
+what the detector has to see through.
 
 ## The phone on its own
 
