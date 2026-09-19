@@ -125,7 +125,11 @@ def lcd_big(cents: int) -> str:
     whole = f"{sign}${abs(cents) // 100:,}"
     if len(whole) <= LCD_BIG_MAX:
         return whole
-    return whole.replace(",", "")
+    plain = whole.replace(",", "")
+    if len(plain) <= LCD_BIG_MAX:
+        return plain
+    # Past six figures the bin rounds to thousands. The exact figure is on the ticket.
+    return f"{sign}${round(abs(cents) / 100_000)}k"
 
 
 def headline_cents(record: ItemRecord) -> int:
@@ -203,12 +207,13 @@ def to_catalog_item(row: models.CatalogItem) -> CatalogItem:
 
 
 def frame_bytes(frames: FramePick) -> list[bytes]:
-    """The frames the QR reader gets: after first, then peak, then before.
+    """The frames the QR reader gets: the after frame, then the peak frame.
 
-    PLAN.md section 9 reads the tag from the after or the peak frame. The before frame goes
-    last because the item is not in it yet, so a tag found there belongs to something else.
+    PLAN.md section 9 reads the tag from the after or the peak frame, and only those two.
+    The before frame is the bin as it was a moment earlier, so anything readable in it
+    belongs to something that was already there, not to this toss.
     """
-    picked = [frames.after, frames.peak, frames.before]
+    picked = [frames.after, frames.peak]
     return [frame.jpeg for frame in picked if frame is not None and frame.jpeg]
 
 

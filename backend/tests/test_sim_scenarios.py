@@ -25,6 +25,8 @@ from run_scenario import (  # type: ignore[import-not-found]  # noqa: E402
     scenario_path,
 )
 
+from app.engine.records import load_catalog  # noqa: E402
+
 SCENARIOS = ("demo", "soak")
 
 
@@ -47,7 +49,7 @@ def test_demo_is_the_five_steps_the_pitch_describes() -> None:
     assert [(s.kind, s.label, s.mass_g) for s in demo.steps] == [
         ("toss", "bagel", 95.0),
         ("toss", "keyboard", 780.0),
-        ("toss", "charger", 62.0),
+        ("toss", "usb-c charger", 62.0),
         ("toss", "phone", 172.0),
         ("bag_change", "bag out", None),
     ]
@@ -58,7 +60,9 @@ def test_demo_is_the_five_steps_the_pitch_describes() -> None:
 def test_soak_is_sixty_tosses_with_a_tenth_unknown() -> None:
     soak = load_scenario("soak")
     tosses = [s for s in soak.steps if s.kind == "toss"]
-    known = {item.label for item in ITEMS}
+    # Known means the catalog knows it, because that is the vocabulary the stub provider
+    # and the engine both work in. The sprite list is only a list of pictures.
+    known = {item.label for item in load_catalog()}
     unknown = [s for s in tosses if s.label not in known]
 
     assert len(tosses) == 60

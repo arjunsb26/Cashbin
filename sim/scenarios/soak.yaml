@@ -25,7 +25,7 @@ steps:
     mass_g: 153.3
     image: banana.png
   - kind: toss
-    label: pasta
+    label: pasta box
     mass_g: 270.9
     image: pasta.png
   - kind: toss
@@ -37,7 +37,7 @@ steps:
     mass_g: 106.4
     image: unknown.png
   - kind: toss
-    label: charger
+    label: usb-c charger
     mass_g: 96.1
     image: charger.png
   - kind: toss
@@ -53,7 +53,7 @@ steps:
     mass_g: 116.1
     image: mouse.png
   - kind: toss
-    label: pasta
+    label: pasta box
     mass_g: 240.2
     image: pasta.png
   - kind: toss
@@ -69,7 +69,7 @@ steps:
     mass_g: 156.0
     image: banana.png
   - kind: toss
-    label: cardboard
+    label: cardboard box small
     mass_g: 97.1
     image: cardboard.png
   - kind: toss
@@ -99,7 +99,7 @@ steps:
     mass_g: 10.5
     image: paper_cup.png
   - kind: toss
-    label: water bottle
+    label: water bottle empty
     mass_g: 28.9
     image: water_bottle.png
   - kind: toss
@@ -151,7 +151,7 @@ steps:
     mass_g: 203.2
     image: phone.png
   - kind: toss
-    label: cardboard
+    label: cardboard box small
     mass_g: 332.2
     image: cardboard.png
   - kind: toss
@@ -159,7 +159,7 @@ steps:
     mass_g: 66.3
     image: unknown.png
   - kind: toss
-    label: cardboard
+    label: cardboard box small
     mass_g: 179.2
     image: cardboard.png
   - kind: toss
@@ -169,11 +169,11 @@ steps:
   - kind: bag_change
     label: bag out
   - kind: toss
-    label: chips
+    label: chips bag
     mass_g: 47.1
     image: chips.png
   - kind: toss
-    label: cardboard
+    label: cardboard box small
     mass_g: 216.0
     image: cardboard.png
   - kind: toss
@@ -193,7 +193,7 @@ steps:
     mass_g: 112.5
     image: mouse.png
   - kind: toss
-    label: charger
+    label: usb-c charger
     mass_g: 49.7
     image: charger.png
   - kind: toss
@@ -221,7 +221,7 @@ steps:
     mass_g: 162.7
     image: banana.png
   - kind: toss
-    label: charger
+    label: usb-c charger
     mass_g: 60.9
     image: charger.png
   - kind: toss
