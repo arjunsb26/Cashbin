@@ -25,7 +25,8 @@ from pydantic import BaseModel, ConfigDict, Field, ValidationError
 from app.agent import tools
 from app.config import Settings
 from app.identify.cost import CallUsage, cost_microusd, price_for
-from app.identify.openai_provider import PROVIDER_NAME, strict_schema
+from app.identify.openai_provider import PROVIDER_NAME
+from app.identify.openai_request import strict_schema
 from app.ledger.close import CloseResult, PeriodRows, rank_by_error_contribution
 from app.schemas import CloseCheck
 
