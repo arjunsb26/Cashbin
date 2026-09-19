@@ -1,0 +1,74 @@
+# The seven rules the engine cites, from PLAN.md section 10.
+# plain_text is what a person reads in the evidence drawer. Write it for a
+# finance person: one or two sentences, no legal boilerplate.
+# Citations are copied verbatim from PLAN.md. Nothing here is invented.
+
+rules:
+  - id: ABANDON
+    title: Abandoned business property
+    plain_text: >-
+      Throwing out business property that still has tax basis left is generally
+      an ordinary loss you can deduct. It goes on Form 4797 Part II.
+    citation_url: https://www.irs.gov/publications/p544
+    extra_citation_urls: []
+    needs_human_review: false
+
+  - id: RECAPTURE
+    title: Depreciation recapture on a sale
+    plain_text: >-
+      Selling depreciated equipment for more than its tax basis creates a gain,
+      and the part that matches depreciation already taken is taxed as ordinary
+      income rather than capital gain.
+    citation_url: https://www.irs.gov/instructions/i4797
+    extra_citation_urls: []
+    needs_human_review: false
+
+  - id: BONUS_100
+    title: Full first year expensing
+    plain_text: >-
+      Qualified property acquired after 19 January 2025 can be written off in
+      full in its first year, so its tax basis is zero from then on even while
+      the books still carry a value.
+    citation_url: https://www.irs.gov/newsroom/treasury-irs-issue-guidance-on-the-additional-first-year-depreciation-deduction-amended-as-part-of-the-one-big-beautiful-bill
+    extra_citation_urls: []
+    needs_human_review: false
+
+  - id: DONATE_FOOD
+    title: Enhanced deduction for donated food
+    plain_text: >-
+      Donated food can earn more than its cost back: cost plus half the mark up,
+      capped at twice cost. The charity, the food and the paperwork all have to
+      qualify and new contribution floors start after 31 December 2025, so a
+      person signs this one off.
+    citation_url: https://www.cbh.com/insights/articles/restaurant-and-retailer-tax-benefits-for-donating-food/
+    extra_citation_urls:
+      - https://policyfinder.refed.org/federal-policy/federal-tax-incentives
+    needs_human_review: true
+
+  - id: DONATE_EQUIP
+    title: Donated equipment
+    plain_text: >-
+      The deduction for donated equipment is treated here as the lower of fair
+      market value and tax basis. The real answer depends on the charity and on
+      what the property is, so a person signs this one off.
+    citation_url: null
+    extra_citation_urls: []
+    needs_human_review: true
+
+  - id: INV_COGS
+    title: Wasted inventory runs through cost of goods sold
+    plain_text: >-
+      Food and supplies that end up in the bin were already expensed through
+      cost of goods sold, so throwing them away earns no extra deduction.
+    citation_url: null
+    extra_citation_urls: []
+    needs_human_review: false
+
+  - id: EWASTE
+    title: Electronics in the landfill
+    plain_text: >-
+      Many states restrict what can go in a landfill and electronics are usually
+      on the list. Check the rule where you are before binning them.
+    citation_url: null
+    extra_citation_urls: []
+    needs_human_review: false

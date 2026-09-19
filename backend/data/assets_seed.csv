@@ -1,0 +1,13 @@
+id,tag,description,category,cost_cents,in_service_date,book_life_months,salvage_cents,tax_method,tax_basis_cents_override,status,disposed_event_id,insured,location,note
+1,BB-0001,Wireless mouse,peripheral,NEEDS_HUMAN,NEEDS_HUMAN,36,0,NEEDS_HUMAN,,active,,false,hack table,
+2,BB-0002,Mechanical keyboard,peripheral,NEEDS_HUMAN,NEEDS_HUMAN,36,0,NEEDS_HUMAN,,active,,false,hack table,
+3,BB-0003,Laptop charger 65W,power,NEEDS_HUMAN,NEEDS_HUMAN,36,0,NEEDS_HUMAN,,active,,false,hack table,
+4,BB-0004,Laptop charger 65W spare,power,NEEDS_HUMAN,NEEDS_HUMAN,36,0,NEEDS_HUMAN,,active,,false,backpack,
+5,BB-0005,Webcam 1080p,peripheral,NEEDS_HUMAN,NEEDS_HUMAN,36,0,NEEDS_HUMAN,,active,,false,hack table,
+6,BB-0006,Desk monitor 24 inch,display,NEEDS_HUMAN,NEEDS_HUMAN,60,0,NEEDS_HUMAN,,active,,false,hack table,
+7,BB-0007,Soldering iron,tool,NEEDS_HUMAN,NEEDS_HUMAN,60,0,NEEDS_HUMAN,,active,,false,hardware bench,"bought after 2025-01-19, bonus_100 candidate"
+8,BB-0008,3D printer,tool,NEEDS_HUMAN,NEEDS_HUMAN,60,0,NEEDS_HUMAN,,active,,false,hardware bench,"bought after 2025-01-19, bonus_100 candidate"
+9,BB-0009,Multimeter,tool,NEEDS_HUMAN,NEEDS_HUMAN,60,0,NEEDS_HUMAN,,active,,false,hardware bench,
+10,BB-0010,Power bank 10000 mAh,power,NEEDS_HUMAN,NEEDS_HUMAN,36,0,NEEDS_HUMAN,,active,,false,backpack,
+11,BB-0011,Portable monitor 15 inch,display,NEEDS_HUMAN,NEEDS_HUMAN,36,0,NEEDS_HUMAN,,active,,false,backpack,
+12,BB-0012,Wireless earbuds,peripheral,NEEDS_HUMAN,NEEDS_HUMAN,36,0,NEEDS_HUMAN,,active,,false,backpack,
