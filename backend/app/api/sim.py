@@ -31,8 +31,6 @@ EMPTY_BIN_IMAGE = "bin.png"
 # after frame.
 OPEN_LEAD_MS = 1000.0
 SETTLE_LEAD_MS = 10.0
-# A hair further back than the crop's own lead, so the stand-in frame is certainly older.
-BEFORE_MARGIN_MS = 100.0
 TRACE_RATE_HZ = 15.0
 
 
@@ -87,22 +85,23 @@ def synthetic_step(mass_g: float, now_ms: float) -> Step:
 
 
 def _push_empty_bin(deps: IngestState, now_ms: float) -> None:
-    """Put an empty bin in the ring behind the injected frame, when nothing else is there.
+    """Put an empty bin in the ring behind the injected frame.
 
     A crop is the difference between two frames, so one frame alone gives no crop, no
-    exemplar and nothing for memory to recognise next time. With a phone connected the
-    ring already reaches back and this does nothing. With no phone, the simulator's own
-    background is what the camera would have been showing, and it is the only honest
-    stand-in available to a route that exists to stand in for the bin.
+    exemplar and nothing for memory to recognise the next time the same thing goes in. A
+    caller who hands this route an image is simulating the camera for this toss, so it gets
+    the simulator's own background as the frame from a moment earlier, and the pair is the
+    same pair every time that image is tossed. Leaving whatever the last toss left in the
+    ring would diff one sprite against another and give a different crop each time.
+
+    It lands exactly on the crop's own cutoff, which is the newest a before frame may be,
+    so it wins over anything older without hiding anything the step itself needs.
     """
-    cutoff = now_ms - OPEN_LEAD_MS - CropParams().before_lead_ms
-    if any(frame.t_ms <= cutoff for frame in deps.frames.snapshot()):
-        return
     empty = asset_bytes(EMPTY_BIN_IMAGE)
     if empty is None:
         log.warning("the simulator background is missing, the injected toss has no crop")
         return
-    deps.frames.push(empty, cutoff - BEFORE_MARGIN_MS)
+    deps.frames.push(empty, now_ms - OPEN_LEAD_MS - CropParams().before_lead_ms)
 
 
 @router.post("/toss", response_model=SimTossResponse)

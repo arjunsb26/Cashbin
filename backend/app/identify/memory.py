@@ -25,6 +25,17 @@ DEFAULT_K = 5
 # so three neighbours need three and two need two. One neighbour may carry itself, and the
 # distance gate still has to pass.
 VOTE_SHARE = 0.8
+# Cosine distance at which two crops are the same picture rather than a near miss. Nothing
+# but the same bytes, or a frame indistinguishable from them, lands this close.
+#
+# A match this close is accepted on its own, without the vote. Without that rule the vote
+# needs four confirmed exemplars of a label before memory will answer it at all, because the
+# moment the table holds five rows a perfect match sits by itself among four unrelated
+# neighbours and loses 1 to 4. PLAN.md section 20 M2 says the second toss of the same thing
+# comes back free, and on a populated table that is only true with this rule. It is
+# deliberately far tighter than `memory_max_dist`, which is about how different a photograph
+# of the same object may be; this is about the photograph being the same one.
+EXACT_DIST = 0.005
 
 
 @dataclass(frozen=True)
@@ -123,7 +134,10 @@ class MemoryIndex:
         label = max(counts, key=lambda name: (counts[name], -_first_distance(neighbours, name)))
         votes = counts[label]
         nearest = min(n.distance for n in neighbours if n.label == label)
-        if votes < votes_needed(len(neighbours)):
+        closest = neighbours[0]
+        if closest.distance <= EXACT_DIST:
+            label, votes, nearest = closest.label, counts[closest.label], closest.distance
+        elif votes < votes_needed(len(neighbours)):
             return None
         if nearest > settings.memory_max_dist:
             return None
