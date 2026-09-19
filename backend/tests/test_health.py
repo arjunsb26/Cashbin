@@ -74,7 +74,7 @@ def test_init_db_is_idempotent(settings: Settings) -> None:
 
 # Routes still waiting for the lane that fills them. A lane deletes its line here in the
 # same commit as the handler, so this list is always what is genuinely unbuilt.
-STUB_ROUTES = [
+STUB_ROUTES: list[tuple[str, str]] = [
     # Every section 14 route now has a handler. New stubs go here until their lane lands.
 ]
 
