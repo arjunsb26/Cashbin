@@ -30,6 +30,21 @@ PHONE_DIR = REPO_DIR / "phone"
 BRAND_FILE = REPO_DIR / "brand.json"
 
 
+def setup_logging() -> None:
+    """Give the structured lines somewhere to go.
+
+    Every stage of the pipeline logs one line at INFO, and nothing in the stack configures
+    the root logger, so without this the only lines anyone ever sees are warnings. It runs
+    once and never takes a handler off something that already set one up.
+    """
+    if logging.getLogger().handlers:
+        return
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s %(levelname)-7s %(name)s %(message)s",
+    )
+
+
 def seed_when_empty(active: Settings) -> None:
     """Load the seed files on a first start, so a fresh database is never a blank demo.
 
@@ -65,6 +80,7 @@ def seed_when_empty(active: Settings) -> None:
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     active: Settings = app.state.settings
+    setup_logging()
     active.media_dir.mkdir(parents=True, exist_ok=True)
     init_db(active)
     log.info("database ready with %d tables", len(table_names()))

@@ -2,6 +2,39 @@
 
 Newest first. Each lane writes under its own heading.
 
+## 2026-09-19, lane g: the pipeline glue and the M1 run
+
+- `backend/app/pipeline.py` is new and is the only place the lanes meet. It builds the
+  providers, the embedder and the memory index, hangs identification off the ingest
+  `on_event` seam, and hangs the engine, the ledger and the three surfaces off the
+  identification `on_final` seam. One toss now goes from a settled step to a posted,
+  balanced journal entry with a result on the LCD, the phone and the dashboard, and every
+  stage logs one line. A stage that fails is named in the log and the event keeps the last
+  status it honestly earned.
+- `finalise_event` loads the register row by tag or the catalog row by label, prices
+  untracked objects through the estimator with the cache in front of it, builds the item
+  record with the condition the vision call saw, scores and ranks every option, writes
+  `item_record` and `option_score`, posts the inventory write off or the fixed asset
+  disposal plus its tax memo, flags an untracked object worth more than the
+  capitalisation limit, takes the asset off the register, and publishes the result.
+- Answering an ask re-prices the same event. The entries already posted are reversed
+  rather than deleted, so the ticket carries the first posting, its reversal and the
+  corrected posting.
+- The app seeds the catalog and the register on a first start when both tables are empty.
+  `seed_on_start` is a new setting, on by default, so a test can start from nothing.
+- `GET /api/setup` returns the `NEEDS_HUMAN` checklist from the seed files, with
+  `SetupResponse` in `schemas.py` and the generated contract types regenerated.
+- `backend/tests/test_pipeline_e2e.py` plays the demo scenario through the app's own
+  three sockets with the stub provider and a QR tag read out of a real composited frame,
+  and asserts the events, the statuses, the fixed asset disposal, the bagel ranking, the
+  blocked electronics, the balanced books and the messages on every channel.
+- The QR reader now only reads the after and peak frames, and only matches an asset that
+  is still on the register, so a tag left lying in the bin cannot claim every later toss.
+- The header count on `/api/summary` counts tosses, which is what the dashboard calls it.
+  A bag going out is not something anyone threw away.
+- The scenario files name catalog items, so the stub provider can answer them. A tagged
+  step no longer queues an expectation, because its tag decides before any provider runs.
+
 ## 2026-09-19, lane b: tag case and the tone rule
 
 - The tone is amber whenever a better option than the bin exists on either
