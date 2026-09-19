@@ -548,6 +548,11 @@ def _grams(value: float) -> str:
     return f"{value:,.0f} g"
 
 
+def _plural(count: int, one: str, many: str) -> str:
+    """Counted nouns read as a person would say them, never "1 tickets"."""
+    return f"{count} {one if count == 1 else many}"
+
+
 def _balance_line(label: str, value: str, tail: str = "") -> str:
     line = f"{label:<22}{value:>12}"
     return f"{line}    {tail}" if tail else line
@@ -601,8 +606,10 @@ def check_mass_conservation(rows: PeriodRows, floor_g: float) -> CloseCheck:
             ),
             "",
             f"The tare is {tare_source}.",
-            f"{len(tosses)} tickets, {len(rows.bag_changes)} bag changes, "
-            f"{len(rows.removals)} removals, {_grams(removed_g)} taken back out.",
+            f"{_plural(len(tosses), 'ticket', 'tickets')}, "
+            f"{_plural(len(rows.bag_changes), 'bag change', 'bag changes')}, "
+            f"{_plural(len(rows.removals), 'removal', 'removals')}, "
+            f"{_grams(removed_g)} taken back out.",
         ]
     )
     if not within:
@@ -647,7 +654,7 @@ def check_ledger_balance(session: Session, entries: Sequence[Any]) -> CloseCheck
 
     if balanced:
         detail = (
-            f"{len(entries)} entries, every one balanced. "
+            f"{_plural(len(entries), 'entry', 'entries')}, every one balanced. "
             f"The trial balance shows {debit_total} cents on each side."
         )
     elif unbalanced:
@@ -699,7 +706,8 @@ def check_register_consistency(rows: PeriodRows, entries: Sequence[Any]) -> Clos
     ok = not missing and not duplicated
     if ok:
         detail = (
-            f"{len(disposed)} disposed assets, each with one disposal entry."
+            f"{_plural(len(disposed), 'disposed asset', 'disposed assets')}, "
+            "each with one disposal entry."
             if disposed
             else "No assets were disposed in this period."
         )
@@ -729,7 +737,10 @@ def check_unresolved_asks(rows: PeriodRows) -> CloseCheck:
     asking = [e for e in rows.tosses if e.status is models.EventStatus.asking]
     if asking:
         listed = ", ".join(str(event.id) for event in asking[:10])
-        detail = f"{len(asking)} tickets are still waiting on an answer: {listed}."
+        detail = (
+            f"{_plural(len(asking), 'ticket is', 'tickets are')} still waiting on an "
+            f"answer: {listed}."
+        )
     else:
         detail = "Nothing is waiting on a person."
     return CloseCheck(

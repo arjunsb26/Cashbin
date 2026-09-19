@@ -144,7 +144,10 @@ def build_data_block(
             }
             for check in failing_checks(result.checks)
         ],
-        "tickets_ranked_by_error_contribution": ranked[:RANKED_INPUTS_SHOWN],
+        "tickets_ranked_by_error_contribution": [
+            {**row, "label": tools.as_data_label(row.get("label"))}
+            for row in ranked[:RANKED_INPUTS_SHOWN]
+        ],
         "bag_changes": result.totals.get("events", {}),
     }
     return json.dumps(payload, ensure_ascii=True, sort_keys=True)
@@ -283,9 +286,10 @@ def stub_note(result: CloseResult, ranked: list[dict[str, Any]]) -> Investigatio
             review.extend(suspects)
         elif check.id == "unresolved_asks":
             waiting = int(check.numbers.get("asking", 0))
+            noun = "ticket is" if waiting == 1 else "tickets are"
             parts.append(
-                f"{waiting} tickets are still waiting on a person. Answer them before the "
-                "period is signed off, because an unanswered ticket has no entry behind it."
+                f"{waiting} {noun} still waiting on a person. Answer them before the period "
+                "is signed off, because an unanswered ticket has no entry behind it."
             )
         elif check.id == "low_confidence_share":
             share = check.numbers.get("share", 0.0) * 100

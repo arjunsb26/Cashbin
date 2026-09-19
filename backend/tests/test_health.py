@@ -78,7 +78,6 @@ STUB_ROUTES = [
     ("get", "/api/events"),
     ("get", "/api/events/1"),
     ("post", "/api/events/1/void"),
-    ("get", "/api/close/1"),
     ("post", "/api/device/tare"),
 ]
 
@@ -117,12 +116,14 @@ def test_body_routes_exist(client: TestClient) -> None:
     correction = client.post("/api/corrections", json={"event_id": 1, "label": "bagel"})
     # No such ticket, which is a refusal a person can read, not a missing route.
     assert correction.status_code == 409
-    assert (
-        client.post(
-            "/api/close", json={"period_start": "2026-09-01", "period_end": "2026-09-30"}
-        ).status_code
-        == 501
+    close = client.post(
+        "/api/close", json={"period_start": "2026-09-01", "period_end": "2026-09-30"}
     )
+    # A close over an empty period is still a close, and it passes every check.
+    assert close.status_code == 200
+    assert close.json()["status"] == "clean"
+    # Nothing has been closed before this one, so asking by id is a plain refusal.
+    assert client.get("/api/close/404").status_code == 404
     assert client.patch("/api/settings", json={"tax_rate": 0.25}).status_code == 200
 
 

@@ -11,17 +11,21 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
 from app.ledger.close import PeriodRows
+from app.schemas import LABEL_MAX, normalise_label
 
 log = logging.getLogger(__name__)
 
 MAX_EVENTS = 60
 MAX_TRACE_POINTS = 120
 MAX_IDENTIFICATIONS = 20
+
+_NOT_LABEL = re.compile(r"[^a-z0-9 -]")
 
 GET_EVENTS = "get_events"
 GET_TRACE = "get_trace"
@@ -111,6 +115,23 @@ TOOL_SCHEMAS: list[dict[str, Any]] = [
 ]
 
 
+def as_data_label(raw: str | None) -> str | None:
+    """A stored label, validated again on the way to the model.
+
+    CLAUDE.md: a record edited by hand cannot inject either. A label that no longer
+    passes the label rules is stripped down to the characters those rules allow and
+    capped, rather than dropped, so the note can still name what the ticket was.
+    """
+    if raw is None:
+        return None
+    try:
+        return normalise_label(raw)
+    except ValueError:
+        text = _NOT_LABEL.sub(" ", raw.lower())
+        text = " ".join(text.split())[:LABEL_MAX].strip()
+        return text or None
+
+
 def _trace_points(raw: str | None) -> list[tuple[float, float]]:
     """`[[t_seconds, grams], ...]` as numbers, dropping anything that is not a pair."""
     if not raw:
@@ -146,7 +167,7 @@ def get_events(rows: PeriodRows) -> dict[str, Any]:
                     round(event.mass_err_g, 3) if event.mass_err_g is not None else None
                 ),
                 "status": event.status.value,
-                "label": record.label if record else None,
+                "label": as_data_label(record.label) if record else None,
                 "class": record.item_class.value if record else None,
                 "has_trace": bool(event.trace_json),
                 "has_item_record": record is not None,
@@ -214,7 +235,7 @@ def get_identifications(rows: PeriodRows, event_id: int) -> dict[str, Any]:
     listed = [
         {
             "method": ident.method.value,
-            "label": ident.label,
+            "label": as_data_label(ident.label),
             "class": ident.item_class.value if ident.item_class else None,
             "confidence": ident.confidence,
             "provider": ident.provider,
