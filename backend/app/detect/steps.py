@@ -37,7 +37,7 @@ class DetectParams(BaseModel):
     settle_ms: float = 600.0
     bag_change_g: float = 200.0
     noise_sigma: float = 0.8
-    stable_k: float = 3.0
+    stable_k: float = 2.0
     buffer_s: float = 10.0
     trace_pre_ms: float = 2000.0
     trace_post_ms: float = 1000.0

@@ -1,0 +1,25 @@
+# The demo run. Four tosses and a bag change, in the order the pitch tells it:
+# food, then a tagged asset, then a cheap accessory, then something broken and worth
+# repairing, then the bag goes out.
+name: demo
+sigma: 0.8
+steps:
+  - kind: toss
+    label: bagel
+    mass_g: 95
+    image: bagel.png
+  - kind: toss
+    label: keyboard
+    mass_g: 780
+    image: keyboard.png
+    tag: BB-0002
+  - kind: toss
+    label: charger
+    mass_g: 62
+    image: charger.png
+  - kind: toss
+    label: phone
+    mass_g: 172
+    image: phone_cracked.png
+  - kind: bag_change
+    label: bag out
