@@ -26,3 +26,11 @@ Newest first, one section per lane.
   and the page opened over plain HTTP.
 - Added `phone/dev/`: a mock backend over HTTPS with its own certificate, a frame counter,
   a scripted result and ask, and a Playwright run that captures the six states at 390x844.
+- Moved the mock backend to port 8444, because the real backend owns 8443.
+- A ticket that arrives while a question is on the screen waits. It rises once the
+  question has been answered and the quiet learned line has had its moment, so a question
+  is never taken away under a thumb and no ticket is lost.
+- The big figure on a ticket is red when the money reads as a loss, whatever the tone of
+  the result. The tone stays in the band above it.
+- The screenshot run turns the mock's scripted sequence off as it starts and sends every
+  result and ask itself, so the same ten shots come out every time.
