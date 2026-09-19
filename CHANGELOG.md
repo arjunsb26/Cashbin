@@ -4,6 +4,10 @@ Newest first inside each heading.
 
 ## Lane A
 
+- Made the lane's test files pass a plain `uv run mypy`, which checks `app` and
+  `tests` and was red on the simulator imports and four opencv results that can be
+  None. The simulator imports carry an ignore because they are put on the path at
+  runtime and mypy cannot follow that.
 - `backend/tests/test_sim_crop.py`: the demo run's camera frames through `pick_frames`
   and `crop_item`, so the fake camera and the crop are proved to agree the way the
   fake scale and the detector already were. It also holds the `before_lead_ms` default
