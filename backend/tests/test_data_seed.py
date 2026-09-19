@@ -108,14 +108,16 @@ def test_every_priced_row_names_where_the_price_came_from() -> None:
 # --- assets ------------------------------------------------------------------
 
 
-def test_the_assets_seed_is_a_template_with_nothing_invented() -> None:
+def test_the_assets_seed_is_filled_and_says_the_numbers_are_approximate() -> None:
+    """The user gave the word to fill the register with checked, rough numbers."""
     assets = load_assets_seed()
     assert len(assets) == 12
     assert len({asset.tag for asset in assets}) == 12
     for asset in assets:
-        assert asset.cost_cents is None, asset.tag
-        assert asset.in_service_date is None, asset.tag
-        assert asset.tax_method is None, asset.tag
+        assert asset.cost_cents is not None and asset.cost_cents > 0, asset.tag
+        assert asset.in_service_date is not None, asset.tag
+        assert asset.tax_method is not None, asset.tag
+        assert asset.note and "approximate" in asset.note, asset.tag
 
 
 def test_the_demo_keyboard_is_tagged_as_the_plan_says() -> None:
@@ -124,9 +126,12 @@ def test_the_demo_keyboard_is_tagged_as_the_plan_says() -> None:
     assert "keyboard" in tags["BB-0002"].description.lower()
 
 
-def test_at_least_two_assets_are_marked_as_bonus_candidates() -> None:
-    noted = [a for a in load_assets_seed() if a.note and "bonus_100" in a.note]
-    assert len(noted) >= 2
+def test_at_least_two_assets_use_bonus_depreciation_and_were_bought_after_the_cutoff() -> None:
+    bonus = [a for a in load_assets_seed() if a.tax_method == "bonus_100"]
+    assert len(bonus) >= 2
+    for asset in bonus:
+        assert asset.in_service_date is not None
+        assert str(asset.in_service_date) > "2025-01-19", asset.tag
 
 
 # --- llm prices --------------------------------------------------------------
@@ -205,8 +210,8 @@ def test_the_rules_with_citations_point_at_the_sources_the_plan_names() -> None:
 def test_unfilled_cells_are_reported_rather_than_failing_the_suite() -> None:
     pending = list_needs_human()
     assert isinstance(pending, list)
-    # Every asset row waits on cost, date and method. Three cells times twelve.
-    assert sum(1 for line in pending if line.startswith("assets_seed.csv")) == 36
+    # The register is filled, so nothing from it is waiting.
+    assert sum(1 for line in pending if line.startswith("assets_seed.csv")) == 0
     # Every model price is filled in, so nothing from that file is waiting.
     assert sum(1 for line in pending if line.startswith("llm_prices.csv")) == 0
     for line in pending:

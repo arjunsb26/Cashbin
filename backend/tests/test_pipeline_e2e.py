@@ -21,6 +21,7 @@ import numpy as np
 import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
+from sqlalchemy import select
 from starlette.testclient import WebSocketTestSession
 
 from app.config import Settings
@@ -56,8 +57,8 @@ HELLO = {"type": "hello", "fw": "0.1", "device": "bin-1"}
 READ_CAP = 6000
 
 KEYBOARD_TAG = "bb-0002"
-# Register numbers for the tagged keyboard. The shipped seed file leaves these as
-# NEEDS_HUMAN on purpose, so this case supplies its own rather than inventing demo data.
+# Register numbers for the tagged keyboard. This case sets its own so the assertions
+# below do not move when the seed file's approximate values change.
 KEYBOARD_COST_CENTS = 12_900
 KEYBOARD_LIFE_MONTHS = 36
 
@@ -218,26 +219,26 @@ def demo_settings(tmp_path: Path) -> Any:
 
 
 def seed_for_demo() -> None:
-    """The catalog from the seed file, plus the one register row the demo tosses."""
+    """The catalog and register from the seed files, with the keyboard row set to this
+    case's own numbers so the assertions below do not depend on the CSV's values."""
     with session_scope() as session:
         seed_all(session)
         today = date.today()
         in_service = today.replace(year=today.year - 1)
-        session.add(
-            Asset(
-                tag=KEYBOARD_TAG,
-                description="Mechanical keyboard",
-                category="peripheral",
-                cost_cents=KEYBOARD_COST_CENTS,
-                in_service_date=in_service.isoformat(),
-                book_life_months=KEYBOARD_LIFE_MONTHS,
-                salvage_cents=0,
-                # Bought after 19 January 2025 and fully expensed, so the tax basis is
-                # zero and the book and tax columns differ. PLAN.md section 10.
-                tax_method=TaxMethod.bonus_100,
-                status=AssetStatus.active,
-            )
-        )
+        row = session.scalar(select(Asset).where(Asset.tag == KEYBOARD_TAG))
+        if row is None:
+            row = Asset(tag=KEYBOARD_TAG, description="Mechanical keyboard")
+            session.add(row)
+        row.category = "peripheral"
+        row.cost_cents = KEYBOARD_COST_CENTS
+        row.in_service_date = in_service.isoformat()
+        row.book_life_months = KEYBOARD_LIFE_MONTHS
+        row.salvage_cents = 0
+        # Bought after 19 January 2025 and fully expensed, so the tax basis is zero and
+        # the book and tax columns differ. PLAN.md section 10.
+        row.tax_method = TaxMethod.bonus_100
+        row.status = AssetStatus.active
+        row.disposed_event_id = None
 
 
 def run_demo(client: TestClient, app: FastAPI) -> dict[str, list[dict[str, Any]]]:
@@ -363,7 +364,9 @@ def test_the_setup_checklist_names_every_unfilled_cell(client: TestClient) -> No
     body = client.get("/api/setup").json()
     assert body["items"]
     assert all(": " in line for line in body["items"])
-    assert any(line.startswith("assets_seed.csv") for line in body["items"])
+    # The register is filled, so only the catalog's one unpriced row is waiting.
+    assert not any(line.startswith("assets_seed.csv") for line in body["items"])
+    assert any(line.startswith("catalog.csv") for line in body["items"])
 
 
 def test_a_first_start_seeds_the_catalog(tmp_path: Path) -> None:

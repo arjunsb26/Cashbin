@@ -145,11 +145,12 @@ def test_an_empty_database_is_reported_as_empty(settings: Settings) -> None:
 
 
 def test_the_summary_table_names_every_table_and_the_skipped_rows(
-    settings: Settings,
+    settings: Settings, tmp_path: Path
 ) -> None:
     init_db(settings)
+    data_dir = _data_dir_with_one_unfilled_asset(tmp_path)
     with session_scope() as session:
-        summary = seed_all(session)
+        summary = seed_all(session, data_dir=data_dir)
     text = format_summary(summary)
     assert "catalog_item" in text
     assert "asset" in text
