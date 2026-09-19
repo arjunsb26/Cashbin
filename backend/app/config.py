@@ -78,10 +78,19 @@ class Settings(BaseSettings):
     round_size: int = Field(default=20, gt=0)
 
     # LLM access. Empty provider means the stub provider, which needs no key.
+    # No model name is written here on purpose: an empty model with a set provider is a
+    # setup mistake worth seeing, not a silent default nobody chose.
     llm_provider: str = ""
+    llm_base_url: str = ""
     llm_vision_model: str = ""
     llm_text_model: str = ""
+    llm_agent_model: str = ""
+    # Reasoning effort per call. The vision call has to land inside llm_timeout_s.
+    llm_vision_effort: str = "low"
+    llm_text_effort: str = "low"
     llm_timeout_s: float = Field(default=8.0, gt=0.0)
+    # Read from .env at startup. Never logged, never returned by any endpoint.
+    openai_api_key: str = ""
 
     # Paths
     media_dir: Path = BACKEND_DIR / "media"
@@ -98,8 +107,13 @@ class Settings(BaseSettings):
 
     @field_validator(
         "llm_provider",
+        "llm_base_url",
         "llm_vision_model",
         "llm_text_model",
+        "llm_agent_model",
+        "llm_vision_effort",
+        "llm_text_effort",
+        "openai_api_key",
         "product_name",
         "product_short_name",
         "product_tagline",

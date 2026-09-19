@@ -16,8 +16,20 @@ if str(REPO_DIR) not in sys.path:
 
 from app.config import Settings, reset_settings  # noqa: E402
 from app.db import dispose_db  # noqa: E402
+from app.identify.pipeline import reset_identify  # noqa: E402
 from app.main import create_app  # noqa: E402
 from app.notify.bus import reset_bus  # noqa: E402
+
+
+@pytest.fixture(autouse=True)
+def fresh_identify() -> Iterator[None]:
+    """Identification keeps providers, the memory index and the sim queue in process globals.
+
+    Every test starts with all three empty, so one case can never answer for the next.
+    """
+    reset_identify()
+    yield
+    reset_identify()
 
 
 @pytest.fixture
