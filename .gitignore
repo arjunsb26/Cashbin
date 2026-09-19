@@ -1,0 +1,36 @@
+# secrets and certs
+.env
+*.pem
+*.key
+*.crt
+certs/
+
+# python
+__pycache__/
+*.pyc
+.venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+*.egg-info/
+
+# data produced at runtime
+backend/media/
+backend/recordings/
+*.db
+*.db-wal
+*.db-shm
+
+# node
+node_modules/
+frontend/.next/
+frontend/out/
+frontend/next-env.d.ts
+frontend/test-results/
+frontend/playwright-report/
+
+# editors and os
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
