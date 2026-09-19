@@ -1,0 +1,14 @@
+{
+  "name": "phone-dev",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Screenshot run for the phone page. Nothing here is served to a phone.",
+  "scripts": {
+    "screenshots": "node screenshots.mjs",
+    "browser": "playwright install chromium"
+  },
+  "devDependencies": {
+    "playwright": "^1.49.1"
+  }
+}

@@ -116,7 +116,7 @@ body {
 .button {
   display: flex;
   align-items: center;
-  justify-content: center;
+  justify-content: flex-start;
   gap: 8px;
   width: 100%;
   min-height: 56px;
@@ -167,7 +167,7 @@ body {
   display: flex;
   flex-direction: column;
   padding: calc(env(safe-area-inset-top) + 24px) calc(env(safe-area-inset-right) + 16px)
-    calc(env(safe-area-inset-bottom) + 24px) calc(env(safe-area-inset-left) + 16px);
+    calc(env(safe-area-inset-bottom) + 32px) calc(env(safe-area-inset-left) + 16px);
 }
 
 .start__brand {
@@ -402,6 +402,10 @@ body {
   line-height: 18px;
   color: var(--ink-soft);
   min-height: 18px;
+}
+
+#askSend {
+  margin-top: 8px;
 }
 
 .ask__note {
