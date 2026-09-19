@@ -55,7 +55,7 @@ def test_a_catalog_label_comes_back_confident_with_two_decoys() -> None:
     queue.push("bagel")
     result = StubVisionProvider(queue).identify(make_jpeg(), context())
     assert result.confidence == CONFIDENT_P
-    assert [c.label for c in result.candidates][0] == "bagel"
+    assert result.candidates[0].label == "bagel"
     assert len(result.candidates) == 3
     assert sum(c.p for c in result.candidates) == pytest.approx(1.0, abs=0.01)
 
@@ -93,6 +93,29 @@ def test_with_no_catalog_at_all_the_answer_is_unknown(monkeypatch: pytest.Monkey
     assert result.label == "unknown object"
     assert result.confidence == UNSURE_P
     assert result.candidates[0].label == "unknown object"
+
+
+def test_the_simulator_can_queue_what_is_coming(dev_client: object) -> None:
+    from fastapi.testclient import TestClient
+
+    from app.identify.stub import get_expect_queue
+
+    assert isinstance(dev_client, TestClient)
+    response = dev_client.post("/api/sim/expect", json={"label": "Pizza Slice", "mass_g": 107.0})
+    assert response.status_code == 200
+    assert response.json() == {"label": "pizza slice", "mass_g": 107.0}
+    assert get_expect_queue().pending() == 1
+
+    queued = dev_client.post("/api/sim/expect", json={"label": "bagel"})
+    assert queued.json() == {"label": "bagel", "mass_g": None}
+    assert get_expect_queue().pending() == 2
+
+
+def test_the_simulator_route_refuses_a_hostile_label(dev_client: object) -> None:
+    from fastapi.testclient import TestClient
+
+    assert isinstance(dev_client, TestClient)
+    assert dev_client.post("/api/sim/expect", json={"label": "a" * 60}).status_code == 422
 
 
 def test_the_estimator_gives_ordered_ranges_by_class(settings: Settings) -> None:

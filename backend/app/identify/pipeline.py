@@ -455,7 +455,11 @@ async def identify_event(
         # 4. Mass prior fusion, when a prior has enough weighings behind it to count.
         final_dist = vision_dist
         if any(facts.priors.get(label, _NO_PRIOR).usable for label in vision_dist):
-            final_dist = fuse(vision_dist, mass_g, mass_err_g, facts.priors)
+            # Fusion works on a normalised distribution, so the share the model left
+            # unspoken for is put back afterwards rather than quietly filled in.
+            claimed = min(sum(vision_dist.values()), 1.0)
+            fused = fuse(vision_dist, mass_g, mass_err_g, facts.priors)
+            final_dist = {label: p * claimed for label, p in fused.items()}
             best, _ = top_two(final_dist)
             row = write_identification(
                 session,
@@ -499,13 +503,18 @@ def _asset_tags(session: Session) -> tuple[str, ...]:
 
 
 def _distribution(vision: VisionResult) -> dict[str, float]:
-    """The vision answer as a distribution over labels, normalised."""
+    """The vision answer as a distribution over labels.
+
+    Probability that adds up to less than one is left alone. The missing share is the
+    model saying it might be none of these, and scaling it away would turn an unsure
+    answer into a confident one, which is exactly the failure PLAN.md rule 3 forbids.
+    """
     dist: dict[str, float] = {str(vision.label): float(vision.confidence)}
     for candidate in vision.candidates:
         name = str(candidate.label)
         dist[name] = max(dist.get(name, 0.0), float(candidate.p))
     total = sum(dist.values())
-    return {label: p / total for label, p in dist.items()} if total > 0 else dist
+    return {label: p / total for label, p in dist.items()} if total > 1.0 else dist
 
 
 async def _call_vision(

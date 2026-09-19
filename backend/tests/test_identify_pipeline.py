@@ -147,7 +147,8 @@ async def test_a_tagged_asset_is_identified_with_no_call(settings: Settings) -> 
     assert deps.providers.vision.calls == 0  # type: ignore[attr-defined]
 
     with session_scope() as session:
-        assert session.get(type(event), event_id).status is EventStatus.identified
+        settled = session.get(type(event), event_id)
+        assert settled is not None and settled.status is EventStatus.identified
 
 
 # The confident path and the ask ---------------------------------------------
@@ -189,7 +190,7 @@ async def test_an_unsure_answer_opens_the_ask_on_all_three_surfaces(settings: Se
 
     assert outcome.final is False
     assert finals.calls == []
-    assert [str(c.label) for c in outcome.candidates][0] == "cracked phone"
+    assert str(outcome.candidates[0].label) == "cracked phone"
     assert "ask.opened" in ui.types()
     assert "ask" in [m.type for m in phone.messages()]  # type: ignore[attr-defined]
     screens = bin_screen.messages()
@@ -311,7 +312,8 @@ async def test_a_timeout_opens_the_ask_and_never_raises(settings: Settings) -> N
     with session_scope() as session:
         from app.models import Event
 
-        assert session.get(Event, event_id).status is EventStatus.asking
+        waiting = session.get(Event, event_id)
+        assert waiting is not None and waiting.status is EventStatus.asking
 
 
 async def test_a_provider_that_blows_up_opens_the_ask(settings: Settings) -> None:
