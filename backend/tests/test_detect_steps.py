@@ -6,6 +6,7 @@ import math
 
 import numpy as np
 import pytest
+
 from app.detect.steps import (
     DetectParams,
     Sample,

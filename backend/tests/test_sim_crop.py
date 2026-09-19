@@ -15,10 +15,10 @@ from pathlib import Path
 
 import pytest
 import websockets
-from app.detect.crop import CropParams, Frame, crop_item, pick_frames
-from app.detect.steps import Step, detect
 from websockets.asyncio.server import serve
 
+from app.detect.crop import CropParams, Frame, crop_item, pick_frames
+from app.detect.steps import Step, detect
 from tests.test_sim_bin import Backend, _quiet
 
 SIM_DIR = Path(__file__).resolve().parents[2] / "sim"

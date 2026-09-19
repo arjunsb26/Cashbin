@@ -18,8 +18,9 @@ from typing import Any
 
 import pytest
 import websockets
-from app.detect.steps import Sample, detect, estimate_noise_sigma, samples_from_pairs
 from websockets.asyncio.server import ServerConnection, serve
+
+from app.detect.steps import Sample, detect, estimate_noise_sigma, samples_from_pairs
 
 SIM_DIR = Path(__file__).resolve().parents[2] / "sim"
 if str(SIM_DIR) not in sys.path:

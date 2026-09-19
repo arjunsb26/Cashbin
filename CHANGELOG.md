@@ -1,8 +1,7 @@
 # Changelog
 
-## 2026-09-19, lane a part 1: step detection, crop, simulators
 
-Newest first inside each heading.
+Newest first. Each lane writes under its own heading.
 
 ## 2026-09-19, lane a part 1: step detection, crop, simulators
 
@@ -44,8 +43,6 @@ Newest first inside each heading.
 - `backend/app/detect/steps.py`: step detection on the weight stream, as a pure
   `detect()` over recorded samples and as a streaming `StepDetector`. Tosses, bag
   changes and removals, each with its mass, its error and the trace around it.
-
-Newest first. Each lane writes under its own heading.
 
 ## 2026-09-19, lane b: engine, ledger, seed data
 

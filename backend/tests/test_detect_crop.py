@@ -5,6 +5,7 @@ from __future__ import annotations
 import cv2
 import numpy as np
 import pytest
+
 from app.detect.crop import CropParams, Frame, crop_item, pick_frames
 from app.detect.steps import Step
 
