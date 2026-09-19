@@ -188,7 +188,7 @@ def build_types(schema_json: str) -> str | None:
         source = Path(tmp) / "api-schema.json"
         target = Path(tmp) / "api-types.ts"
         source.write_text(schema_json, encoding="utf-8")
-        result = subprocess.run(  # noqa: S603
+        result = subprocess.run(
             [
                 pnpm,
                 "dlx",

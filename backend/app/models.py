@@ -1,4 +1,7 @@
-"""SQL tables from PLAN.md section 8. Money is integer cents, mass is float grams, times are UTC ISO."""
+"""SQL tables from PLAN.md section 8.
+
+Money is integer cents, mass is float grams, timestamps are UTC ISO strings.
+"""
 
 from __future__ import annotations
 
@@ -31,30 +34,30 @@ class Base(DeclarativeBase):
 # Enums ---------------------------------------------------------------------
 
 
-class ItemClass(str, enum.Enum):
+class ItemClass(enum.StrEnum):
     inventory = "inventory"
     fixed_asset = "fixed_asset"
     untracked = "untracked"
 
 
-class TaxMethod(str, enum.Enum):
+class TaxMethod(enum.StrEnum):
     bonus_100 = "bonus_100"
     straight_line = "straight_line"
 
 
-class AssetStatus(str, enum.Enum):
+class AssetStatus(enum.StrEnum):
     active = "active"
     disposed = "disposed"
     ghost_suspected = "ghost_suspected"
 
 
-class EventKind(str, enum.Enum):
+class EventKind(enum.StrEnum):
     toss = "toss"
     bag_change = "bag_change"
     removal = "removal"
 
 
-class EventStatus(str, enum.Enum):
+class EventStatus(enum.StrEnum):
     detected = "detected"
     identified = "identified"
     asking = "asking"
@@ -63,7 +66,7 @@ class EventStatus(str, enum.Enum):
     void = "void"
 
 
-class IdentifyMethod(str, enum.Enum):
+class IdentifyMethod(enum.StrEnum):
     qr = "qr"
     memory = "memory"
     cloud = "cloud"
@@ -71,7 +74,7 @@ class IdentifyMethod(str, enum.Enum):
     stub = "stub"
 
 
-class OptionKind(str, enum.Enum):
+class OptionKind(enum.StrEnum):
     trash = "trash"
     recycle = "recycle"
     repair = "repair"
@@ -79,12 +82,12 @@ class OptionKind(str, enum.Enum):
     donate = "donate"
 
 
-class JournalBasis(str, enum.Enum):
+class JournalBasis(enum.StrEnum):
     book = "book"
     tax_memo = "tax_memo"
 
 
-class CropQuality(str, enum.Enum):
+class CropQuality(enum.StrEnum):
     ok = "ok"
     low = "low"
 
@@ -198,7 +201,9 @@ class Identification(Base):
         _enum(IdentifyMethod, "identify_method"), nullable=False
     )
     label: Mapped[str | None] = mapped_column(String(40))
-    item_class: Mapped[ItemClass | None] = mapped_column("class", _enum(ItemClass, "item_class"))
+    item_class: Mapped[ItemClass | None] = mapped_column(
+        "class", _enum(ItemClass, "item_class")
+    )
     confidence: Mapped[float | None] = mapped_column(Float)
     candidates_json: Mapped[str | None] = mapped_column(Text)
     posterior_json: Mapped[str | None] = mapped_column(Text)
@@ -280,7 +285,9 @@ class JournalLine(Base):
     __tablename__ = "journal_line"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    entry_id: Mapped[int] = mapped_column(ForeignKey("journal_entry.id"), nullable=False, index=True)
+    entry_id: Mapped[int] = mapped_column(
+        ForeignKey("journal_entry.id"), nullable=False, index=True
+    )
     account: Mapped[str] = mapped_column(String(8), nullable=False)
     debit_cents: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     credit_cents: Mapped[int] = mapped_column(Integer, nullable=False, default=0)

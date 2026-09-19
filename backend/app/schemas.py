@@ -12,6 +12,7 @@ from typing import Annotated, Any, Literal, TypeAlias
 
 from pydantic import (
     BaseModel,
+    BeforeValidator,
     ConfigDict,
     Field,
     StringConstraints,
@@ -151,8 +152,36 @@ class MaterialKey(str):
         return cls(normalise_key(value))
 
 
-LcdLine: TypeAlias = Annotated[str, StringConstraints(max_length=LCD_LINE_MAX)]
-LcdBig: TypeAlias = Annotated[str, StringConstraints(max_length=LCD_BIG_MAX)]
+def lcd_text(raw: Any, limit: int) -> Any:
+    """Fold to plain ASCII, flatten whitespace, then cut to the limit.
+
+    PLAN.md section 6 states two things about LCD fields: a hard width, and that the backend
+    is responsible for truncation. Doing it in the type makes both true at once, so an
+    over-long string cannot reach the bin no matter who built the message. The example in
+    firmware_contract.md carries a 21 character second line, which lands here as 20.
+    """
+    if not isinstance(raw, str):
+        return raw
+    folded = unicodedata.normalize("NFKD", raw).encode("ascii", "ignore").decode("ascii")
+    return _WHITESPACE.sub(" ", folded).strip()[:limit].rstrip()
+
+
+def _cut_line(raw: Any) -> Any:
+    return lcd_text(raw, LCD_LINE_MAX)
+
+
+def _cut_big(raw: Any) -> Any:
+    """The big figure carries no spaces, so a wide number keeps its sign and leading digits."""
+    value = lcd_text(raw, LCD_LINE_MAX)
+    return value.replace(" ", "")[:LCD_BIG_MAX] if isinstance(value, str) else value
+
+
+LcdLine: TypeAlias = Annotated[
+    str, BeforeValidator(_cut_line), StringConstraints(max_length=LCD_LINE_MAX)
+]
+LcdBig: TypeAlias = Annotated[
+    str, BeforeValidator(_cut_big), StringConstraints(max_length=LCD_BIG_MAX)
+]
 LcdColour: TypeAlias = Literal["green", "amber", "red", "neutral"]
 Probability: TypeAlias = Annotated[float, Field(ge=0.0, le=1.0)]
 

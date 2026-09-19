@@ -1,4 +1,4 @@
-"""The Embedder interface from PLAN.md section 9. Step 0 owns this file. Lane C writes the embedders.
+"""The Embedder interface from PLAN.md section 9. Step 0 owns it, lane C writes the embedders.
 
 An embedder turns a crop into an L2-normalised vector. The baseline and any later encoder
 satisfy the same Protocol, so memory kNN never learns which one it is talking to.

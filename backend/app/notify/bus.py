@@ -8,6 +8,7 @@ because a live feed that blocks ingest is worse than a live feed that skips a fr
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import logging
 from collections.abc import AsyncIterator, Iterable
 from typing import Any
@@ -51,7 +52,7 @@ class Subscription:
     def wants(self, topic: str) -> bool:
         return self.topics is None or topic in self.topics
 
-    def _offer(self, message: BaseModel) -> bool:
+    def offer(self, message: BaseModel) -> bool:
         """Never blocks. Drops the oldest message when the reader has fallen behind."""
         if self._closed:
             return False
@@ -75,15 +76,21 @@ class Subscription:
         """Next message, or None once the subscription is closed."""
         return await self._queue.get()
 
+    def take_nowait(self) -> BaseModel | None:
+        """Next message without waiting. Raises asyncio.QueueEmpty when there is none."""
+        return self._queue.get_nowait()
+
+    def pending(self) -> int:
+        """How many messages are waiting to be read."""
+        return self._queue.qsize()
+
     def close(self) -> None:
         if self._closed:
             return
         self._closed = True
         self.bus.unsubscribe(self)
-        try:
+        with contextlib.suppress(asyncio.QueueFull):
             self._queue.put_nowait(None)
-        except asyncio.QueueFull:
-            pass
 
     async def __aenter__(self) -> Subscription:
         return self
@@ -144,7 +151,7 @@ class Bus:
         name = topic or topic_of(message)
         delivered = 0
         for sub in list(self._subscribers.get(channel, ())):
-            if sub.wants(name) and sub._offer(message):
+            if sub.wants(name) and sub.offer(message):
                 delivered += 1
         return delivered
 

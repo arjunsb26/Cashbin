@@ -17,12 +17,12 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "backend"))
 
-from hypercorn.asyncio import serve  # noqa: E402
-from hypercorn.config import Config  # noqa: E402
+from hypercorn.asyncio import serve
+from hypercorn.config import Config
 
-from app.config import get_settings  # noqa: E402
-from app.main import create_app  # noqa: E402
-from scripts.make_cert import build_cert  # noqa: E402
+from app.config import get_settings
+from app.main import create_app
+from scripts.make_cert import build_cert
 
 
 def build_config(host: str, https_port: int, http_port: int | None, cert_dir: Path) -> Config:

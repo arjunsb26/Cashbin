@@ -20,12 +20,12 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "backend"))
 
-from cryptography import x509  # noqa: E402
-from cryptography.hazmat.primitives import hashes, serialization  # noqa: E402
-from cryptography.hazmat.primitives.asymmetric import rsa  # noqa: E402
-from cryptography.x509.oid import NameOID  # noqa: E402
+from cryptography import x509
+from cryptography.hazmat.primitives import hashes, serialization
+from cryptography.hazmat.primitives.asymmetric import rsa
+from cryptography.x509.oid import NameOID
 
-from app.config import get_settings  # noqa: E402
+from app.config import get_settings
 
 VALID_DAYS = 365
 
