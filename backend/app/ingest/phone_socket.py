@@ -38,6 +38,8 @@ class PhoneConnection:
         self.out = wire.Outbox(websocket)
         self.greeted = False
         self.frames = 0
+        self.pongs = 0
+        self.ready = asyncio.Event()
 
     async def run(self) -> None:
         await self.websocket.accept()
@@ -47,7 +49,7 @@ class PhoneConnection:
 
         tasks = [
             asyncio.create_task(wire.forward(subscription, self.out)),
-            asyncio.create_task(wire.heartbeat(self.out)),
+            asyncio.create_task(wire.heartbeat(self.out, ready=self.ready)),
         ]
         try:
             await self._read_loop()
@@ -73,6 +75,8 @@ class PhoneConnection:
                 if not await self._text(raw):
                     await self.out.close(code=1008)
                     return
+                if self.greeted:
+                    self.ready.set()
                 if self.out.closed:
                     return
         except WebSocketDisconnect:
@@ -111,7 +115,9 @@ class PhoneConnection:
             log.warning("the phone sent a %r message that does not validate", kind)
             return True
         if kind == "pong":
-            await self.out.send({"type": "ping"})
+            # A pong ends the exchange. See the note in bin_socket: replying to one
+            # with a ping makes the two ends flood each other.
+            self.pongs += 1
         return True
 
     async def _hello(self, parsed: dict[str, Any]) -> bool:

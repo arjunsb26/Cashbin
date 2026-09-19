@@ -50,8 +50,26 @@ class Recording:
 
     @property
     def duration_s(self) -> float:
-        times = [t for t, _ in self.bin_messages] + [t for t, _ in self.phone_frames]
-        return max(times) if times else 0.0
+        times = self._times()
+        return max(times) - min(times) if times else 0.0
+
+    def _times(self) -> list[float]:
+        return [t for t, _ in self.bin_messages] + [t for t, _ in self.phone_frames]
+
+    def rebase(self) -> None:
+        """Slide both timelines so the first thing recorded happens at zero.
+
+        The stamps are seconds since the backend started, so a recording of a run that
+        began a minute in would otherwise open the sockets and then sit silent for a
+        minute. The gap between the two timelines is kept, because that gap is what
+        puts the item in shot before it lands on the scale.
+        """
+        times = self._times()
+        if not times:
+            return
+        base = min(times)
+        self.bin_messages = [(t - base, m) for t, m in self.bin_messages]
+        self.phone_frames = [(t - base, f) for t, f in self.phone_frames]
 
 
 def read_recording(directory: Path) -> Recording:
@@ -73,6 +91,7 @@ def read_recording(directory: Path) -> Recording:
             recording.phone_frames.append((float(row.get("t", 0.0)), directory / row["file"]))
     recording.bin_messages.sort(key=lambda item: item[0])
     recording.phone_frames.sort(key=lambda item: item[0])
+    recording.rebase()
     return recording
 
 

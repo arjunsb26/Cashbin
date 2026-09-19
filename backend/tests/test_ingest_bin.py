@@ -284,3 +284,37 @@ def test_json_that_is_not_an_object_is_answered_not_fatal(client: TestClient, ju
     with client.websocket_connect("/ws/bin") as socket:
         socket.send_text(junk)
         assert socket.receive_json() == {"type": "error", "detail": "not json"}
+
+
+def test_a_pong_ends_the_exchange(client: TestClient) -> None:
+    """Regression. A pong answered with a ping makes both ends flood the wire.
+
+    The bin answers every ping with a pong, so one reply per pong is a loop that runs
+    as fast as the socket allows. A 29 second scenario run recorded 40787 pongs before
+    this was fixed. The heartbeat is the only thing that may start a ping.
+    """
+    with client.websocket_connect("/ws/bin") as socket:
+        socket.send_json(HELLO)
+        assert socket.receive_json() == {"type": "ping"}
+        for index in range(20):
+            socket.send_json({"type": "pong", "t": index})
+        socket.send_json({"type": "ping"})
+        assert socket.receive_json() == {"type": "pong"}
+
+
+def test_nothing_is_sent_before_the_hello(client: TestClient) -> None:
+    """Regression from the first replay run.
+
+    The heartbeat used to start the moment the socket opened, so a client that had not
+    greeted yet got a ping, answered it, and was closed for talking before its hello.
+    Replay opens its sockets before its first recorded message, so it hit this every
+    time. Nothing goes out until the hello is in.
+    """
+    import time
+
+    from app.ingest import wire
+
+    with client.websocket_connect("/ws/bin") as socket:
+        time.sleep(wire.HEARTBEAT_S + 0.5)
+        socket.send_json(HELLO)
+        assert socket.receive_json() == {"type": "ping"}

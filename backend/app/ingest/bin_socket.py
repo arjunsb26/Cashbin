@@ -72,6 +72,7 @@ class BinSession:
         self._next_ui_ms = float("-inf")
         self.samples = 0
         self.steps = 0
+        self.pongs = 0
         self._tasks: set[asyncio.Task[int]] = set()
 
     async def handle_text(self, raw: str) -> bool:
@@ -111,7 +112,11 @@ class BinSession:
         if isinstance(message, BinWeight):
             await self._weight(message)
         elif isinstance(message, BinPong):
-            await self.send({"type": "ping"})
+            # A pong ends the exchange. Answering it with another ping makes the bin
+            # answer that, and the two of them fill the wire as fast as the socket
+            # allows: a 29 second scenario run produced 40787 pongs before this line
+            # stopped replying. The heartbeat is the only thing that starts a ping.
+            self.pongs += 1
         elif isinstance(message, BinButton):
             log.info("%s pressed button %s", self.source, message.id)
         return True
@@ -201,6 +206,7 @@ class BinConnection:
         self.deps = deps
         self.out = wire.Outbox(websocket)
         self.session = BinSession(deps, self.out.send, source="bin socket")
+        self.greeted = asyncio.Event()
         self._last_seen = 0.0
         self._quiet = False
 
@@ -215,7 +221,7 @@ class BinConnection:
 
         tasks = [
             asyncio.create_task(wire.forward(subscription, self.out)),
-            asyncio.create_task(wire.heartbeat(self.out)),
+            asyncio.create_task(wire.heartbeat(self.out, ready=self.greeted)),
             asyncio.create_task(self._watch_silence()),
         ]
         try:
@@ -239,6 +245,8 @@ class BinConnection:
                 if not await self.session.handle_text(raw):
                     await self.out.close(code=1008)
                     return
+                if self.session.greeted:
+                    self.greeted.set()
                 if self.out.closed:
                     return
         except WebSocketDisconnect:

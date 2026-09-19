@@ -77,9 +77,22 @@ async def forward(subscription: Subscription, out: Outbox) -> None:
                     return
 
 
-async def heartbeat(out: Outbox, interval_s: float = HEARTBEAT_S) -> None:
-    """A ping every `interval_s`. The firmware shows offline on its own after 5 s."""
+async def heartbeat(
+    out: Outbox,
+    interval_s: float = HEARTBEAT_S,
+    ready: asyncio.Event | None = None,
+) -> None:
+    """A ping every `interval_s`, once there is a session to check on.
+
+    Nothing is sent before `ready`. A device that has not said hello yet is not allowed
+    to send anything either, so pinging it first invites the one answer that gets it
+    closed for a protocol violation. Replay hit exactly that.
+
+    The firmware shows offline on its own after 5 s without a ping.
+    """
     with contextlib.suppress(asyncio.CancelledError):
+        if ready is not None:
+            await ready.wait()
         while True:
             await asyncio.sleep(interval_s)
             if not await out.send({"type": "ping"}):

@@ -34,6 +34,9 @@ BIN_FILE = "bin.jsonl"
 PHONE_INDEX = "phone.jsonl"
 PHONE_DIR = "phone"
 
+# How often the metadata counts are refreshed while a recording runs.
+META_EVERY = 100
+
 
 class Recorder:
     """Appends bin messages and phone frames to one recording directory."""
@@ -64,6 +67,7 @@ class Recorder:
         """One text frame off `/ws/bin`, already parsed. Unparseable text is not recorded."""
         self._append(BIN_FILE, {"t": round(self.elapsed_s(), 4), "msg": message})
         self._lines += 1
+        self._maybe_refresh_meta()
 
     def phone_frame(self, jpeg: bytes) -> None:
         """One binary frame off `/ws/phone`, written beside an index line."""
@@ -76,6 +80,7 @@ class Recorder:
             return
         self._frames += 1
         self._append(PHONE_INDEX, {"t": round(self.elapsed_s(), 4), "file": rel})
+        self._maybe_refresh_meta()
 
     def close(self) -> None:
         self._write_meta(done=True)
@@ -85,6 +90,15 @@ class Recorder:
             self._lines,
             self._frames,
         )
+
+    def _maybe_refresh_meta(self) -> None:
+        """Keep the counts honest for a process that is killed rather than shut down.
+
+        A recording is worth most when the thing being recorded fell over, and that is
+        exactly the case where `close` never runs.
+        """
+        if (self._lines + self._frames) % META_EVERY == 0:
+            self._write_meta()
 
     def _write_meta(self, done: bool = False) -> None:
         meta = {

@@ -192,3 +192,14 @@ def test_a_recorded_session_keeps_the_frames(
         assert socket.receive_json() == {"type": "pong"}
     assert recorder.frame_count == 1
     assert (tmp_path / "session" / "phone" / "000000.jpg").read_bytes() == background
+
+
+def test_a_pong_from_the_phone_ends_the_exchange(client: TestClient) -> None:
+    """Regression, the same loop as on the bin socket."""
+    with client.websocket_connect("/ws/phone") as socket:
+        socket.send_json(PHONE_HELLO)
+        assert socket.receive_json() == {"type": "ping"}
+        for _ in range(20):
+            socket.send_json({"type": "pong"})
+        socket.send_json({"type": "ping"})
+        assert socket.receive_json() == {"type": "pong"}

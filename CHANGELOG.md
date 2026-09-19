@@ -45,6 +45,19 @@ Newest first. Each lane writes under its own heading.
 - `POST /api/sim/toss` builds a synthetic step and, when an image is named, pushes it into
   the frame ring first. The image name comes off the wire, so it is resolved against
   `sim/assets` and refused if it lands anywhere else.
+- A pong no longer draws a ping back. The bin answers every ping with a pong, so one
+  reply per pong is a loop that runs as fast as the socket allows: a 29 second scenario
+  run against the first build recorded 40787 pongs. The heartbeat is now the only thing
+  that starts a ping, and a regression test holds it.
+- The heartbeat waits for the hello. It used to start the moment the socket opened, so a
+  client that had not greeted yet was pinged, answered, and was closed for talking before
+  its hello. Replay hit that every time, because it opens its sockets before the first
+  recorded message.
+- `scripts/replay.py` slides both timelines so the first recorded thing happens at zero,
+  keeping the gap between them. A recording of a run that began a minute into a session
+  would otherwise connect and then sit silent for a minute.
+- The recorder refreshes its metadata counts every hundred messages. A recording is worth
+  most when the thing being recorded fell over, which is exactly when `close` never runs.
 - The detection clock is a field on the ingest state rather than a call to `time.monotonic`
   in the middle of the socket, so a test drives a scripted timeline instead of spending
   twenty real seconds waiting for a staircase to settle.
