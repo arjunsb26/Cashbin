@@ -21,6 +21,8 @@
 // Bogdan Necula, listed in the Library Manager as "HX711 Arduino Library", version
 // 0.7.5. On the UNO Q also Arduino_RouterBridge, which ships with the UNO Q core.
 
+#include <string.h>
+
 #include "bin_config.h"
 #include "bin_display.h"
 
