@@ -132,13 +132,24 @@ def test_at_least_two_assets_are_marked_as_bonus_candidates() -> None:
 # --- llm prices --------------------------------------------------------------
 
 
-def test_the_llm_price_file_is_three_empty_openai_rows() -> None:
+def test_the_llm_price_file_carries_a_real_price_for_every_model() -> None:
     prices = load_llm_prices()
-    assert len(prices) == 3
+    assert len(prices) == 5
+    models = {price.model for price in prices}
+    assert models == {
+        "gpt-5.6-luna",
+        "gpt-5.6-terra",
+        "gpt-5.6-sol",
+        "gpt-5.4-mini",
+        "gpt-5.4-nano",
+    }
     for price in prices:
         assert price.provider == "openai"
-        assert price.model is None
-        assert not price.complete
+        assert price.complete, price.model
+        assert price.cached_input_usd_per_million is not None, price.model
+        # Cached input is cheaper than fresh input on every row.
+        assert price.cached_input_usd_per_million < (price.input_usd_per_million or 0.0)
+        assert price.source == "https://developers.openai.com/api/docs/pricing"
 
 
 # --- warm factors ------------------------------------------------------------
@@ -196,7 +207,8 @@ def test_unfilled_cells_are_reported_rather_than_failing_the_suite() -> None:
     assert isinstance(pending, list)
     # Every asset row waits on cost, date and method. Three cells times twelve.
     assert sum(1 for line in pending if line.startswith("assets_seed.csv")) == 36
-    assert sum(1 for line in pending if line.startswith("llm_prices.csv")) == 12
+    # Every model price is filled in, so nothing from that file is waiting.
+    assert sum(1 for line in pending if line.startswith("llm_prices.csv")) == 0
     for line in pending:
         assert line.count(":") >= 2
 

@@ -433,6 +433,7 @@ class LlmPrice(BaseModel):
     provider: str
     model: str | None = None
     input_usd_per_million: float | None = None
+    cached_input_usd_per_million: float | None = None
     output_usd_per_million: float | None = None
     source: str | None = None
 
@@ -453,6 +454,7 @@ def load_llm_prices(path: Path | None = None) -> tuple[LlmPrice, ...]:
             provider=row["provider"].strip(),
             model=_opt_str(row.get("model")) if row.get("model") != NEEDS_HUMAN else None,
             input_usd_per_million=_opt_float(row.get("input_usd_per_million")),
+            cached_input_usd_per_million=_opt_float(row.get("cached_input_usd_per_million")),
             output_usd_per_million=_opt_float(row.get("output_usd_per_million")),
             source=_opt_str(row.get("source")),
         )
