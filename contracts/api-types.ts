@@ -700,6 +700,10 @@ export interface PhoneResult {
  * via the `definition` "RoundListResponse".
  */
 export interface RoundListResponse {
+  /**
+   * The most recent corrections in plain words, newest first.
+   */
+  learned?: string[];
   rounds?: RoundRead[];
 }
 /**
@@ -786,6 +790,7 @@ export interface SettingsRead {
   settle_ms: number;
   step_min_g: number;
   tax_rate: number;
+  tone_co2e_kg: number;
 }
 /**
  * This interface was referenced by `BinBooksContracts`'s JSON-Schema
@@ -804,6 +809,7 @@ export interface SettingsUpdate {
   settle_ms?: number | null;
   step_min_g?: number | null;
   tax_rate?: number | null;
+  tone_co2e_kg?: number | null;
 }
 /**
  * Dev only. Tells the stub identification provider what the simulator is about to toss.

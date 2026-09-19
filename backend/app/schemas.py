@@ -759,6 +759,10 @@ class RoundRead(ApiModel):
 
 class RoundListResponse(ApiModel):
     rounds: list[RoundRead] = Field(default_factory=list)
+    learned: list[str] = Field(
+        default_factory=list,
+        description="The most recent corrections in plain words, newest first.",
+    )
 
 
 class SummaryResponse(ApiModel):
@@ -802,6 +806,7 @@ class SettingsRead(ApiModel):
     capitalization_threshold_cents: int
     disposal_fee_cents: int
     recycle_fee_cents: int
+    tone_co2e_kg: float
     step_min_g: float
     settle_ms: int
     bag_change_g: float
@@ -817,6 +822,7 @@ class SettingsUpdate(ApiModel):
     capitalization_threshold_cents: int | None = Field(default=None, ge=0)
     disposal_fee_cents: int | None = Field(default=None, ge=0)
     recycle_fee_cents: int | None = Field(default=None, ge=0)
+    tone_co2e_kg: float | None = Field(default=None, ge=0.0)
     step_min_g: float | None = Field(default=None, gt=0.0)
     settle_ms: int | None = Field(default=None, gt=0)
     bag_change_g: float | None = Field(default=None, gt=0.0)

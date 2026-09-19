@@ -121,6 +121,21 @@ Newest first. Each lane writes under its own heading.
   value. The enhanced food donation deduction is no longer zero, so donating the
   bagel ranks above binning it.
 
+## 2026-09-19, lane c follow-ups: contracts, the estimate cache and the tone setting
+
+- Moved the estimate cache into `app/identify/estimate_cache.py` with its own tests. The
+  adapter is now 222 lines, 169 of them code, down from 284.
+- Moved `CallUsage` into `app/identify/providers.py` and added
+  `last_call: CallUsage | None` to both Protocols, so what a call used is part of the
+  contract rather than a convention. A provider that cannot say what it used no longer
+  satisfies the Protocol.
+- Added `learned` to `RoundListResponse` and filled it from `what_learned()` in
+  `GET /api/metrics/rounds`, so the Learning page has a carrier for the sentences.
+- Added `tone_co2e_kg` (default 0.02) to `Settings`, `RUNTIME_SETTING_KEYS`, `SettingsRead`
+  and `SettingsUpdate`, so the engine's tone threshold is editable live like every other
+  threshold.
+- Regenerated `contracts/api-types.ts` and `contracts/api-schema.json`.
+
 ## 2026-09-19, lane c: identification, the ask loop, corrections and metrics
 
 - Added `app/identify/embed.py` `BaselineEmbedder`: an 8x8x8 HSV histogram beside

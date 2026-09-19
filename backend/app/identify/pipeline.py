@@ -25,11 +25,15 @@ from sqlalchemy.orm import Session
 from app.config import Settings, get_settings
 from app.db import get_session_factory
 from app.identify import qr
-from app.identify.cost import CallUsage
 from app.identify.embed import Embedder, get_embedder, to_bytes
 from app.identify.memory import DEFAULT_K, MemoryIndex, Neighbour, get_memory
 from app.identify.priors import MassPrior, fuse
-from app.identify.providers import EstimatorProvider, IdentifyContext, VisionProvider
+from app.identify.providers import (
+    CallUsage,
+    EstimatorProvider,
+    IdentifyContext,
+    VisionProvider,
+)
 from app.identify.stub import StubEstimatorProvider, StubVisionProvider
 from app.models import (
     Asset,

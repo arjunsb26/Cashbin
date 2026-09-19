@@ -15,7 +15,7 @@ from app.identify.pipeline import (
     build_providers,
     identify_event,
 )
-from app.identify.providers import IdentifyContext
+from app.identify.providers import CallUsage, IdentifyContext
 from app.identify.stub import StubEstimatorProvider, StubVisionProvider, get_expect_queue
 from app.learn.corrections import apply_correction
 from app.models import (
@@ -54,7 +54,7 @@ class ScriptedVision:
         self.result = result
         self.delay = delay
         self.error = error
-        self.last_call = None
+        self.last_call: CallUsage | None = None
         self.calls = 0
 
     def identify(self, crop: bytes, context: IdentifyContext) -> VisionResult:

@@ -1934,6 +1934,13 @@
     },
     "RoundListResponse": {
       "properties": {
+        "learned": {
+          "description": "The most recent corrections in plain words, newest first.",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
         "rounds": {
           "items": {
             "$ref": "#/$defs/RoundRead"
@@ -2196,6 +2203,9 @@
         },
         "tax_rate": {
           "type": "number"
+        },
+        "tone_co2e_kg": {
+          "type": "number"
         }
       },
       "required": [
@@ -2203,6 +2213,7 @@
         "capitalization_threshold_cents",
         "disposal_fee_cents",
         "recycle_fee_cents",
+        "tone_co2e_kg",
         "step_min_g",
         "settle_ms",
         "bag_change_g",
@@ -2355,6 +2366,18 @@
           "anyOf": [
             {
               "maximum": 1.0,
+              "minimum": 0.0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "tone_co2e_kg": {
+          "anyOf": [
+            {
               "minimum": 0.0,
               "type": "number"
             },

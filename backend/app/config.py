@@ -63,6 +63,9 @@ class Settings(BaseSettings):
     capitalization_threshold_cents: int = Field(default=50_000, ge=0)
     disposal_fee_cents: int = Field(default=0, ge=0)
     recycle_fee_cents: int = Field(default=0, ge=0)
+    # How much better on carbon another option has to be before the tone stops calling the
+    # bin a fine answer. The engine reads it, so it changes like every other threshold.
+    tone_co2e_kg: float = Field(default=0.02, ge=0.0)
 
     # Step detection
     step_min_g: float = Field(default=3.0, gt=0.0)
@@ -143,6 +146,7 @@ RUNTIME_SETTING_KEYS: tuple[str, ...] = (
     "capitalization_threshold_cents",
     "disposal_fee_cents",
     "recycle_fee_cents",
+    "tone_co2e_kg",
     "step_min_g",
     "settle_ms",
     "bag_change_g",
