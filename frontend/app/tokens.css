@@ -1,0 +1,41 @@
+/*
+  The one file that holds raw colour values. DESIGN.md section 2 is the source.
+  Nothing else in the codebase writes a hex literal. scripts/check-hex.mjs enforces it.
+  The phone page imports the same values by hand, so keep the names stable.
+*/
+
+:root {
+  /* Colour */
+  --paper: #fbfcfa;
+  --bar: #eef5ef;
+  --ink: #1a2b4c;
+  --ink-soft: #5b6b86;
+  --rule: #c9d2dc;
+  --control-border: #8793a6;
+  --red-ink: #b3261e;
+  --kept: #1f7a4d;
+  --caution: #b7791f;
+  --surface: #ffffff;
+
+  /* The two shadows in the product, both tinted with ink */
+  --shadow-ticket: rgba(26, 43, 76, 0.06);
+  --shadow-overlay: rgba(26, 43, 76, 0.14);
+  --scrim: rgba(26, 43, 76, 0.18);
+
+  /* Motion */
+  --fast: 120ms;
+  --move: 240ms;
+  --count: 400ms;
+  --ease: cubic-bezier(0.2, 0.8, 0.2, 1);
+
+  /* Shape */
+  --radius-control: 6px;
+  --radius-ticket: 2px;
+  --gutter: 32px;
+}
+
+@media (max-width: 640px) {
+  :root {
+    --gutter: 16px;
+  }
+}

@@ -1,0 +1,103 @@
+@import "./tokens.css";
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html {
+    -webkit-text-size-adjust: 100%;
+  }
+
+  body {
+    background: var(--paper);
+    color: var(--ink);
+    font-family: var(--font-plex-sans), system-ui, sans-serif;
+    font-size: 14px;
+    line-height: 20px;
+    font-variant-numeric: tabular-nums lining-nums;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* Numerals everywhere, including inside controls that reset it */
+  input,
+  button,
+  table,
+  th,
+  td {
+    font-variant-numeric: tabular-nums lining-nums;
+  }
+
+  ::selection {
+    background: var(--bar);
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--ink);
+    outline-offset: 2px;
+  }
+
+  th {
+    font-weight: 600;
+    text-align: left;
+  }
+}
+
+@layer components {
+  /* A figure that opens the evidence drawer. Nothing at rest, dotted rule on hover. */
+  .evidence-figure {
+    cursor: pointer;
+    border-bottom: 1px dotted transparent;
+    text-underline-offset: 3px;
+  }
+
+  .evidence-figure:hover {
+    border-bottom-color: var(--rule);
+  }
+
+  .green-bar tbody tr:nth-child(even) {
+    background: var(--bar);
+  }
+
+  /* Ruled columns need air between them, or a number runs into the next label. */
+  .ledger th,
+  .ledger td {
+    padding-left: 12px;
+    padding-right: 12px;
+  }
+
+  .ledger th:first-child,
+  .ledger td:first-child {
+    padding-left: 8px;
+  }
+
+  .ledger th:last-child,
+  .ledger td:last-child {
+    padding-right: 8px;
+  }
+}
+
+@media print {
+  .no-print {
+    display: none !important;
+  }
+
+  body {
+    background: var(--surface);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+
+  /* The ticket still arrives, as a plain cross fade */
+  .ticket-arrive {
+    animation: fade-in 160ms linear both !important;
+  }
+}
