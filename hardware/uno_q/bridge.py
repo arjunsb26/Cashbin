@@ -585,6 +585,7 @@ class Bridge:
         self.last_ping = 0.0
         self.connected = asyncio.Event()
         self._offline_shown = False
+        self._idle_pending = False
 
     async def run_forever(self, stop: Optional[asyncio.Event] = None) -> None:
         """Connect, run, and come back after a drop. Returns when `stop` is set."""
@@ -631,7 +632,9 @@ class Bridge:
             )
             LOG.info("connected as %s", self.config.device)
             self.connected.set()
-            self._show(SCREEN_IDLE)
+            # Idle is drawn after the first reading, not here, so the screen that
+            # replaces offline already carries a weight rather than an empty figure.
+            self._idle_pending = True
             reader = asyncio.ensure_future(self._read_loop(ws, stop))
             watchdog = asyncio.ensure_future(self._watch_pings(stop))
             try:
@@ -654,6 +657,9 @@ class Bridge:
                 await ws.send(
                     json.dumps({"type": "weight", "t": reading.t_ms, "g": reading.g})
                 )
+                if self._idle_pending:
+                    self._idle_pending = False
+                    self._show(SCREEN_IDLE)
             next_at += period
             delay = next_at - time.monotonic()
             if delay < 0:
@@ -917,7 +923,7 @@ async def _stop_after(stop: asyncio.Event, seconds: float) -> None:
 
 def main(argv: Optional[List[str]] = None) -> int:
     try:
-        return asyncio.get_event_loop().run_until_complete(amain(argv))
+        return asyncio.run(amain(argv))
     except KeyboardInterrupt:
         return 0
 
