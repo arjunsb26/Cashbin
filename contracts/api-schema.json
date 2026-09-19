@@ -1,0 +1,3147 @@
+{
+  "$defs": {
+    "AskCandidate": {
+      "properties": {
+        "label": {
+          "description": "Lowercase label. Letters, digits, spaces and hyphens only.",
+          "maxLength": 40,
+          "pattern": "^[a-z0-9 -]+$",
+          "type": "string"
+        },
+        "p": {
+          "maximum": 1.0,
+          "minimum": 0.0,
+          "type": "number"
+        }
+      },
+      "required": [
+        "label",
+        "p"
+      ],
+      "type": "object"
+    },
+    "AssetCreate": {
+      "properties": {
+        "book_life_months": {
+          "exclusiveMinimum": 0,
+          "type": "integer"
+        },
+        "category": {
+          "anyOf": [
+            {
+              "description": "Lowercase label. Letters, digits, spaces and hyphens only.",
+              "maxLength": 40,
+              "pattern": "^[a-z0-9 -]+$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "cost_cents": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "description": {
+          "maxLength": 120,
+          "type": "string"
+        },
+        "in_service_date": {
+          "maxLength": 32,
+          "type": "string"
+        },
+        "insured": {
+          "default": false,
+          "type": "boolean"
+        },
+        "location": {
+          "anyOf": [
+            {
+              "maxLength": 80,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "salvage_cents": {
+          "default": 0,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "tag": {
+          "description": "Lowercase label. Letters, digits, spaces and hyphens only.",
+          "maxLength": 40,
+          "pattern": "^[a-z0-9 -]+$",
+          "type": "string"
+        },
+        "tax_basis_cents_override": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "tax_method": {
+          "$ref": "#/$defs/TaxMethod",
+          "default": "straight_line"
+        }
+      },
+      "required": [
+        "tag",
+        "description",
+        "cost_cents",
+        "in_service_date",
+        "book_life_months"
+      ],
+      "type": "object"
+    },
+    "AssetListResponse": {
+      "properties": {
+        "assets": {
+          "items": {
+            "$ref": "#/$defs/AssetRead"
+          },
+          "type": "array"
+        }
+      },
+      "type": "object"
+    },
+    "AssetRead": {
+      "properties": {
+        "book_life_months": {
+          "type": "integer"
+        },
+        "book_value_cents": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "category": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "cost_cents": {
+          "type": "integer"
+        },
+        "description": {
+          "type": "string"
+        },
+        "disposed_event_id": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "id": {
+          "type": "integer"
+        },
+        "in_service_date": {
+          "type": "string"
+        },
+        "insured": {
+          "default": false,
+          "type": "boolean"
+        },
+        "location": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "salvage_cents": {
+          "default": 0,
+          "type": "integer"
+        },
+        "status": {
+          "$ref": "#/$defs/AssetStatus"
+        },
+        "tag": {
+          "type": "string"
+        },
+        "tax_basis_cents": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "tax_basis_cents_override": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "tax_method": {
+          "$ref": "#/$defs/TaxMethod"
+        }
+      },
+      "required": [
+        "id",
+        "tag",
+        "description",
+        "cost_cents",
+        "in_service_date",
+        "book_life_months",
+        "tax_method",
+        "status"
+      ],
+      "type": "object"
+    },
+    "AssetStatus": {
+      "enum": [
+        "active",
+        "disposed",
+        "ghost_suspected"
+      ],
+      "type": "string"
+    },
+    "AssetUpdate": {
+      "properties": {
+        "book_life_months": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "category": {
+          "anyOf": [
+            {
+              "description": "Lowercase label. Letters, digits, spaces and hyphens only.",
+              "maxLength": 40,
+              "pattern": "^[a-z0-9 -]+$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "cost_cents": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "description": {
+          "anyOf": [
+            {
+              "maxLength": 120,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "in_service_date": {
+          "anyOf": [
+            {
+              "maxLength": 32,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "insured": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "location": {
+          "anyOf": [
+            {
+              "maxLength": 80,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "salvage_cents": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "status": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/AssetStatus"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "tax_basis_cents_override": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "tax_method": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/TaxMethod"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "type": "object"
+    },
+    "BinButton": {
+      "properties": {
+        "id": {
+          "maxLength": 8,
+          "type": "string"
+        },
+        "type": {
+          "const": "button",
+          "default": "button",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "type": "object"
+    },
+    "BinHello": {
+      "properties": {
+        "device": {
+          "maxLength": 32,
+          "type": "string"
+        },
+        "fw": {
+          "maxLength": 16,
+          "type": "string"
+        },
+        "type": {
+          "const": "hello",
+          "default": "hello",
+          "type": "string"
+        }
+      },
+      "required": [
+        "fw",
+        "device"
+      ],
+      "type": "object"
+    },
+    "BinPing": {
+      "properties": {
+        "type": {
+          "const": "ping",
+          "default": "ping",
+          "type": "string"
+        }
+      },
+      "type": "object"
+    },
+    "BinPong": {
+      "properties": {
+        "t": {
+          "type": "integer"
+        },
+        "type": {
+          "const": "pong",
+          "default": "pong",
+          "type": "string"
+        }
+      },
+      "required": [
+        "t"
+      ],
+      "type": "object"
+    },
+    "BinTare": {
+      "properties": {
+        "type": {
+          "const": "tare",
+          "default": "tare",
+          "type": "string"
+        }
+      },
+      "type": "object"
+    },
+    "BinWeight": {
+      "properties": {
+        "g": {
+          "description": "Raw grams after calibration. The backend does the filtering.",
+          "type": "number"
+        },
+        "t": {
+          "description": "Device milliseconds. Kept for debugging only.",
+          "type": "integer"
+        },
+        "type": {
+          "const": "weight",
+          "default": "weight",
+          "type": "string"
+        }
+      },
+      "required": [
+        "t",
+        "g"
+      ],
+      "type": "object"
+    },
+    "BrandInfo": {
+      "description": "The product name lives in brand.json at the repo root and nowhere else.",
+      "properties": {
+        "name": {
+          "maxLength": 40,
+          "type": "string"
+        },
+        "short_name": {
+          "maxLength": 20,
+          "type": "string"
+        },
+        "tagline": {
+          "maxLength": 120,
+          "type": "string"
+        }
+      },
+      "required": [
+        "name",
+        "short_name",
+        "tagline"
+      ],
+      "type": "object"
+    },
+    "CatalogItemCreate": {
+      "properties": {
+        "class": {
+          "$ref": "#/$defs/ItemClass"
+        },
+        "fmv_per_kg_cents": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "label": {
+          "description": "Lowercase label. Letters, digits, spaces and hyphens only.",
+          "maxLength": 40,
+          "pattern": "^[a-z0-9 -]+$",
+          "type": "string"
+        },
+        "material_mix": {
+          "patternProperties": {
+            "^[a-z0-9_]+$": {
+              "type": "number"
+            }
+          },
+          "propertyNames": {
+            "description": "Lowercase key. Letters, digits and underscores only.",
+            "maxLength": 40
+          },
+          "type": "object"
+        },
+        "price_per_kg_cents": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "regulatory_flags": {
+          "items": {
+            "description": "Lowercase key. Letters, digits and underscores only.",
+            "maxLength": 40,
+            "pattern": "^[a-z0-9_]+$",
+            "type": "string"
+          },
+          "maxItems": 8,
+          "type": "array"
+        },
+        "unit_cost_cents": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "unit_mass_g": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "required": [
+        "label",
+        "class"
+      ],
+      "type": "object"
+    },
+    "CatalogItemRead": {
+      "properties": {
+        "class": {
+          "$ref": "#/$defs/ItemClass"
+        },
+        "fmv_per_kg_cents": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "id": {
+          "type": "integer"
+        },
+        "label": {
+          "type": "string"
+        },
+        "mass_prior_mean_g": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "mass_prior_n": {
+          "default": 0,
+          "type": "integer"
+        },
+        "mass_prior_var": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "material_mix": {
+          "additionalProperties": {
+            "type": "number"
+          },
+          "type": "object"
+        },
+        "price_per_kg_cents": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "regulatory_flags": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "unit_cost_cents": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "unit_mass_g": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "required": [
+        "id",
+        "label",
+        "class"
+      ],
+      "type": "object"
+    },
+    "CatalogListResponse": {
+      "properties": {
+        "items": {
+          "items": {
+            "$ref": "#/$defs/CatalogItemRead"
+          },
+          "type": "array"
+        }
+      },
+      "type": "object"
+    },
+    "CloseCheck": {
+      "properties": {
+        "detail": {
+          "default": "",
+          "type": "string"
+        },
+        "id": {
+          "type": "string"
+        },
+        "numbers": {
+          "additionalProperties": {
+            "type": "number"
+          },
+          "type": "object"
+        },
+        "result": {
+          "enum": [
+            "pass",
+            "warn",
+            "fail"
+          ],
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "title",
+        "result"
+      ],
+      "type": "object"
+    },
+    "CloseRead": {
+      "properties": {
+        "checks": {
+          "items": {
+            "$ref": "#/$defs/CloseCheck"
+          },
+          "type": "array"
+        },
+        "created_at": {
+          "type": "string"
+        },
+        "id": {
+          "type": "integer"
+        },
+        "investigation_md": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "period_end": {
+          "type": "string"
+        },
+        "period_start": {
+          "type": "string"
+        },
+        "report": {
+          "additionalProperties": true,
+          "type": "object"
+        },
+        "status": {
+          "type": "string"
+        },
+        "totals": {
+          "additionalProperties": true,
+          "type": "object"
+        }
+      },
+      "required": [
+        "id",
+        "period_start",
+        "period_end",
+        "created_at",
+        "status"
+      ],
+      "type": "object"
+    },
+    "CloseRequest": {
+      "properties": {
+        "period_end": {
+          "maxLength": 32,
+          "type": "string"
+        },
+        "period_start": {
+          "maxLength": 32,
+          "type": "string"
+        }
+      },
+      "required": [
+        "period_start",
+        "period_end"
+      ],
+      "type": "object"
+    },
+    "CorrectionCreate": {
+      "description": "The ask answer and the dashboard override. Free text lands here and stops here.",
+      "properties": {
+        "by": {
+          "default": "person",
+          "maxLength": 40,
+          "type": "string"
+        },
+        "class": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ItemClass"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "event_id": {
+          "type": "integer"
+        },
+        "label": {
+          "description": "Lowercase label. Letters, digits, spaces and hyphens only.",
+          "maxLength": 40,
+          "pattern": "^[a-z0-9 -]+$",
+          "type": "string"
+        }
+      },
+      "required": [
+        "event_id",
+        "label"
+      ],
+      "type": "object"
+    },
+    "CorrectionRead": {
+      "properties": {
+        "by": {
+          "type": "string"
+        },
+        "created_at": {
+          "type": "string"
+        },
+        "event_id": {
+          "type": "integer"
+        },
+        "field": {
+          "type": "string"
+        },
+        "id": {
+          "type": "integer"
+        },
+        "new_value": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "old_value": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "required": [
+        "id",
+        "event_id",
+        "field",
+        "by",
+        "created_at"
+      ],
+      "type": "object"
+    },
+    "CorrectionResponse": {
+      "properties": {
+        "class": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ItemClass"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "correction_id": {
+          "type": "integer"
+        },
+        "event_id": {
+          "type": "integer"
+        },
+        "label": {
+          "type": "string"
+        },
+        "status": {
+          "$ref": "#/$defs/EventStatus"
+        }
+      },
+      "required": [
+        "event_id",
+        "label",
+        "correction_id",
+        "status"
+      ],
+      "type": "object"
+    },
+    "CropQuality": {
+      "enum": [
+        "ok",
+        "low"
+      ],
+      "type": "string"
+    },
+    "DeviceTareResponse": {
+      "properties": {
+        "device": {
+          "const": "bin",
+          "default": "bin",
+          "type": "string"
+        },
+        "sent": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "sent"
+      ],
+      "type": "object"
+    },
+    "ErrorResponse": {
+      "properties": {
+        "code": {
+          "default": "error",
+          "type": "string"
+        },
+        "detail": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "detail"
+      ],
+      "type": "object"
+    },
+    "EstimateRef": {
+      "description": "PLAN.md rule 5. An estimate carries its range and where it came from.",
+      "properties": {
+        "high": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "low": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "mid": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "source": {
+          "anyOf": [
+            {
+              "enum": [
+                "catalog",
+                "register",
+                "model_estimate",
+                "human"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "type": "object"
+    },
+    "EventDetail": {
+      "properties": {
+        "corrections": {
+          "items": {
+            "$ref": "#/$defs/CorrectionRead"
+          },
+          "type": "array"
+        },
+        "entries": {
+          "items": {
+            "$ref": "#/$defs/JournalEntryRead"
+          },
+          "type": "array"
+        },
+        "event": {
+          "$ref": "#/$defs/EventSummary"
+        },
+        "frame_after_url": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "frame_before_url": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "frame_peak_url": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "identifications": {
+          "items": {
+            "$ref": "#/$defs/IdentificationRead"
+          },
+          "type": "array"
+        },
+        "item_record": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ItemRecordRead"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "options": {
+          "items": {
+            "$ref": "#/$defs/OptionScoreRead"
+          },
+          "type": "array"
+        },
+        "trace": {
+          "description": "Pairs of [t_seconds, grams] around the step.",
+          "items": {
+            "items": {
+              "type": "number"
+            },
+            "type": "array"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "event"
+      ],
+      "type": "object"
+    },
+    "EventKind": {
+      "enum": [
+        "toss",
+        "bag_change",
+        "removal"
+      ],
+      "type": "string"
+    },
+    "EventListResponse": {
+      "properties": {
+        "events": {
+          "items": {
+            "$ref": "#/$defs/EventSummary"
+          },
+          "type": "array"
+        }
+      },
+      "type": "object"
+    },
+    "EventStatus": {
+      "enum": [
+        "detected",
+        "identified",
+        "asking",
+        "confirmed",
+        "posted",
+        "void"
+      ],
+      "type": "string"
+    },
+    "EventSummary": {
+      "properties": {
+        "best_option": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/OptionKind"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "class": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ItemClass"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "created_at": {
+          "type": "string"
+        },
+        "crop_quality": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/CropQuality"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "crop_url": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "id": {
+          "type": "integer"
+        },
+        "kind": {
+          "$ref": "#/$defs/EventKind"
+        },
+        "label": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "mass_err_g": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "mass_g": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "net_book_cents": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "round_id": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "saved_if_followed_cents": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "status": {
+          "$ref": "#/$defs/EventStatus"
+        }
+      },
+      "required": [
+        "id",
+        "created_at",
+        "kind",
+        "status"
+      ],
+      "type": "object"
+    },
+    "HealthResponse": {
+      "properties": {
+        "db": {
+          "type": "boolean"
+        },
+        "product_name": {
+          "type": "string"
+        },
+        "status": {
+          "enum": [
+            "ok",
+            "degraded"
+          ],
+          "type": "string"
+        },
+        "version": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "status",
+        "version",
+        "db",
+        "product_name"
+      ],
+      "type": "object"
+    },
+    "IdentificationRead": {
+      "properties": {
+        "candidates": {
+          "items": {
+            "$ref": "#/$defs/VisionCandidate"
+          },
+          "type": "array"
+        },
+        "class": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ItemClass"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "confidence": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "cost_microusd": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "event_id": {
+          "type": "integer"
+        },
+        "id": {
+          "type": "integer"
+        },
+        "is_final": {
+          "default": false,
+          "type": "boolean"
+        },
+        "label": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "latency_ms": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "method": {
+          "$ref": "#/$defs/IdentifyMethod"
+        },
+        "model": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "posterior": {
+          "additionalProperties": {
+            "type": "number"
+          },
+          "type": "object"
+        },
+        "provider": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "tokens_in": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "tokens_out": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "used_mass_prior": {
+          "default": false,
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "id",
+        "event_id",
+        "method"
+      ],
+      "type": "object"
+    },
+    "IdentifyMethod": {
+      "enum": [
+        "qr",
+        "memory",
+        "cloud",
+        "human",
+        "stub"
+      ],
+      "type": "string"
+    },
+    "ItemClass": {
+      "enum": [
+        "inventory",
+        "fixed_asset",
+        "untracked"
+      ],
+      "type": "string"
+    },
+    "ItemRecordRead": {
+      "properties": {
+        "asset_id": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "book_value_cents": {
+          "default": 0,
+          "type": "integer"
+        },
+        "class": {
+          "$ref": "#/$defs/ItemClass"
+        },
+        "cost_basis_cents": {
+          "default": 0,
+          "type": "integer"
+        },
+        "event_id": {
+          "type": "integer"
+        },
+        "fmv": {
+          "$ref": "#/$defs/EstimateRef"
+        },
+        "label": {
+          "type": "string"
+        },
+        "mass_g": {
+          "type": "number"
+        },
+        "material_mix": {
+          "additionalProperties": {
+            "type": "number"
+          },
+          "type": "object"
+        },
+        "regulatory_flags": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "repair": {
+          "$ref": "#/$defs/EstimateRef"
+        },
+        "replacement_cents": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "replacement_source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "scrap_cents": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "scrap_source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "tax_basis_cents": {
+          "default": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "event_id",
+        "label",
+        "class",
+        "mass_g"
+      ],
+      "type": "object"
+    },
+    "JournalBasis": {
+      "enum": [
+        "book",
+        "tax_memo"
+      ],
+      "type": "string"
+    },
+    "JournalEntryRead": {
+      "properties": {
+        "basis": {
+          "$ref": "#/$defs/JournalBasis"
+        },
+        "close_id": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "event_id": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "evidence": {
+          "additionalProperties": true,
+          "type": "object"
+        },
+        "id": {
+          "type": "integer"
+        },
+        "lines": {
+          "items": {
+            "$ref": "#/$defs/JournalLineRead"
+          },
+          "type": "array"
+        },
+        "memo": {
+          "default": "",
+          "type": "string"
+        },
+        "posted_at": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "posted_at",
+        "basis"
+      ],
+      "type": "object"
+    },
+    "JournalLineRead": {
+      "properties": {
+        "account": {
+          "type": "string"
+        },
+        "account_name": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "credit_cents": {
+          "default": 0,
+          "type": "integer"
+        },
+        "debit_cents": {
+          "default": 0,
+          "type": "integer"
+        },
+        "entry_id": {
+          "type": "integer"
+        },
+        "id": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "id",
+        "entry_id",
+        "account"
+      ],
+      "type": "object"
+    },
+    "JournalResponse": {
+      "properties": {
+        "balanced": {
+          "default": true,
+          "type": "boolean"
+        },
+        "basis": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/JournalBasis"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "entries": {
+          "items": {
+            "$ref": "#/$defs/JournalEntryRead"
+          },
+          "type": "array"
+        },
+        "trial_balance": {
+          "items": {
+            "$ref": "#/$defs/TrialBalanceRow"
+          },
+          "type": "array"
+        }
+      },
+      "type": "object"
+    },
+    "MoneyRange": {
+      "description": "An estimate in integer cents with its rationale. Low, mid and high must be ordered.",
+      "properties": {
+        "high": {
+          "type": "integer"
+        },
+        "low": {
+          "type": "integer"
+        },
+        "mid": {
+          "type": "integer"
+        },
+        "rationale": {
+          "default": "",
+          "maxLength": 200,
+          "type": "string"
+        }
+      },
+      "required": [
+        "low",
+        "mid",
+        "high"
+      ],
+      "type": "object"
+    },
+    "OptionKind": {
+      "enum": [
+        "trash",
+        "recycle",
+        "repair",
+        "resell",
+        "donate"
+      ],
+      "type": "string"
+    },
+    "OptionScoreRead": {
+      "properties": {
+        "allowed": {
+          "type": "boolean"
+        },
+        "blocked_reason": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "cash_cents": {
+          "type": "integer"
+        },
+        "event_id": {
+          "type": "integer"
+        },
+        "id": {
+          "type": "integer"
+        },
+        "kg_co2e": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "kg_landfill": {
+          "default": 0.0,
+          "type": "number"
+        },
+        "needs_human_review": {
+          "default": false,
+          "type": "boolean"
+        },
+        "net_after_tax_cents": {
+          "type": "integer"
+        },
+        "notes": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "option": {
+          "$ref": "#/$defs/OptionKind"
+        },
+        "rank": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "rule_ids": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "tax_effect_cents": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "id",
+        "event_id",
+        "option",
+        "allowed",
+        "cash_cents",
+        "tax_effect_cents",
+        "net_after_tax_cents"
+      ],
+      "type": "object"
+    },
+    "PhoneAsk": {
+      "properties": {
+        "candidates": {
+          "items": {
+            "$ref": "#/$defs/AskCandidate"
+          },
+          "maxItems": 4,
+          "minItems": 1,
+          "type": "array"
+        },
+        "crop_url": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "event_id": {
+          "type": "integer"
+        },
+        "type": {
+          "const": "ask",
+          "default": "ask",
+          "type": "string"
+        }
+      },
+      "required": [
+        "event_id",
+        "candidates"
+      ],
+      "type": "object"
+    },
+    "PhoneHello": {
+      "properties": {
+        "type": {
+          "const": "hello",
+          "default": "hello",
+          "type": "string"
+        },
+        "ua": {
+          "default": "",
+          "maxLength": 200,
+          "type": "string"
+        }
+      },
+      "type": "object"
+    },
+    "PhoneIdle": {
+      "properties": {
+        "type": {
+          "const": "idle",
+          "default": "idle",
+          "type": "string"
+        }
+      },
+      "type": "object"
+    },
+    "PhonePing": {
+      "properties": {
+        "type": {
+          "const": "ping",
+          "default": "ping",
+          "type": "string"
+        }
+      },
+      "type": "object"
+    },
+    "PhonePong": {
+      "properties": {
+        "type": {
+          "const": "pong",
+          "default": "pong",
+          "type": "string"
+        }
+      },
+      "type": "object"
+    },
+    "PhoneResult": {
+      "properties": {
+        "best_option": {
+          "$ref": "#/$defs/OptionKind"
+        },
+        "big": {
+          "maxLength": 16,
+          "type": "string"
+        },
+        "event_id": {
+          "type": "integer"
+        },
+        "line": {
+          "maxLength": 80,
+          "type": "string"
+        },
+        "tone": {
+          "enum": [
+            "green",
+            "amber",
+            "red",
+            "neutral"
+          ],
+          "type": "string"
+        },
+        "type": {
+          "const": "result",
+          "default": "result",
+          "type": "string"
+        }
+      },
+      "required": [
+        "event_id",
+        "title",
+        "big",
+        "line",
+        "tone",
+        "best_option"
+      ],
+      "type": "object"
+    },
+    "RoundListResponse": {
+      "properties": {
+        "rounds": {
+          "items": {
+            "$ref": "#/$defs/RoundRead"
+          },
+          "type": "array"
+        }
+      },
+      "type": "object"
+    },
+    "RoundRead": {
+      "properties": {
+        "ask_rate": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "cloud_cost_microusd": {
+          "default": 0,
+          "type": "integer"
+        },
+        "cost_per_event_microusd": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "ended_at": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "first_try_accuracy": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "id": {
+          "type": "integer"
+        },
+        "local_share": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "mean_latency_ms": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "n_asked": {
+          "default": 0,
+          "type": "integer"
+        },
+        "n_correct_first_try": {
+          "default": 0,
+          "type": "integer"
+        },
+        "n_corrected_after_confident": {
+          "default": 0,
+          "type": "integer"
+        },
+        "n_events": {
+          "default": 0,
+          "type": "integer"
+        },
+        "started_at": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "started_at"
+      ],
+      "type": "object"
+    },
+    "ScreenAsk": {
+      "properties": {
+        "l1": {
+          "maxLength": 20,
+          "type": "string"
+        },
+        "l2": {
+          "maxLength": 20,
+          "type": "string"
+        },
+        "s": {
+          "const": "ask",
+          "default": "ask",
+          "type": "string"
+        },
+        "type": {
+          "const": "screen",
+          "default": "screen",
+          "type": "string"
+        }
+      },
+      "required": [
+        "l1",
+        "l2"
+      ],
+      "type": "object"
+    },
+    "ScreenIdle": {
+      "properties": {
+        "s": {
+          "const": "idle",
+          "default": "idle",
+          "type": "string"
+        },
+        "type": {
+          "const": "screen",
+          "default": "screen",
+          "type": "string"
+        }
+      },
+      "type": "object"
+    },
+    "ScreenOffline": {
+      "properties": {
+        "s": {
+          "const": "offline",
+          "default": "offline",
+          "type": "string"
+        },
+        "type": {
+          "const": "screen",
+          "default": "screen",
+          "type": "string"
+        }
+      },
+      "type": "object"
+    },
+    "ScreenResult": {
+      "properties": {
+        "big": {
+          "maxLength": 7,
+          "type": "string"
+        },
+        "c": {
+          "enum": [
+            "green",
+            "amber",
+            "red",
+            "neutral"
+          ],
+          "type": "string"
+        },
+        "l1": {
+          "maxLength": 20,
+          "type": "string"
+        },
+        "l2": {
+          "maxLength": 20,
+          "type": "string"
+        },
+        "s": {
+          "const": "result",
+          "default": "result",
+          "type": "string"
+        },
+        "type": {
+          "const": "screen",
+          "default": "screen",
+          "type": "string"
+        }
+      },
+      "required": [
+        "l1",
+        "big",
+        "l2",
+        "c"
+      ],
+      "type": "object"
+    },
+    "ScreenThinking": {
+      "properties": {
+        "s": {
+          "const": "thinking",
+          "default": "thinking",
+          "type": "string"
+        },
+        "type": {
+          "const": "screen",
+          "default": "screen",
+          "type": "string"
+        }
+      },
+      "type": "object"
+    },
+    "SettingsRead": {
+      "description": "Only the keys /api/settings may change. Nothing here is a secret.",
+      "properties": {
+        "bag_change_g": {
+          "type": "number"
+        },
+        "capitalization_threshold_cents": {
+          "type": "integer"
+        },
+        "confident_p": {
+          "type": "number"
+        },
+        "disposal_fee_cents": {
+          "type": "integer"
+        },
+        "llm_timeout_s": {
+          "type": "number"
+        },
+        "memory_max_dist": {
+          "type": "number"
+        },
+        "min_margin": {
+          "type": "number"
+        },
+        "recycle_fee_cents": {
+          "type": "integer"
+        },
+        "round_size": {
+          "type": "integer"
+        },
+        "settle_ms": {
+          "type": "integer"
+        },
+        "step_min_g": {
+          "type": "number"
+        },
+        "tax_rate": {
+          "type": "number"
+        }
+      },
+      "required": [
+        "tax_rate",
+        "capitalization_threshold_cents",
+        "disposal_fee_cents",
+        "recycle_fee_cents",
+        "step_min_g",
+        "settle_ms",
+        "bag_change_g",
+        "confident_p",
+        "min_margin",
+        "memory_max_dist",
+        "round_size",
+        "llm_timeout_s"
+      ],
+      "type": "object"
+    },
+    "SettingsUpdate": {
+      "properties": {
+        "bag_change_g": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0.0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "capitalization_threshold_cents": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "confident_p": {
+          "anyOf": [
+            {
+              "maximum": 1.0,
+              "minimum": 0.0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "disposal_fee_cents": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "llm_timeout_s": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0.0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "memory_max_dist": {
+          "anyOf": [
+            {
+              "maximum": 2.0,
+              "minimum": 0.0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "min_margin": {
+          "anyOf": [
+            {
+              "maximum": 1.0,
+              "minimum": 0.0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "recycle_fee_cents": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "round_size": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "settle_ms": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "step_min_g": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0.0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "tax_rate": {
+          "anyOf": [
+            {
+              "maximum": 1.0,
+              "minimum": 0.0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "type": "object"
+    },
+    "SimExpectRequest": {
+      "description": "Dev only. Tells the stub identification provider what the simulator is about to toss.",
+      "properties": {
+        "label": {
+          "description": "Lowercase label. Letters, digits, spaces and hyphens only.",
+          "maxLength": 40,
+          "pattern": "^[a-z0-9 -]+$",
+          "type": "string"
+        },
+        "mass_g": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0.0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "required": [
+        "label"
+      ],
+      "type": "object"
+    },
+    "SimExpectResponse": {
+      "properties": {
+        "label": {
+          "type": "string"
+        },
+        "mass_g": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "required": [
+        "label"
+      ],
+      "type": "object"
+    },
+    "SimTossRequest": {
+      "description": "Dev only. Mounted only when DEV_TOOLS is on.",
+      "properties": {
+        "image": {
+          "anyOf": [
+            {
+              "maxLength": 255,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "label": {
+          "description": "Lowercase label. Letters, digits, spaces and hyphens only.",
+          "maxLength": 40,
+          "pattern": "^[a-z0-9 -]+$",
+          "type": "string"
+        },
+        "mass_g": {
+          "exclusiveMinimum": 0.0,
+          "type": "number"
+        }
+      },
+      "required": [
+        "label",
+        "mass_g"
+      ],
+      "type": "object"
+    },
+    "SimTossResponse": {
+      "properties": {
+        "event_id": {
+          "type": "integer"
+        },
+        "status": {
+          "$ref": "#/$defs/EventStatus"
+        }
+      },
+      "required": [
+        "event_id",
+        "status"
+      ],
+      "type": "object"
+    },
+    "SummaryResponse": {
+      "description": "The four header numbers on the Live page.",
+      "properties": {
+        "events": {
+          "default": 0,
+          "type": "integer"
+        },
+        "first_try_accuracy": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "kg_diverted": {
+          "default": 0.0,
+          "type": "number"
+        },
+        "saved_if_followed_cents": {
+          "default": 0,
+          "type": "integer"
+        }
+      },
+      "type": "object"
+    },
+    "TaxMethod": {
+      "enum": [
+        "bonus_100",
+        "straight_line"
+      ],
+      "type": "string"
+    },
+    "TrialBalanceRow": {
+      "properties": {
+        "account": {
+          "type": "string"
+        },
+        "account_name": {
+          "type": "string"
+        },
+        "credit_cents": {
+          "default": 0,
+          "type": "integer"
+        },
+        "debit_cents": {
+          "default": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "account",
+        "account_name"
+      ],
+      "type": "object"
+    },
+    "UiAskOpened": {
+      "properties": {
+        "candidates": {
+          "items": {
+            "$ref": "#/$defs/AskCandidate"
+          },
+          "maxItems": 4,
+          "minItems": 1,
+          "type": "array"
+        },
+        "crop_url": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "event_id": {
+          "type": "integer"
+        },
+        "type": {
+          "const": "ask.opened",
+          "default": "ask.opened",
+          "type": "string"
+        }
+      },
+      "required": [
+        "event_id",
+        "candidates"
+      ],
+      "type": "object"
+    },
+    "UiAskResolved": {
+      "properties": {
+        "by": {
+          "default": "person",
+          "maxLength": 40,
+          "type": "string"
+        },
+        "event_id": {
+          "type": "integer"
+        },
+        "label": {
+          "description": "Lowercase label. Letters, digits, spaces and hyphens only.",
+          "maxLength": 40,
+          "pattern": "^[a-z0-9 -]+$",
+          "type": "string"
+        },
+        "type": {
+          "const": "ask.resolved",
+          "default": "ask.resolved",
+          "type": "string"
+        }
+      },
+      "required": [
+        "event_id",
+        "label"
+      ],
+      "type": "object"
+    },
+    "UiDeviceStatus": {
+      "properties": {
+        "connected": {
+          "type": "boolean"
+        },
+        "detail": {
+          "anyOf": [
+            {
+              "maxLength": 120,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "device": {
+          "enum": [
+            "bin",
+            "phone"
+          ],
+          "type": "string"
+        },
+        "last_seen": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "type": {
+          "const": "device.status",
+          "default": "device.status",
+          "type": "string"
+        }
+      },
+      "required": [
+        "device",
+        "connected"
+      ],
+      "type": "object"
+    },
+    "UiEventCreated": {
+      "properties": {
+        "event": {
+          "$ref": "#/$defs/EventSummary"
+        },
+        "type": {
+          "const": "event.created",
+          "default": "event.created",
+          "type": "string"
+        }
+      },
+      "required": [
+        "event"
+      ],
+      "type": "object"
+    },
+    "UiEventUpdated": {
+      "properties": {
+        "event": {
+          "$ref": "#/$defs/EventSummary"
+        },
+        "type": {
+          "const": "event.updated",
+          "default": "event.updated",
+          "type": "string"
+        }
+      },
+      "required": [
+        "event"
+      ],
+      "type": "object"
+    },
+    "UiJournalPosted": {
+      "properties": {
+        "entry": {
+          "$ref": "#/$defs/JournalEntryRead"
+        },
+        "type": {
+          "const": "journal.posted",
+          "default": "journal.posted",
+          "type": "string"
+        }
+      },
+      "required": [
+        "entry"
+      ],
+      "type": "object"
+    },
+    "UiMetricsUpdated": {
+      "properties": {
+        "round": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/RoundRead"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "summary": {
+          "$ref": "#/$defs/SummaryResponse"
+        },
+        "type": {
+          "const": "metrics.updated",
+          "default": "metrics.updated",
+          "type": "string"
+        }
+      },
+      "required": [
+        "summary"
+      ],
+      "type": "object"
+    },
+    "UiWeight": {
+      "description": "Downsampled to 10 Hz. `t` is backend arrival seconds, one clock for everything.",
+      "properties": {
+        "device_t": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "g": {
+          "type": "number"
+        },
+        "t": {
+          "type": "number"
+        },
+        "type": {
+          "const": "weight",
+          "default": "weight",
+          "type": "string"
+        }
+      },
+      "required": [
+        "t",
+        "g"
+      ],
+      "type": "object"
+    },
+    "ValueEstimate": {
+      "description": "The only shape an estimator call may produce.",
+      "properties": {
+        "fmv": {
+          "$ref": "#/$defs/MoneyRange"
+        },
+        "label": {
+          "description": "Lowercase label. Letters, digits, spaces and hyphens only.",
+          "maxLength": 40,
+          "pattern": "^[a-z0-9 -]+$",
+          "type": "string"
+        },
+        "material_mix": {
+          "patternProperties": {
+            "^[a-z0-9_]+$": {
+              "type": "number"
+            }
+          },
+          "propertyNames": {
+            "description": "Lowercase key. Letters, digits and underscores only.",
+            "maxLength": 40
+          },
+          "type": "object"
+        },
+        "model": {
+          "default": "",
+          "maxLength": 80,
+          "type": "string"
+        },
+        "provider": {
+          "default": "",
+          "maxLength": 40,
+          "type": "string"
+        },
+        "regulatory_flags": {
+          "items": {
+            "description": "Lowercase key. Letters, digits and underscores only.",
+            "maxLength": 40,
+            "pattern": "^[a-z0-9_]+$",
+            "type": "string"
+          },
+          "maxItems": 8,
+          "type": "array"
+        },
+        "repair": {
+          "$ref": "#/$defs/MoneyRange"
+        },
+        "replacement": {
+          "$ref": "#/$defs/MoneyRange"
+        },
+        "scrap": {
+          "$ref": "#/$defs/MoneyRange"
+        }
+      },
+      "required": [
+        "label",
+        "fmv",
+        "repair",
+        "replacement",
+        "scrap"
+      ],
+      "type": "object"
+    },
+    "VisionCandidate": {
+      "properties": {
+        "label": {
+          "description": "Lowercase label. Letters, digits, spaces and hyphens only.",
+          "maxLength": 40,
+          "pattern": "^[a-z0-9 -]+$",
+          "type": "string"
+        },
+        "p": {
+          "maximum": 1.0,
+          "minimum": 0.0,
+          "type": "number"
+        }
+      },
+      "required": [
+        "label",
+        "p"
+      ],
+      "type": "object"
+    },
+    "VisionResult": {
+      "description": "The only shape a vision call may produce. Nothing outside these fields is read.",
+      "properties": {
+        "candidates": {
+          "items": {
+            "$ref": "#/$defs/VisionCandidate"
+          },
+          "maxItems": 5,
+          "type": "array"
+        },
+        "class": {
+          "$ref": "#/$defs/ItemClass"
+        },
+        "condition": {
+          "default": "unknown",
+          "enum": [
+            "working",
+            "broken",
+            "unknown"
+          ],
+          "type": "string"
+        },
+        "confidence": {
+          "maximum": 1.0,
+          "minimum": 0.0,
+          "type": "number"
+        },
+        "label": {
+          "description": "Lowercase label. Letters, digits, spaces and hyphens only.",
+          "maxLength": 40,
+          "pattern": "^[a-z0-9 -]+$",
+          "type": "string"
+        },
+        "material": {
+          "anyOf": [
+            {
+              "description": "Lowercase key. Letters, digits and underscores only.",
+              "maxLength": 40,
+              "pattern": "^[a-z0-9_]+$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "model": {
+          "default": "",
+          "maxLength": 80,
+          "type": "string"
+        },
+        "provider": {
+          "default": "",
+          "maxLength": 40,
+          "type": "string"
+        },
+        "visible_text": {
+          "default": "",
+          "maxLength": 120,
+          "type": "string"
+        }
+      },
+      "required": [
+        "label",
+        "class",
+        "confidence"
+      ],
+      "type": "object"
+    },
+    "VoidResponse": {
+      "properties": {
+        "event_id": {
+          "type": "integer"
+        },
+        "reversing_entry_ids": {
+          "items": {
+            "type": "integer"
+          },
+          "type": "array"
+        },
+        "status": {
+          "$ref": "#/$defs/EventStatus"
+        }
+      },
+      "required": [
+        "event_id",
+        "status"
+      ],
+      "type": "object"
+    }
+  },
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "additionalProperties": false,
+  "description": "Generated from backend/app/schemas.py. Do not edit. Run scripts/gen_types.py after any schema change.",
+  "properties": {
+    "AskCandidate": {
+      "$ref": "#/$defs/AskCandidate"
+    },
+    "AssetCreate": {
+      "$ref": "#/$defs/AssetCreate"
+    },
+    "AssetListResponse": {
+      "$ref": "#/$defs/AssetListResponse"
+    },
+    "AssetRead": {
+      "$ref": "#/$defs/AssetRead"
+    },
+    "AssetStatus": {
+      "$ref": "#/$defs/AssetStatus"
+    },
+    "AssetUpdate": {
+      "$ref": "#/$defs/AssetUpdate"
+    },
+    "BinButton": {
+      "$ref": "#/$defs/BinButton"
+    },
+    "BinHello": {
+      "$ref": "#/$defs/BinHello"
+    },
+    "BinPing": {
+      "$ref": "#/$defs/BinPing"
+    },
+    "BinPong": {
+      "$ref": "#/$defs/BinPong"
+    },
+    "BinTare": {
+      "$ref": "#/$defs/BinTare"
+    },
+    "BinWeight": {
+      "$ref": "#/$defs/BinWeight"
+    },
+    "BrandInfo": {
+      "$ref": "#/$defs/BrandInfo"
+    },
+    "CatalogItemCreate": {
+      "$ref": "#/$defs/CatalogItemCreate"
+    },
+    "CatalogItemRead": {
+      "$ref": "#/$defs/CatalogItemRead"
+    },
+    "CatalogListResponse": {
+      "$ref": "#/$defs/CatalogListResponse"
+    },
+    "CloseCheck": {
+      "$ref": "#/$defs/CloseCheck"
+    },
+    "CloseRead": {
+      "$ref": "#/$defs/CloseRead"
+    },
+    "CloseRequest": {
+      "$ref": "#/$defs/CloseRequest"
+    },
+    "CorrectionCreate": {
+      "$ref": "#/$defs/CorrectionCreate"
+    },
+    "CorrectionRead": {
+      "$ref": "#/$defs/CorrectionRead"
+    },
+    "CorrectionResponse": {
+      "$ref": "#/$defs/CorrectionResponse"
+    },
+    "CropQuality": {
+      "$ref": "#/$defs/CropQuality"
+    },
+    "DeviceTareResponse": {
+      "$ref": "#/$defs/DeviceTareResponse"
+    },
+    "ErrorResponse": {
+      "$ref": "#/$defs/ErrorResponse"
+    },
+    "EstimateRef": {
+      "$ref": "#/$defs/EstimateRef"
+    },
+    "EventDetail": {
+      "$ref": "#/$defs/EventDetail"
+    },
+    "EventKind": {
+      "$ref": "#/$defs/EventKind"
+    },
+    "EventListResponse": {
+      "$ref": "#/$defs/EventListResponse"
+    },
+    "EventStatus": {
+      "$ref": "#/$defs/EventStatus"
+    },
+    "EventSummary": {
+      "$ref": "#/$defs/EventSummary"
+    },
+    "HealthResponse": {
+      "$ref": "#/$defs/HealthResponse"
+    },
+    "IdentificationRead": {
+      "$ref": "#/$defs/IdentificationRead"
+    },
+    "IdentifyMethod": {
+      "$ref": "#/$defs/IdentifyMethod"
+    },
+    "ItemClass": {
+      "$ref": "#/$defs/ItemClass"
+    },
+    "ItemRecordRead": {
+      "$ref": "#/$defs/ItemRecordRead"
+    },
+    "JournalBasis": {
+      "$ref": "#/$defs/JournalBasis"
+    },
+    "JournalEntryRead": {
+      "$ref": "#/$defs/JournalEntryRead"
+    },
+    "JournalLineRead": {
+      "$ref": "#/$defs/JournalLineRead"
+    },
+    "JournalResponse": {
+      "$ref": "#/$defs/JournalResponse"
+    },
+    "MoneyRange": {
+      "$ref": "#/$defs/MoneyRange"
+    },
+    "OptionKind": {
+      "$ref": "#/$defs/OptionKind"
+    },
+    "OptionScoreRead": {
+      "$ref": "#/$defs/OptionScoreRead"
+    },
+    "PhoneAsk": {
+      "$ref": "#/$defs/PhoneAsk"
+    },
+    "PhoneHello": {
+      "$ref": "#/$defs/PhoneHello"
+    },
+    "PhoneIdle": {
+      "$ref": "#/$defs/PhoneIdle"
+    },
+    "PhonePing": {
+      "$ref": "#/$defs/PhonePing"
+    },
+    "PhonePong": {
+      "$ref": "#/$defs/PhonePong"
+    },
+    "PhoneResult": {
+      "$ref": "#/$defs/PhoneResult"
+    },
+    "RoundListResponse": {
+      "$ref": "#/$defs/RoundListResponse"
+    },
+    "RoundRead": {
+      "$ref": "#/$defs/RoundRead"
+    },
+    "ScreenAsk": {
+      "$ref": "#/$defs/ScreenAsk"
+    },
+    "ScreenIdle": {
+      "$ref": "#/$defs/ScreenIdle"
+    },
+    "ScreenOffline": {
+      "$ref": "#/$defs/ScreenOffline"
+    },
+    "ScreenResult": {
+      "$ref": "#/$defs/ScreenResult"
+    },
+    "ScreenThinking": {
+      "$ref": "#/$defs/ScreenThinking"
+    },
+    "SettingsRead": {
+      "$ref": "#/$defs/SettingsRead"
+    },
+    "SettingsUpdate": {
+      "$ref": "#/$defs/SettingsUpdate"
+    },
+    "SimExpectRequest": {
+      "$ref": "#/$defs/SimExpectRequest"
+    },
+    "SimExpectResponse": {
+      "$ref": "#/$defs/SimExpectResponse"
+    },
+    "SimTossRequest": {
+      "$ref": "#/$defs/SimTossRequest"
+    },
+    "SimTossResponse": {
+      "$ref": "#/$defs/SimTossResponse"
+    },
+    "SummaryResponse": {
+      "$ref": "#/$defs/SummaryResponse"
+    },
+    "TaxMethod": {
+      "$ref": "#/$defs/TaxMethod"
+    },
+    "TrialBalanceRow": {
+      "$ref": "#/$defs/TrialBalanceRow"
+    },
+    "UiAskOpened": {
+      "$ref": "#/$defs/UiAskOpened"
+    },
+    "UiAskResolved": {
+      "$ref": "#/$defs/UiAskResolved"
+    },
+    "UiDeviceStatus": {
+      "$ref": "#/$defs/UiDeviceStatus"
+    },
+    "UiEventCreated": {
+      "$ref": "#/$defs/UiEventCreated"
+    },
+    "UiEventUpdated": {
+      "$ref": "#/$defs/UiEventUpdated"
+    },
+    "UiJournalPosted": {
+      "$ref": "#/$defs/UiJournalPosted"
+    },
+    "UiMetricsUpdated": {
+      "$ref": "#/$defs/UiMetricsUpdated"
+    },
+    "UiWeight": {
+      "$ref": "#/$defs/UiWeight"
+    },
+    "ValueEstimate": {
+      "$ref": "#/$defs/ValueEstimate"
+    },
+    "VisionCandidate": {
+      "$ref": "#/$defs/VisionCandidate"
+    },
+    "VisionResult": {
+      "$ref": "#/$defs/VisionResult"
+    },
+    "VoidResponse": {
+      "$ref": "#/$defs/VoidResponse"
+    }
+  },
+  "title": "BinBooksContracts",
+  "type": "object"
+}
