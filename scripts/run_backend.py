@@ -15,14 +15,16 @@ import asyncio
 import sys
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "backend"))
+REPO_DIR = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(REPO_DIR / "backend"))
+sys.path.insert(0, str(REPO_DIR))
 
-from hypercorn.asyncio import serve
-from hypercorn.config import Config
+from hypercorn.asyncio import serve  # noqa: E402
+from hypercorn.config import Config  # noqa: E402
 
-from app.config import get_settings
-from app.main import create_app
-from scripts.make_cert import build_cert
+from app.config import get_settings  # noqa: E402
+from app.main import create_app  # noqa: E402
+from scripts.make_cert import build_cert  # noqa: E402
 
 
 def build_config(host: str, https_port: int, http_port: int | None, cert_dir: Path) -> Config:

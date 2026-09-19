@@ -94,7 +94,10 @@ def test_every_section_14_route_exists_and_says_not_built_yet(
 ) -> None:
     response = getattr(client, method)(path)
     assert response.status_code == 501, path
-    assert "not built yet" in response.json()["detail"]
+    assert response.json()["detail"].endswith("is not built yet.")
+    # The lane that fills the route is named in a header, never in a body a person could read.
+    assert response.headers["x-binbooks-owner"].startswith("Lane ")
+    assert "Lane" not in response.json()["detail"]
 
 
 def test_body_routes_exist(client: TestClient) -> None:

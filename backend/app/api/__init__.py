@@ -8,11 +8,13 @@ from fastapi import HTTPException, status
 
 
 def not_implemented(owner: str, what: str) -> NoReturn:
-    """Every route exists from step 0 so the frontend can be built against it.
+    """Every route exists from step 0 so the other lanes can build against it.
 
-    The body names the lane that will fill it, so a 501 in the network tab is self explaining.
+    The body stays plain, because a person could see it. Which lane fills the route goes in a
+    header instead, where the person building the client can read it and a user never does.
     """
     raise HTTPException(
         status_code=status.HTTP_501_NOT_IMPLEMENTED,
-        detail=f"{what} is not built yet. {owner} owns it.",
+        detail=f"{what} is not built yet.",
+        headers={"X-Binbooks-Owner": owner},
     )
