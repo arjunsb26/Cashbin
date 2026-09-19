@@ -12,6 +12,7 @@ const FRAME_QUALITY = 0.7;
 const FRAME_BYTES_GUESS = 24000; // used before the first frame is measured
 const RESULT_MS = 6000;
 const LEARNED_MS = 2500;
+const HELD_RESULT_MS = 2800; // a held ticket waits for the learned line to finish
 const TOOLTIP_MS = 4000;
 const BACKOFF_MIN_MS = 500;
 const BACKOFF_MAX_MS = 8000;
@@ -72,6 +73,7 @@ let tooltipTimer = 0;
 let askEventId = null;
 let answering = false;
 let heldResult = null;
+let heldTimer = 0;
 let wakeLock = null;
 
 const canvas = document.createElement("canvas");
@@ -379,7 +381,17 @@ function showResult(message) {
     heldResult = message;
     return;
   }
+  // A newer ticket takes the place of one still waiting its turn.
+  clearHeld();
   drawResult(message);
+}
+
+function clearHeld() {
+  if (heldTimer) {
+    clearTimeout(heldTimer);
+    heldTimer = 0;
+  }
+  heldResult = null;
 }
 
 function drawResult(message) {
@@ -424,6 +436,11 @@ function closeResult() {
 
 function showAsk(message) {
   closeResult();
+  // A new question stops a held ticket rising over it. The ticket waits again.
+  if (heldTimer) {
+    clearTimeout(heldTimer);
+    heldTimer = 0;
+  }
   const eventId = Number.isInteger(message.event_id) ? message.event_id : null;
   askEventId = eventId;
   answering = false;
@@ -463,9 +480,17 @@ function showAsk(message) {
 function closeAsk() {
   askEventId = null;
   closeSheet(askSheet);
-  const waiting = heldResult;
-  heldResult = null;
-  if (waiting) drawResult(waiting);
+  if (!heldResult || heldTimer) return;
+  // The held ticket rises after the quiet learned line has had its moment, so
+  // the two never sit on top of each other at the bottom of the screen.
+  heldTimer = setTimeout(() => {
+    heldTimer = 0;
+    const waiting = heldResult;
+    heldResult = null;
+    if (!waiting) return;
+    hide(learnedLine);
+    drawResult(waiting);
+  }, HELD_RESULT_MS);
 }
 
 /* ---- the free text answer ----

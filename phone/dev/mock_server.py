@@ -192,6 +192,23 @@ async def dev_send(request: Request) -> JSONResponse:
     return JSONResponse({"ok": True})
 
 
+@app.post("/api/dev/script")
+async def dev_script(request: Request) -> JSONResponse:
+    """Turn the scripted result and ask on or off while the mock runs.
+
+    The screenshot run turns it off, so the only messages the page sees are the
+    ones that run sends and every shot comes out the same.
+    """
+    global script_on
+    try:
+        body = await request.json()
+    except Exception:  # noqa: BLE001
+        body = {}
+    script_on = bool(body.get("on", True))
+    log(f"scripted sequence {'on' if script_on else 'off'}")
+    return JSONResponse({"on": script_on})
+
+
 @app.post("/api/dev/drop")
 async def dev_drop(request: Request) -> JSONResponse:
     """Close every phone socket, so the reconnect path can be watched.

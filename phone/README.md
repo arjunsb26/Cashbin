@@ -68,7 +68,9 @@ pnpm screenshots
 ```
 
 Chromium runs at 390x844 with a fake camera and writes to `phone/dev/screenshots/`.
-Pass `--base=https://localhost:8444` or `--out=<folder>` to change either.
+Pass `--base=https://localhost:8444` or `--out=<folder>` to change either. The run sends
+every result and ask itself, so it turns the mock's scripted sequence off as it starts
+and turns nothing back on. Restart the mock to get the script back.
 
 To also capture the page opened over plain HTTP, serve the folder insecurely in a second
 terminal and pass its LAN address. A browser treats localhost as secure whatever the

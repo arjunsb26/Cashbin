@@ -71,6 +71,10 @@ async function main() {
   const page = await context.newPage();
   watch(page, "main");
 
+  // The run drives every message itself, so the mock's own scripted result and
+  // ask are turned off first and each shot comes out the same every time.
+  await post("/api/dev/script", { on: false });
+
   // 1. the start screen
   await page.goto(PAGE, { waitUntil: "load" });
   await page.waitForSelector("#startButton");
@@ -143,10 +147,12 @@ async function main() {
   await page.waitForSelector('#askSheet[data-open="false"]');
   await wait(300);
   await shot(page, "6-learned");
-  await page.waitForSelector('#resultSheet[data-open="true"]', { timeout: 3000 });
+  await page.waitForSelector('#resultSheet[data-open="true"]', { timeout: 6000 });
   await wait(300);
   await shot(page, "10-result-after-answer");
-  console.log("the held back result arrived after the answer");
+  const heldTitle = await page.textContent("#resultTitle");
+  if (heldTitle !== "Bagel") throw new Error(`the held back result read ${heldTitle}, not Bagel`);
+  console.log(`the held back result arrived after the answer, reading ${heldTitle}`);
   await page.click("#resultSheet");
   await wait(400);
 
