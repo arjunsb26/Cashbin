@@ -2,6 +2,43 @@
 
 Newest first. Each lane writes under its own heading.
 
+## 2026-09-19, lane f: period close and the investigator
+
+- `backend/app/ledger/close.py` runs a period close over the tables: write-offs by
+  item, asset disposals on both bases with the Form 4797 Part II line 10 subtotal
+  for abandonments, missed money split by the option that would have been best,
+  the "Scope 3, Category 5 (waste generated in operations) inputs" block, and
+  ghost assets with the `possible_unrecorded_asset` flags. Every figure is
+  computed in Python over rows that already exist. Nothing in this module calls a
+  model.
+- Five self-checks, each returning pass, warn or fail with its numbers.
+  `mass_conservation` draws the literal balance DESIGN.md 4.5 shows: what the
+  scale lost since the last tare, adjusted for bag changes and removals, against
+  the sum of the tickets, inside three sigma on the combined measurement error.
+  The band never drops below `step_min_g`, because a gap smaller than the
+  smallest step the scale can see cannot be a ticket anyone missed. With no tare
+  row the first weight sample of the period is the tare and the check says so.
+  The other four are `ledger_balance`, `register_consistency`, `unresolved_asks`
+  and `low_confidence_share`.
+- `backend/app/agent/` adds the investigator. It runs only when a check warns or
+  fails, and it can produce two things: a short markdown note and a list of
+  tickets for a person to look at. It cannot change a figure. Four read-only
+  tools (`get_events`, `get_trace`, `get_bag_changes`, `get_identifications`)
+  return JSON this code built, the loop is capped at eight tool calls and four
+  timeouts of wall clock, and the reply is validated to 2000 characters with HTML
+  stripped and every ticket id that does not exist in the period taken out.
+- The instruction text is fixed and built by code. Labels, tags and check details
+  travel in one JSON data block, and a stored label is put through the label
+  validator again on its way out, so a record edited by hand cannot inject. With
+  no agent model configured, a deterministic note is written from the check
+  numbers, so the Close page is never blank under a failed check.
+- `POST /api/close` runs the close and the investigation in one request and
+  returns `CloseRead`. `GET /api/close/{id}` and `GET /api/close/latest` read it
+  back; with no close yet, `latest` answers 404 with a plain sentence.
+- Tokens, latency and cost per investigation go through the same price table the
+  identification rows use, and land in `report_json.investigation` with the
+  provider and model that served the call.
+
 ## 2026-09-19, lane b: tag case and the tone rule
 
 - The tone is amber whenever a better option than the bin exists on either
