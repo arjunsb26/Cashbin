@@ -175,6 +175,27 @@ async function main() {
   await shot(deniedPage, "8-camera-refused");
   await denied.close();
 
+  // 7. the page opened over plain HTTP, when an insecure address is given.
+  // Serve the folder with  python -m http.server 8080 --bind 0.0.0.0 --directory phone
+  // and pass --http=http://<lan address>:8080/ . It has to be a LAN address, because
+  // a browser treats localhost as secure whatever the scheme.
+  const insecure = option("http", "");
+  if (insecure) {
+    const plain = await browser.newContext({
+      viewport: VIEWPORT,
+      deviceScaleFactor: 2,
+      isMobile: true,
+      hasTouch: true,
+    });
+    const plainPage = await plain.newPage();
+    watch(plainPage, "http");
+    await plainPage.goto(insecure, { waitUntil: "load" });
+    await plainPage.waitForSelector("#startError:not([hidden])");
+    await wait(300);
+    await shot(plainPage, "9-over-http");
+    await plain.close();
+  }
+
   await browser.close();
   console.log(`screenshots are in ${OUT}`);
 }

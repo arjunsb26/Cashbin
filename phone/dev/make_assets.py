@@ -1,10 +1,11 @@
-"""Draw the home screen icons for the phone page.
+"""Draw the home screen icons and set the manifest colours.
 
 The icon is a weigh ticket: paper ground, a white sheet, a band across its
-top, two ruled lines. Colours are read out of the token block in phone.css so
-there is one source for them. Run it after a token change:
+top, two ruled lines. Every colour here, and the two colours the manifest has
+to carry as literal values, are read out of the token block in phone.css, so
+the tokens stay the one source. Run it after a token change:
 
-    uv run --project backend python phone/dev/make_icons.py
+    uv run --project backend python phone/dev/make_assets.py
 """
 
 from __future__ import annotations
@@ -16,6 +17,7 @@ from pathlib import Path
 
 PHONE = Path(__file__).resolve().parent.parent
 CSS = PHONE / "phone.css"
+MANIFEST = PHONE / "manifest.webmanifest"
 ICONS = PHONE / "icons"
 SIZES = (192, 512)
 
@@ -84,8 +86,20 @@ def draw(size: int, tokens: dict[str, Colour]) -> list[list[Colour]]:
     return pixels
 
 
+def sync_manifest(tokens: dict[str, Colour]) -> None:
+    """A manifest is read before any script runs, so its two colours cannot be
+    variables. They are written here from the tokens instead of being typed."""
+    paper = "#%02X%02X%02X" % tokens["paper"]
+    text = MANIFEST.read_text(encoding="utf-8")
+    fixed = re.sub(r'("(?:background|theme)_color":\s*")[^"]*(")', rf"\g<1>{paper}\g<2>", text)
+    if fixed != text:
+        MANIFEST.write_text(fixed, encoding="utf-8")
+        print(f"set the manifest colours to {paper}")
+
+
 def main() -> None:
     tokens = read_tokens()
+    sync_manifest(tokens)
     ICONS.mkdir(parents=True, exist_ok=True)
     for size in SIZES:
         path = ICONS / f"icon-{size}.png"

@@ -10,7 +10,7 @@ phone.css             tokens and layout
 phone.js              camera, streaming, socket, sheets
 manifest.webmanifest  add to home screen
 fonts/                IBM Plex Sans and Sans Condensed, woff2, OFL licence beside them
-icons/                home screen icons, drawn by dev/make_icons.py
+icons/                home screen icons, drawn by dev/make_assets.py
 dev/                  the mock backend and the screenshot run. Never served to a phone.
 ```
 
@@ -69,3 +69,18 @@ pnpm screenshots
 
 Chromium runs at 390x844 with a fake camera and writes to `phone/dev/screenshots/`.
 Pass `--base=https://localhost:8443` or `--out=<folder>` to change either.
+
+To also capture the page opened over plain HTTP, serve the folder insecurely in a second
+terminal and pass its LAN address. A browser treats localhost as secure whatever the
+scheme, so the address has to be the LAN one.
+
+```
+python -m http.server 8080 --bind 0.0.0.0 --directory phone
+pnpm screenshots --http=http://<lan address>:8080/
+```
+
+## Colours in the manifest
+
+A manifest is read before any script runs, so its two colours cannot be variables.
+`dev/make_assets.py` writes them from the token block in `phone.css` and draws the icons
+from the same tokens. Run it after any token change.
