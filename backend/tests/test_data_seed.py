@@ -101,7 +101,8 @@ def test_every_priced_row_names_where_the_price_came_from() -> None:
         if item.unit_cost_cents is None and item.price_per_kg_cents is None:
             continue
         assert item.price_source, item.label
-        assert item.price_source.startswith("http"), item.label
+        # Either a listing URL, or an estimate that names the listing it came from.
+        assert "http" in item.price_source, item.label
 
 
 # --- assets ------------------------------------------------------------------

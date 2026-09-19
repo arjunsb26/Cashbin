@@ -85,6 +85,25 @@ class EngineSettings(BaseModel):
     capitalization_threshold_cents: int = 50000
     tie_break_cents: int = 50
 
+    @classmethod
+    def from_settings(cls, settings: Any) -> EngineSettings:
+        """Build the engine's view from the one live settings object.
+
+        This is the single seam between the app's configuration and the engine,
+        so the two sets of numbers cannot drift. `app.config` is imported here
+        and nowhere else under `engine/`, and only as a type the caller passes
+        in, so the engine still has no configuration of its own to load.
+        """
+        return cls(
+            tax_rate=settings.tax_rate,
+            disposal_fee_cents=settings.disposal_fee_cents,
+            recycle_fee_cents=settings.recycle_fee_cents,
+            capitalization_threshold_cents=settings.capitalization_threshold_cents,
+            tie_break_cents=getattr(
+                settings, "tie_break_cents", cls.model_fields["tie_break_cents"].default
+            ),
+        )
+
 
 class CatalogItem(BaseModel):
     """One row of `catalog_item`."""

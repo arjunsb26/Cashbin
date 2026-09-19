@@ -64,6 +64,16 @@ rules:
     extra_citation_urls: []
     needs_human_review: false
 
+  - id: FOOD_NO_RESALE
+    title: Food that reached the bin is not for sale
+    plain_text: >-
+      Once food has been thrown out it cannot be sold again, so selling it is
+      never an option here. Donating it while it is still good is, and that is
+      the row to look at instead.
+    citation_url: null
+    extra_citation_urls: []
+    needs_human_review: false
+
   - id: EWASTE
     title: Electronics in the landfill
     plain_text: >-

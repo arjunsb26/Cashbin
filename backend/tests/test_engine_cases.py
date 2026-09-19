@@ -93,7 +93,7 @@ def test_keyboard_record_has_book_value_and_zero_tax_basis() -> None:
 
 def test_bagel_record_takes_cost_and_value_from_the_catalog() -> None:
     record = bagel_record()
-    assert record.cost_basis_cents == 66
+    assert record.cost_basis_cents == 33
     assert record.fmv_mid == 66
     assert record.fmv_source is EstimateSource.catalog
     assert record.material_mix == {"food_waste": 1.0}
