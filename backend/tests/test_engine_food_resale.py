@@ -113,7 +113,7 @@ def test_donating_the_bagel_ranks_first_and_asks_for_a_person() -> None:
 def test_engine_settings_are_built_from_the_live_settings_object() -> None:
     from app.config import Settings
 
-    live = Settings(tax_rate=0.3, disposal_fee_cents=25, recycle_fee_cents=10)
+    live = Settings(_env_file=None, tax_rate=0.3, disposal_fee_cents=25, recycle_fee_cents=10)
     built = EngineSettings.from_settings(live)
     assert built.tax_rate == 0.3
     assert built.disposal_fee_cents == 25
