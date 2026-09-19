@@ -2,6 +2,19 @@
 
 Newest first. Each lane writes under its own heading.
 
+## 2026-09-19, lane b: tag case and the tone rule
+
+- The tone is amber whenever a better option than the bin exists on either
+  axis, not only on money. Red still means the bin is blocked. Green now means
+  the bin was the best option, or the best option beats it by less than the tie
+  break on money and by less than the new `tone_co2e_kg` setting on carbon
+  (0.02 kg). An unknown carbon figure never gives a green tone. The bagel now
+  reads amber, which is what the LCD should say when donating it is better.
+- `scripts/seed_db.py` puts every asset tag through the same validator the API
+  uses, so `BB-0002` in the CSV lands as `bb-0002` in the register and matches a
+  tag typed into the form or read off a QR code. The CSV keeps its own spelling
+  and the skipped lines still name the row the way the file does.
+
 ## 2026-09-19, lane e: phone camera page
 
 ### 2026-09-19

@@ -133,6 +133,38 @@ def by_option(scores: list[OptionScore]) -> dict[Option, OptionScore]:
     return {score.option: score for score in scores}
 
 
+def _tone_for(
+    best: OptionScore | None, trash: OptionScore | None, settings: EngineSettings
+) -> Tone:
+    """The colour the LCD and the ticket use, per PLAN.md section 21a item 10.
+
+    Red when the bin is blocked outright. Otherwise green only when the bin was
+    already a fine answer, which means either the bin is the best option or the
+    best option beats it by less than the tie break on money and by less than
+    `tone_co2e_kg` on carbon. Anything else is amber, so an option that is worth
+    the same money but much less carbon still says a better answer existed.
+
+    An unknown carbon figure never buys a green tone. Unknown is unknown, and
+    claiming the bin was fine on a figure nobody has is the one thing this
+    product must not do.
+    """
+    if trash is not None and not trash.allowed:
+        return TONE_RED
+    if best is None or trash is None:
+        return TONE_AMBER
+    if best.option is Option.trash:
+        return TONE_GREEN
+
+    money_gap = best.net_after_tax_cents - trash.net_after_tax_cents
+    if money_gap >= settings.tie_break_cents:
+        return TONE_AMBER
+    if best.kg_co2e is None or trash.kg_co2e is None:
+        return TONE_AMBER
+    if abs(best.kg_co2e - trash.kg_co2e) >= settings.tone_co2e_kg:
+        return TONE_AMBER
+    return TONE_GREEN
+
+
 def summarise(scores: list[OptionScore], settings: EngineSettings | None = None) -> Ranking:
     """Best, greenest, what following the best would have saved, and the tone."""
     settings = settings or EngineSettings()
@@ -152,18 +184,9 @@ def summarise(scores: list[OptionScore], settings: EngineSettings | None = None)
     if best is not None and trash is not None:
         saved = best.net_after_tax_cents - trash.net_after_tax_cents
 
-    if trash is not None and not trash.allowed:
-        tone = TONE_RED
-    elif best is None or trash is None:
-        tone = TONE_AMBER
-    elif saved <= settings.tie_break_cents:
-        tone = TONE_GREEN
-    else:
-        tone = TONE_AMBER
-
     return Ranking(
         best_option=best.option if best else None,
         greenest_option=greenest.option if greenest else None,
         saved_if_followed_cents=max(saved, 0),
-        tone=tone,
+        tone=_tone_for(best, trash, settings),
     )
