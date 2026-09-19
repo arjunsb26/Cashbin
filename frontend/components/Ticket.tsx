@@ -104,12 +104,15 @@ export function Ticket({
       key={arrival}
     >
       <header className="flex items-start gap-3">
-        <CropFrame
-          src={detail.evidence?.crop ?? null}
-          label={detail.event.label ?? "Item on the scale"}
-          size={72}
-          className={identified ? "animate-fade-in" : undefined}
-        />
+        {/* An ask shows the crop large in its own body, so the header does not repeat it. */}
+        {children ? null : (
+          <CropFrame
+            src={detail.evidence?.crop ?? null}
+            label={detail.event.label ?? "Item on the scale"}
+            size={72}
+            className={identified ? "animate-fade-in" : undefined}
+          />
+        )}
         <div className="flex-1">
           <h2 className="text-section">
             {identified ? (detail.event.label ?? "Unnamed item") : "Identifying"}
