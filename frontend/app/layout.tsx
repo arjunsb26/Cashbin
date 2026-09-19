@@ -3,6 +3,7 @@ import "./globals.css";
 import { plexCondensed, plexSans } from "./fonts";
 import { Providers } from "@/components/Providers";
 import { Rail } from "@/components/Rail";
+import { ServiceWorker } from "@/components/ServiceWorker";
 import { brand } from "@/lib/brand";
 import { token } from "@/lib/tokens.server";
 
@@ -28,6 +29,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             <Rail />
             <main className="min-w-0 flex-1 px-[var(--gutter)] py-6">{children}</main>
           </div>
+          <ServiceWorker />
         </Providers>
       </body>
     </html>
