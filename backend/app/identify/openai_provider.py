@@ -23,8 +23,9 @@ from typing import Any
 from pydantic import BaseModel, ValidationError
 
 from app.config import Settings
-from app.identify.cost import CallUsage, cost_microusd, price_for
-from app.identify.providers import IdentifyContext
+from app.identify.cost import cost_microusd, price_for
+from app.identify.estimate_cache import read_estimate, write_estimate
+from app.identify.providers import CallUsage, IdentifyContext
 from app.schemas import ValueEstimate, VisionResult, normalise_label
 
 log = logging.getLogger(__name__)
@@ -34,19 +35,8 @@ FALLBACK_CONFIDENCE = 0.3
 # Keywords structured outputs does not accept. Pydantic is the real wall, so dropping them
 # costs nothing: every reply is validated against the model before anything reads it.
 _UNSUPPORTED = frozenset(
-    [
-        "default",
-        "exclusiveMaximum",
-        "exclusiveMinimum",
-        "format",
-        "maxItems",
-        "maxLength",
-        "maximum",
-        "minItems",
-        "minLength",
-        "minimum",
-        "pattern",
-    ]
+    ("default", "exclusiveMaximum", "exclusiveMinimum", "format", "maxItems", "maxLength",
+     "maximum", "minItems", "minLength", "minimum", "pattern")
 )
 SYSTEM_TEXT = (
     "You identify one object from a photograph taken inside a waste bin. Answer only with "
@@ -86,24 +76,13 @@ def strict_schema(model: type[BaseModel], drop: tuple[str, ...] = ()) -> dict[st
     return schema
 
 
-def data_block(payload: dict[str, Any]) -> str:
-    """Outside strings go in here, as JSON, and nowhere else in the request."""
-    return json.dumps(payload, ensure_ascii=True, sort_keys=True)
-
-
-def _request(
-    model: str,
-    effort: str,
-    task: str,
-    payload: dict[str, Any],
-    name: str,
-    schema: dict[str, Any],
-    strict: bool,
-    image: bytes | None = None,
-) -> dict[str, Any]:
+def _request(model: str, effort: str, task: str, payload: dict[str, Any], name: str,
+             schema: dict[str, Any], strict: bool, image: bytes | None = None
+             ) -> dict[str, Any]:
+    """One request body. Outside strings go in the data block and nowhere else."""
     content: list[dict[str, Any]] = [
         {"type": "text", "text": task},
-        {"type": "text", "text": data_block(payload)},
+        {"type": "text", "text": json.dumps(payload, ensure_ascii=True, sort_keys=True)},
     ]
     if image is not None:
         url = "data:image/jpeg;base64," + base64.b64encode(image).decode("ascii")
@@ -122,9 +101,8 @@ def _request(
     }
 
 
-def build_vision_request(
-    crop: bytes, context: IdentifyContext, model: str, effort: str = "low"
-) -> dict[str, Any]:
+def build_vision_request(crop: bytes, context: IdentifyContext, model: str,
+                         effort: str = "low") -> dict[str, Any]:
     """The exact body sent for an identification."""
     payload = {
         "catalog_labels": list(context.catalog_labels),
@@ -137,9 +115,8 @@ def build_vision_request(
     return _request(model, effort, VISION_TASK, payload, "vision_result", schema, True, crop)
 
 
-def build_estimate_request(
-    label: str, vision: VisionResult, mass_g: float, model: str, effort: str = "low"
-) -> dict[str, Any]:
+def build_estimate_request(label: str, vision: VisionResult, mass_g: float, model: str,
+                           effort: str = "low") -> dict[str, Any]:
     """The exact body sent for a value estimate. The object travels as data, same as above."""
     payload = {
         "label": normalise_label(label),
@@ -162,6 +139,7 @@ class _Adapter:
     def __init__(self, settings: Settings, client: Any | None = None) -> None:
         self.settings = settings
         self._client = client
+        self._memo: dict[str, ValueEstimate] = {}
         self.last_call: CallUsage | None = None
 
     @property
@@ -169,10 +147,9 @@ class _Adapter:
         if self._client is None:
             from openai import OpenAI
 
-            key = self.settings.openai_api_key
-            base_url = self.settings.llm_base_url
-            self._client = (
-                OpenAI(api_key=key, base_url=base_url) if base_url else OpenAI(api_key=key)
+            key, base_url = self.settings.openai_api_key, self.settings.llm_base_url
+            self._client = OpenAI(api_key=key, base_url=base_url) if base_url else OpenAI(
+                api_key=key
             )
         return self._client
 
@@ -187,10 +164,8 @@ class _Adapter:
             )
             latency_ms = int((time.perf_counter() - started) * 1000)
             usage = getattr(reply, "usage", None)
-            tokens = (
-                getattr(usage, "prompt_tokens", None),
-                getattr(usage, "completion_tokens", None),
-            )
+            tokens = (getattr(usage, "prompt_tokens", None),
+                      getattr(usage, "completion_tokens", None))
             try:
                 parsed = shape.model_validate_json(reply.choices[0].message.content or "")
                 break
@@ -198,18 +173,12 @@ class _Adapter:
                 log.warning("openai reply failed validation on attempt %d", attempt)
         price = price_for(model, PROVIDER_NAME)
         self.last_call = CallUsage(
-            provider=PROVIDER_NAME,
-            model=model,
-            tokens_in=tokens[0],
-            tokens_out=tokens[1],
-            latency_ms=latency_ms,
-            cost_microusd=cost_microusd(tokens[0], tokens[1], price),
+            provider=PROVIDER_NAME, model=model, tokens_in=tokens[0], tokens_out=tokens[1],
+            latency_ms=latency_ms, cost_microusd=cost_microusd(tokens[0], tokens[1], price),
             price_known=price is not None,
         )
-        log.info(
-            "openai model=%s tokens_in=%s tokens_out=%s latency_ms=%s",
-            model, tokens[0], tokens[1], latency_ms,
-        )
+        log.info("openai model=%s tokens_in=%s tokens_out=%s latency_ms=%s",
+                 model, tokens[0], tokens[1], latency_ms)
         return parsed
 
 
@@ -222,13 +191,8 @@ class OpenAIVisionProvider(_Adapter):
         parsed = self._parse(request, model, VisionResult)
         if parsed is None:
             return VisionResult.model_validate(
-                {
-                    "label": "unknown object",
-                    "class": "untracked",
-                    "confidence": FALLBACK_CONFIDENCE,
-                    "provider": PROVIDER_NAME,
-                    "model": model,
-                }
+                {"label": "unknown object", "class": "untracked",
+                 "confidence": FALLBACK_CONFIDENCE, "provider": PROVIDER_NAME, "model": model}
             )
         result: VisionResult = parsed
         return result.model_copy(update={"provider": PROVIDER_NAME, "model": model})
@@ -237,48 +201,22 @@ class OpenAIVisionProvider(_Adapter):
 class OpenAIEstimatorProvider(_Adapter):
     """Value estimates, cached by normalised label so no object is ever priced twice."""
 
-    def __init__(self, settings: Settings, client: Any | None = None) -> None:
-        super().__init__(settings, client)
-        self._memo: dict[str, ValueEstimate] = {}
-
     def estimate(self, label: str, vision: VisionResult, mass_g: float) -> ValueEstimate:
         key = normalise_label(label)
-        cached = self._memo.get(key) or cached_estimate(key, None)
+        cached = self._memo.get(key) or read_estimate(key)
         if cached is not None:
             self._memo[key] = cached
             self.last_call = None
             return cached
-        model = self.settings.llm_text_model
-        effort = self.settings.llm_text_effort
-        request = build_estimate_request(key, vision, mass_g, model, effort)
-        parsed = self._parse(request, model, ValueEstimate)
+        model, effort = self.settings.llm_text_model, self.settings.llm_text_effort
+        parsed = self._parse(
+            build_estimate_request(key, vision, mass_g, model, effort), model, ValueEstimate
+        )
         if parsed is None:
             raise ValueError("the estimator returned nothing this code could read")
         estimate: ValueEstimate = parsed.model_copy(
             update={"label": key, "provider": PROVIDER_NAME, "model": model}
         )
         self._memo[key] = estimate
-        cached_estimate(key, estimate)
+        write_estimate(key, estimate)
         return estimate
-
-
-def cached_estimate(label: str, estimate: ValueEstimate | None) -> ValueEstimate | None:
-    """Read the estimate cache, or write it. It lives in the settings table, so it survives
-    a restart and the same object is never priced twice across runs."""
-    from app.db import session_scope
-    from app.models import Setting
-
-    key = f"estimate:{normalise_label(label)}"
-    try:
-        with session_scope() as session:
-            row = session.get(Setting, key)
-            if estimate is None:
-                return ValueEstimate.model_validate_json(row.value_json) if row else None
-            if row is None:
-                session.add(Setting(key=key, value_json=estimate.model_dump_json()))
-            else:
-                row.value_json = estimate.model_dump_json()
-            return estimate
-    except (ValidationError, ValueError, OSError):
-        log.warning("the estimate cache is unavailable for %s", label)
-        return None

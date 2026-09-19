@@ -72,10 +72,17 @@ def round_read(rnd: Round, session: Session | None = None) -> RoundRead:
     )
 
 
-def list_rounds(session: Session) -> RoundListResponse:
-    """Every round, oldest first, which is the order the improvement chart plots."""
+def list_rounds(session: Session, learned: int = DEFAULT_LEARNED) -> RoundListResponse:
+    """Every round, oldest first, plus what the last few answers taught the system.
+
+    The improvement chart plots the rounds and the Learning page reads the sentences, so
+    both halves of PLAN.md section 12 arrive in one request.
+    """
     rounds = session.execute(select(Round).order_by(Round.id)).scalars().all()
-    return RoundListResponse(rounds=[round_read(rnd, session) for rnd in rounds])
+    return RoundListResponse(
+        rounds=[round_read(rnd, session) for rnd in rounds],
+        learned=what_learned(session, learned),
+    )
 
 
 def summary(session: Session) -> SummaryResponse:

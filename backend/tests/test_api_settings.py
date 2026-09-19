@@ -74,3 +74,23 @@ def test_an_unreadable_stored_setting_is_skipped(client: TestClient) -> None:
     with session_scope() as session:
         session.add(Setting(key="confident_p", value_json="not json"))
     assert client.get("/api/settings").status_code == 200
+
+
+def test_the_tone_threshold_is_a_live_setting(client: TestClient, settings: Settings) -> None:
+    """Lane B's engine reads this one, so it changes the same way every other threshold does."""
+    assert client.get("/api/settings").json()["tone_co2e_kg"] == 0.02
+
+    response = client.patch("/api/settings", json={"tone_co2e_kg": 0.5})
+    assert response.status_code == 200
+    assert response.json()["tone_co2e_kg"] == 0.5
+    assert get_settings().tone_co2e_kg == 0.5
+    with session_scope() as session:
+        row = session.get(Setting, "tone_co2e_kg")
+        assert row is not None and json.loads(row.value_json) == 0.5
+
+
+def test_the_engine_reads_the_live_tone_threshold(client: TestClient) -> None:
+    from app.engine.records import EngineSettings
+
+    client.patch("/api/settings", json={"tone_co2e_kg": 0.25})
+    assert EngineSettings.from_settings(get_settings()).tone_co2e_kg == 0.25

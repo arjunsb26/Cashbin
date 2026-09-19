@@ -31,6 +31,30 @@ def test_the_stubs_satisfy_the_protocols() -> None:
     assert isinstance(StubEstimatorProvider(), EstimatorProvider)
 
 
+def test_a_provider_that_cannot_say_what_it_used_is_not_a_provider() -> None:
+    """CLAUDE.md: every row names the provider and model that served it, and what it cost."""
+
+    class Silent:
+        name = "silent"
+
+        def identify(self, crop: bytes, context: IdentifyContext) -> None:
+            return None
+
+    assert not isinstance(Silent(), VisionProvider)
+
+
+def test_the_last_call_is_the_shape_the_protocol_names() -> None:
+    from app.identify.providers import CallUsage
+
+    provider = StubVisionProvider(ExpectQueue())
+    assert provider.last_call is None
+    provider.identify(make_jpeg(), context())
+    usage = provider.last_call
+    assert isinstance(usage, CallUsage)
+    assert (usage.tokens_in, usage.tokens_out, usage.cost_microusd) == (0, 0, 0)
+    assert usage.latency_ms is not None
+
+
 def test_the_queue_answers_first_and_only_once() -> None:
     queue = ExpectQueue()
     queue.push("  Pizza Slice ")

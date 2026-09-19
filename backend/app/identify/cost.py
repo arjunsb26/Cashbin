@@ -14,6 +14,9 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from app.engine.records import LlmPrice, load_llm_prices
+from app.identify.providers import CallUsage
+
+__all__ = ["CallUsage", "Price", "cost_microusd", "price_for"]
 
 log = logging.getLogger(__name__)
 
@@ -27,20 +30,6 @@ class Price:
     input_usd_per_million: float
     output_usd_per_million: float
     source: str | None = None
-
-
-@dataclass(frozen=True)
-class CallUsage:
-    """What one provider call used. The Protocols in providers.py carry no room for this,
-    so a provider hangs the last call here and the pipeline reads it off the provider."""
-
-    provider: str
-    model: str
-    tokens_in: int | None = None
-    tokens_out: int | None = None
-    latency_ms: int | None = None
-    cost_microusd: int | None = None
-    price_known: bool = False
 
 
 def _rows(path: Path | None = None) -> tuple[LlmPrice, ...]:

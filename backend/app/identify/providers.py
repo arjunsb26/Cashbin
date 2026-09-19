@@ -13,6 +13,26 @@ from app.schemas import ValueEstimate, VisionResult
 
 
 @dataclass(frozen=True)
+class CallUsage:
+    """What one provider call used, read off the provider after it answers.
+
+    CLAUDE.md: every identification and estimate row carries which provider and model
+    actually served it, and what the call cost. A VisionResult has no room for tokens or
+    latency, so a provider records them here and the pipeline copies them onto the row.
+    A count nobody measured stays None. A price nobody has filled in gives no cost at all,
+    never a zero, because a zero reads as a free call on the cost chart.
+    """
+
+    provider: str
+    model: str
+    tokens_in: int | None = None
+    tokens_out: int | None = None
+    latency_ms: int | None = None
+    cost_microusd: int | None = None
+    price_known: bool = False
+
+
+@dataclass(frozen=True)
 class IdentifyContext:
     """What a provider is allowed to know about the toss it is looking at.
 
@@ -33,6 +53,7 @@ class VisionProvider(Protocol):
     """Identify an item from its crop."""
 
     name: str
+    last_call: CallUsage | None
 
     def identify(self, crop: bytes, context: IdentifyContext) -> VisionResult: ...
 
@@ -42,5 +63,6 @@ class EstimatorProvider(Protocol):
     """Estimate fair market value, repair, replacement and scrap for an unknown object."""
 
     name: str
+    last_call: CallUsage | None
 
     def estimate(self, label: str, vision: VisionResult, mass_g: float) -> ValueEstimate: ...
