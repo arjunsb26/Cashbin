@@ -70,31 +70,22 @@ class CatalogFacts:
 
 
 def catalog_facts(session: Session) -> CatalogFacts:
-    """Labels, classes and mass priors, from the database, or from the seed file until seeded."""
-    rows = list(session.execute(select(CatalogItem).order_by(CatalogItem.label)).scalars())
-    labels: list[str] = []
+    """Labels, classes and mass priors: the seed file, with the database rows over the top.
+
+    A label a person taught the system is written to `catalog_item`, so the database is the
+    newer of the two. It is never the whole catalog on its own, which is why the seed file
+    is read first rather than only when the table is empty.
+    """
     classes: dict[str, ItemClass] = {}
     priors: dict[str, MassPrior] = {}
-    for row in rows:
-        labels.append(row.label)
-        classes[row.label] = row.item_class
-        if row.mass_prior_mean_g is not None:
-            priors[row.label] = MassPrior(
-                mean_g=row.mass_prior_mean_g,
-                var=row.mass_prior_var or 0.0,
-                n=row.mass_prior_n,
-            )
-    if rows:
-        return CatalogFacts(tuple(labels), classes, priors)
     try:
         from app.engine.records import load_catalog
 
         seed = load_catalog()
     except (OSError, KeyError, ValueError):
-        log.warning("no catalog in the database and no readable seed file")
-        return CatalogFacts((), {}, {})
+        log.warning("the catalog seed file is unreadable")
+        seed = ()
     for item in seed:
-        labels.append(item.label)
         classes[item.label] = ItemClass(str(item.item_class))
         if item.mass_prior_mean_g is not None:
             priors[item.label] = MassPrior(
@@ -102,7 +93,17 @@ def catalog_facts(session: Session) -> CatalogFacts:
                 var=item.mass_prior_var or 0.0,
                 n=item.mass_prior_n,
             )
-    return CatalogFacts(tuple(labels), classes, priors)
+    for row in session.execute(select(CatalogItem).order_by(CatalogItem.label)).scalars():
+        classes[row.label] = row.item_class
+        if row.mass_prior_mean_g is not None:
+            priors[row.label] = MassPrior(
+                mean_g=row.mass_prior_mean_g,
+                var=row.mass_prior_var or 0.0,
+                n=row.mass_prior_n,
+            )
+        else:
+            priors.pop(row.label, None)
+    return CatalogFacts(tuple(sorted(classes)), classes, priors)
 
 
 # Providers ------------------------------------------------------------------
