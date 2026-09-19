@@ -1,0 +1,252 @@
+# Soak run: sixty tosses, six of them things the catalog has never seen.
+# A bag goes out every twenty tosses, so the scale stays in a range a real bin
+# would sit in and the bag change path gets exercised more than once.
+name: soak
+sigma: 0.9
+steps:
+  - kind: toss
+    label: banana
+    mass_g: 155.7
+    image: banana.png
+  - kind: toss
+    label: paper cup
+    mass_g: 13.6
+    image: paper_cup.png
+  - kind: toss
+    label: earbuds
+    mass_g: 71.4
+    image: earbuds.png
+  - kind: toss
+    label: earbuds
+    mass_g: 55.4
+    image: earbuds.png
+  - kind: toss
+    label: banana
+    mass_g: 153.3
+    image: banana.png
+  - kind: toss
+    label: pasta
+    mass_g: 270.9
+    image: pasta.png
+  - kind: toss
+    label: phone
+    mass_g: 194.0
+    image: phone.png
+  - kind: toss
+    label: bike light
+    mass_g: 106.4
+    image: unknown.png
+  - kind: toss
+    label: charger
+    mass_g: 96.1
+    image: charger.png
+  - kind: toss
+    label: phone
+    mass_g: 182.6
+    image: phone.png
+  - kind: toss
+    label: keyboard
+    mass_g: 834.7
+    image: keyboard.png
+  - kind: toss
+    label: mouse
+    mass_g: 116.1
+    image: mouse.png
+  - kind: toss
+    label: pasta
+    mass_g: 240.2
+    image: pasta.png
+  - kind: toss
+    label: pizza slice
+    mass_g: 98.5
+    image: pizza_slice.png
+  - kind: toss
+    label: cookie
+    mass_g: 45.0
+    image: cookie.png
+  - kind: toss
+    label: banana
+    mass_g: 156.0
+    image: banana.png
+  - kind: toss
+    label: cardboard
+    mass_g: 97.1
+    image: cardboard.png
+  - kind: toss
+    label: desk clamp
+    mass_g: 209.1
+    image: unknown.png
+  - kind: toss
+    label: banana
+    mass_g: 145.5
+    image: banana.png
+  - kind: toss
+    label: mouse
+    mass_g: 115.9
+    image: mouse.png
+  - kind: bag_change
+    label: bag out
+  - kind: toss
+    label: pizza slice
+    mass_g: 147.6
+    image: pizza_slice.png
+  - kind: toss
+    label: keyboard
+    mass_g: 942.6
+    image: keyboard.png
+  - kind: toss
+    label: paper cup
+    mass_g: 10.5
+    image: paper_cup.png
+  - kind: toss
+    label: water bottle
+    mass_g: 28.9
+    image: water_bottle.png
+  - kind: toss
+    label: usb cable
+    mass_g: 71.9
+    image: usb_cable.png
+  - kind: toss
+    label: wrap
+    mass_g: 254.5
+    image: wrap.png
+  - kind: toss
+    label: plastic cup
+    mass_g: 17.8
+    image: plastic_cup.png
+  - kind: toss
+    label: lanyard spool
+    mass_g: 63.4
+    image: unknown.png
+  - kind: toss
+    label: plastic cup
+    mass_g: 19.7
+    image: plastic_cup.png
+  - kind: toss
+    label: usb cable
+    mass_g: 45.7
+    image: usb_cable.png
+  - kind: toss
+    label: earbuds
+    mass_g: 44.9
+    image: earbuds.png
+  - kind: toss
+    label: cookie
+    mass_g: 43.6
+    image: cookie.png
+  - kind: toss
+    label: paper cup
+    mass_g: 8.1
+    image: paper_cup.png
+  - kind: toss
+    label: cookie
+    mass_g: 25.9
+    image: cookie.png
+  - kind: toss
+    label: phone
+    mass_g: 199.5
+    image: phone.png
+  - kind: toss
+    label: phone
+    mass_g: 203.2
+    image: phone.png
+  - kind: toss
+    label: cardboard
+    mass_g: 332.2
+    image: cardboard.png
+  - kind: toss
+    label: foam wedge
+    mass_g: 66.3
+    image: unknown.png
+  - kind: toss
+    label: cardboard
+    mass_g: 179.2
+    image: cardboard.png
+  - kind: toss
+    label: mouse
+    mass_g: 81.4
+    image: mouse.png
+  - kind: bag_change
+    label: bag out
+  - kind: toss
+    label: chips
+    mass_g: 47.1
+    image: chips.png
+  - kind: toss
+    label: cardboard
+    mass_g: 216.0
+    image: cardboard.png
+  - kind: toss
+    label: pizza slice
+    mass_g: 136.0
+    image: pizza_slice.png
+  - kind: toss
+    label: plastic cup
+    mass_g: 16.0
+    image: plastic_cup.png
+  - kind: toss
+    label: plastic cup
+    mass_g: 15.2
+    image: plastic_cup.png
+  - kind: toss
+    label: mouse
+    mass_g: 112.5
+    image: mouse.png
+  - kind: toss
+    label: charger
+    mass_g: 49.7
+    image: charger.png
+  - kind: toss
+    label: cable tidy
+    mass_g: 48.9
+    image: unknown.png
+  - kind: toss
+    label: cookie
+    mass_g: 33.9
+    image: cookie.png
+  - kind: toss
+    label: usb cable
+    mass_g: 63.7
+    image: usb_cable.png
+  - kind: toss
+    label: phone
+    mass_g: 178.6
+    image: phone.png
+  - kind: toss
+    label: keyboard
+    mass_g: 850.8
+    image: keyboard.png
+  - kind: toss
+    label: banana
+    mass_g: 162.7
+    image: banana.png
+  - kind: toss
+    label: charger
+    mass_g: 60.9
+    image: charger.png
+  - kind: toss
+    label: earbuds
+    mass_g: 69.3
+    image: earbuds.png
+  - kind: toss
+    label: keyboard
+    mass_g: 664.1
+    image: keyboard.png
+  - kind: toss
+    label: usb cable
+    mass_g: 46.7
+    image: usb_cable.png
+  - kind: toss
+    label: sensor board
+    mass_g: 89.6
+    image: unknown.png
+  - kind: toss
+    label: earbuds
+    mass_g: 70.0
+    image: earbuds.png
+  - kind: toss
+    label: wrap
+    mass_g: 269.0
+    image: wrap.png
+  - kind: bag_change
+    label: bag out
