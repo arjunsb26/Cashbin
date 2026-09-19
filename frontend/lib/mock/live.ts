@@ -2,12 +2,13 @@
 // arrival can be watched and screenshotted. Reached only through lib/api.ts.
 import * as fx from "./fixtures";
 import { askOpen, mockState, replayOn } from "./state";
-import type { EventDetail } from "../types";
-import type { LiveState, LiveStatus, TicketPhase } from "../live";
+import type { EventSummary } from "../types";
+import type { DeviceState, LiveState, LiveStatus } from "../live";
 
 const WINDOW = 120;
 const BASELINE = 2412;
-const OFFLINE = { bin: "offline", phone: "offline", last_weight_g: 0 } as const;
+const OFF: DeviceState = { connected: false, detail: null };
+const ON: DeviceState = { connected: true, detail: null };
 
 export function flatSamples(base: number): number[] {
   return Array.from({ length: WINDOW }, (_, i) => base + Math.sin(i * 1.7) * 0.8);
@@ -16,14 +17,14 @@ export function flatSamples(base: number): number[] {
 export function emptyLiveState(): LiveState {
   return {
     status: "connecting",
-    connected: false,
     weight_g: 0,
     samples: Array.from({ length: WINDOW }, () => 0),
     steps: [],
     tape: [],
     ticket: null,
     ask: null,
-    device: { ...OFFLINE },
+    bin: { ...OFF },
+    phone: { ...OFF },
   };
 }
 
@@ -40,33 +41,30 @@ export function startMockLive(
     setState(() => ({
       ...emptyLiveState(),
       status,
-      connected: status === "live",
       samples: view === "error" ? emptyLiveState().samples : flatSamples(0),
-      device:
-        status === "live"
-          ? { bin: "connected", phone: "connected", last_weight_g: 0 }
-          : { ...OFFLINE },
+      bin: status === "live" ? { ...ON } : { ...OFF },
+      phone: status === "live" ? { ...ON } : { ...OFF },
     }));
     return () => {};
   }
 
   const order = [102, 101, 103, 104];
-  const seeded = fx.EVENT_DETAILS[102] as EventDetail;
-  const asking = fx.EVENT_DETAILS[105] as EventDetail;
+  const seeded = fx.EVENTS[3] as EventSummary;
+  const asking = fx.EVENTS[0] as EventSummary;
   const showAsk = askOpen();
 
   setState(() => ({
     status: "live",
-    connected: true,
     weight_g: BASELINE,
     samples: flatSamples(BASELINE),
     steps: [42, 78],
     tape: fx.EVENTS,
     ticket: showAsk
-      ? { detail: asking, phase: "weighing" as TicketPhase, arrival: 0 }
-      : { detail: seeded, phase: "identified" as TicketPhase, arrival: 0 },
-    ask: showAsk ? asking.ask : null,
-    device: { bin: "connected", phone: "connected", last_weight_g: BASELINE },
+      ? { event: asking, phase: "weighing", arrival: 0 }
+      : { event: seeded, phase: "identified", arrival: 0 },
+    ask: showAsk ? fx.ASK : null,
+    bin: { ...ON },
+    phone: { ...ON },
   }));
 
   // The scale never stops reading.
@@ -85,28 +83,24 @@ export function startMockLive(
     timers.push(
       setInterval(() => {
         const id = order[index % order.length] as number;
-        const detail = fx.EVENT_DETAILS[id] as EventDetail;
+        const event = (fx.EVENT_DETAILS[id] as { event: EventSummary }).event;
         index += 1;
         setState((prev) => {
           const last = prev.samples[prev.samples.length - 1] ?? BASELINE;
-          const next = [...prev.samples.slice(1), last + detail.event.mass_g];
+          const next = [...prev.samples.slice(1), last + (event.mass_g ?? 0)];
           return {
             ...prev,
             samples: next,
             weight_g: next[next.length - 1] ?? BASELINE,
             steps: [...prev.steps.slice(-4), next.length - 1],
-            ticket: {
-              detail,
-              phase: "weighing" as TicketPhase,
-              arrival: (prev.ticket?.arrival ?? 0) + 1,
-            },
-            tape: [detail.event, ...prev.tape.filter((e) => e.id !== detail.event.id)],
+            ticket: { event, phase: "weighing", arrival: (prev.ticket?.arrival ?? 0) + 1 },
+            tape: [event, ...prev.tape.filter((e) => e.id !== event.id)],
           };
         });
         setTimeout(() => {
           setState((prev) =>
-            prev.ticket && prev.ticket.detail.event.id === id
-              ? { ...prev, ticket: { ...prev.ticket, phase: "identified" as TicketPhase } }
+            prev.ticket && prev.ticket.event.id === id
+              ? { ...prev, ticket: { ...prev.ticket, phase: "identified" } }
               : prev,
           );
         }, 700);

@@ -13,12 +13,15 @@ export function ScaleStrip({
   weight_g,
   connected,
   connecting = false,
+  detail = null,
 }: {
   samples: number[];
   steps: number[];
   weight_g: number;
   connected: boolean;
   connecting?: boolean;
+  /** What the backend last said about the bin, when it said anything. */
+  detail?: string | null;
 }) {
   const canvas = useRef<HTMLCanvasElement | null>(null);
 
@@ -94,7 +97,7 @@ export function ScaleStrip({
             ? "Connecting to the bin."
             : connected
               ? "Bin connected"
-              : "Bin offline. Reconnecting."}
+              : (detail ?? "Bin offline. Reconnecting.")}
         </p>
       </div>
     </div>

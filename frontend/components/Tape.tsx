@@ -2,13 +2,20 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import type { EventSummary } from "@/lib/types";
+import type { EventDetail, EventSummary } from "@/lib/types";
+import { ticketFigure, trashBlocked } from "@/lib/derive";
 import { ESTIMATE_MARKER, formatMoney, formatTime } from "@/lib/format";
 import { useEvidence } from "./Providers";
 import { EmptyState, cx } from "./ui";
 
 /** The printed tape. Newest on top, one line each, j and k move, Enter opens. */
-export function Tape({ events }: { events: EventSummary[] }) {
+export function Tape({
+  events,
+  details,
+}: {
+  events: EventSummary[];
+  details: Map<number, EventDetail>;
+}) {
   const [selected, setSelected] = useState(0);
   const router = useRouter();
   const evidence = useEvidence();
@@ -34,51 +41,75 @@ export function Tape({ events }: { events: EventSummary[] }) {
     <ul className="m-0 list-none p-0">
       {events.map((event, i) => (
         <li key={event.id}>
-          <button
-            type="button"
-            onClick={() => {
+          <TapeRow
+            event={event}
+            detail={details.get(event.id) ?? null}
+            selected={i === selected}
+            onOpen={() => {
               setSelected(i);
               router.push(`/events/${event.id}`);
             }}
-            className={cx(
-              "flex h-row w-full items-center justify-between gap-2 border-b border-rule border-l-2 px-2 text-body transition-colors duration-fast ease-standard hover:bg-bar",
-              i === selected ? "border-l-ink bg-bar" : "border-l-transparent",
-            )}
-          >
-            <span className="flex min-w-0 items-baseline gap-2">
-              <span className="truncate">{event.label ?? "Identifying"}</span>
-              {event.is_estimate ? (
-                <span className="text-caption text-ink-soft">{ESTIMATE_MARKER}</span>
-              ) : null}
-              {event.status === "asking" ? (
-                <span className="text-caption text-caution">asking</span>
-              ) : null}
-            </span>
-            <span className="flex shrink-0 items-baseline gap-3">
-              <span className="text-caption text-ink-soft">{formatTime(event.created_at)}</span>
-              {event.blocked ? (
-                <span className="text-caption text-red-ink">blocked</span>
-              ) : null}
-              <span
-                className={cx(
-                  "w-20 text-right",
-                  (event.book_amount_cents ?? 0) < 0 && "text-red-ink",
-                )}
-              >
-                {event.book_amount_cents === null ? (
-                  <span className="text-caption text-ink-soft">
-                    {event.status === "asking" || event.status === "detected"
-                      ? "pending"
-                      : "no entry"}
-                  </span>
-                ) : (
-                  formatMoney(event.book_amount_cents)
-                )}
-              </span>
-            </span>
-          </button>
+          />
         </li>
       ))}
     </ul>
   );
+}
+
+function TapeRow({
+  event,
+  detail,
+  selected,
+  onOpen,
+}: {
+  event: EventSummary;
+  detail: EventDetail | null;
+  selected: boolean;
+  onOpen: () => void;
+}) {
+  const figure = ticketFigure(event, detail?.item_record);
+  const blocked = trashBlocked(detail?.options);
+  const pending = event.status === "asking" || event.status === "detected";
+
+  return (
+    <button
+      type="button"
+      onClick={onOpen}
+      className={cx(
+        "flex h-row w-full items-center justify-between gap-2 border-b border-rule border-l-2 px-2 text-body transition-colors duration-fast ease-standard hover:bg-bar",
+        selected ? "border-l-ink bg-bar" : "border-l-transparent",
+      )}
+    >
+      <span className="flex min-w-0 items-baseline gap-2">
+        <span className="truncate">{event.label ?? labelFor(event)}</span>
+        {figure.estimate ? (
+          <span className="text-caption text-ink-soft">{ESTIMATE_MARKER}</span>
+        ) : null}
+        {event.status === "asking" ? (
+          <span className="text-caption text-caution">asking</span>
+        ) : null}
+        {event.status === "void" ? (
+          <span className="text-caption text-ink-soft">void</span>
+        ) : null}
+      </span>
+      <span className="flex shrink-0 items-baseline gap-3">
+        <span className="text-caption text-ink-soft">{formatTime(event.created_at)}</span>
+        {blocked ? <span className="text-caption text-red-ink">blocked</span> : null}
+        <span className={cx("w-20 text-right", figure.cents < 0 && "text-red-ink")}>
+          {pending || !figure.known ? (
+            <span className="text-caption text-ink-soft">{pending ? "pending" : "no entry"}</span>
+          ) : (
+            formatMoney(figure.cents)
+          )}
+        </span>
+      </span>
+    </button>
+  );
+}
+
+/** A row with no label yet still says what it is, because the kind is known first. */
+function labelFor(event: EventSummary): string {
+  if (event.kind === "bag_change") return "Bag change";
+  if (event.kind === "removal") return "Taken back out";
+  return "Identifying";
 }

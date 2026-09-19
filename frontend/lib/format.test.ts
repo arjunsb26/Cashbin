@@ -14,6 +14,11 @@ import {
   formatMicroUsd,
   formatProbability,
   readLabel,
+  formatTag,
+  formatOption,
+  formatMethod,
+  formatStatus,
+  formatEstimateSource,
 } from "./format.ts";
 
 const THIN = " ";
@@ -134,4 +139,28 @@ test("an entry with no amount still puts its lines on the right side", () => {
     ]),
     ["debit", "credit"],
   );
+});
+
+test("a tag reads uppercase and the stored value is untouched", () => {
+  const stored = "bb-0002";
+  assert.equal(formatTag(stored), "BB-0002");
+  assert.equal(stored, "bb-0002");
+  assert.equal(formatTag("  bb-0013  "), "BB-0013");
+  assert.equal(formatTag(""), "");
+});
+
+test("an option and a method read the way a person says them", () => {
+  assert.equal(formatOption("resell"), "Resell");
+  assert.equal(formatOption("something new"), "something new");
+  assert.equal(formatMethod("qr"), "Read the asset tag");
+  assert.equal(formatStatus("asking"), "Asking");
+});
+
+test("every estimate source has words, and an unknown one has none", () => {
+  assert.equal(formatEstimateSource("catalog"), "from the catalog");
+  assert.equal(formatEstimateSource("register"), "from the register");
+  assert.equal(formatEstimateSource("model_estimate"), "estimated by the model");
+  assert.equal(formatEstimateSource("human"), "confirmed by a person");
+  assert.equal(formatEstimateSource("a new one"), null);
+  assert.equal(formatEstimateSource(null), null);
 });

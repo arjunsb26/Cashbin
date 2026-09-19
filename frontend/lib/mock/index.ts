@@ -4,18 +4,14 @@
 import * as fx from "./fixtures";
 import { mockState } from "./state";
 import type {
-  Asset,
-  CloseReport,
+  AssetRead,
+  CloseRead,
   EventDetail,
   EventSummary,
-  EvidenceBundle,
-  JournalEntry,
-  LearnedNote,
-  Round,
-  SetupItem,
-  Summary,
-  Thresholds,
-  TrialBalanceRow,
+  JournalResponse,
+  RoundListResponse,
+  SettingsRead,
+  SummaryResponse,
 } from "../types";
 
 const NEVER = new Promise<never>(() => {});
@@ -29,14 +25,20 @@ async function respond<T>(value: T, empty: T): Promise<T> {
   return value;
 }
 
+const EMPTY_JOURNAL: JournalResponse = {
+  basis: null,
+  entries: [],
+  trial_balance: [],
+  balanced: true,
+};
+
 export const mockApi = {
-  summary: (): Promise<Summary> =>
+  summary: (): Promise<SummaryResponse> =>
     respond(fx.SUMMARY, {
       saved_if_followed_cents: 0,
       kg_diverted: 0,
-      n_events: 0,
-      first_try_accuracy: 0,
-      cheapest_equals_greenest: 0,
+      events: 0,
+      first_try_accuracy: null,
     }),
   events: (): Promise<EventSummary[]> => respond(fx.EVENTS, []),
   event: (id: number): Promise<EventDetail> => {
@@ -44,15 +46,12 @@ export const mockApi = {
     if (!detail) return Promise.reject(new Error("No ticket with that number."));
     return respond(detail, detail);
   },
-  evidence: (id: number): Promise<EvidenceBundle | null> => respond(fx.EVIDENCE[id] ?? null, null),
-  journal: (): Promise<JournalEntry[]> => respond(fx.ENTRIES, []),
-  trialBalance: (): Promise<TrialBalanceRow[]> => respond(fx.TRIAL_BALANCE, []),
-  assets: (): Promise<Asset[]> => respond(fx.ASSETS, []),
-  rounds: (): Promise<Round[]> => respond(fx.ROUNDS, []),
-  learned: (): Promise<LearnedNote[]> => respond(fx.LEARNED, []),
-  thresholds: (): Promise<Thresholds> => respond(fx.THRESHOLDS, fx.THRESHOLDS),
-  close: (): Promise<CloseReport | null> => respond(fx.CLOSE, null),
-  setup: (): Promise<SetupItem[]> => respond(fx.SETUP, []),
+  journal: (): Promise<JournalResponse> => respond(fx.JOURNAL, EMPTY_JOURNAL),
+  assets: (): Promise<AssetRead[]> => respond(fx.ASSETS, []),
+  rounds: (): Promise<RoundListResponse> => respond(fx.ROUNDS, { rounds: [], learned: [] }),
+  settings: (): Promise<SettingsRead> => respond(fx.SETTINGS, fx.SETTINGS),
+  close: (): Promise<CloseRead | null> => respond<CloseRead | null>(fx.CLOSE, null),
+  setup: (): Promise<string[]> => respond(fx.SETUP, []),
 };
 
 export { startMockLive, emptyLiveState, flatSamples } from "./live";

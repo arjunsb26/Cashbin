@@ -1,9 +1,9 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import type { AskState } from "@/lib/types";
+import type { UiAskOpened } from "@/lib/types";
 import { formatProbability, readLabel } from "@/lib/format";
-import { useAnswerAsk } from "@/lib/api";
+import { imageSrc, useAnswerAsk } from "@/lib/api";
 import { CropFrame } from "./CropFrame";
 import { Button, Field, Input, cx } from "./ui";
 
@@ -11,7 +11,7 @@ import { Button, Field, Input, cx } from "./ui";
  * The ask takes over the ticket body. Keys 1 to 4 answer it.
  * Free text is read into a small object first, and the page shows what it understood.
  */
-export function AskPanel({ ask }: { ask: AskState }) {
+export function AskPanel({ ask }: { ask: UiAskOpened }) {
   const [answered, setAnswered] = useState<string | null>(null);
   const [typing, setTyping] = useState(false);
   const [raw, setRaw] = useState("");
@@ -20,7 +20,7 @@ export function AskPanel({ ask }: { ask: AskState }) {
 
   const send = (label: string) => {
     setAnswered(label);
-    answer.mutate({ event_id: ask.event_id, label });
+    answer.mutate({ event_id: ask.event_id, label, by: "person" });
   };
 
   useEffect(() => {
@@ -48,7 +48,11 @@ export function AskPanel({ ask }: { ask: AskState }) {
 
   return (
     <div className="flex items-start gap-4">
-      <CropFrame src={ask.crop} label="Crop of the item in question" size={120} />
+      <CropFrame
+        src={imageSrc(ask.crop_url)}
+        label="Crop of the item in question"
+        size={120}
+      />
       <div className="flex-1">
         <h3 className="text-section">Which is it?</h3>
         <ul className="m-0 flex list-none flex-col gap-2 p-0 pt-3">
