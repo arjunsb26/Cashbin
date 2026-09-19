@@ -2,6 +2,7 @@
 // The query string picks the state a screen is in, so every state is reachable
 // for review and for the screenshot run: ?state=empty, loading, error.
 import * as fx from "./fixtures";
+import { mockState } from "./state";
 import type {
   Asset,
   CloseReport,
@@ -16,25 +17,6 @@ import type {
   Thresholds,
   TrialBalanceRow,
 } from "../types";
-
-export type MockState = "populated" | "empty" | "loading" | "error";
-
-export function mockState(): MockState {
-  if (typeof window === "undefined") return "populated";
-  const value = new URLSearchParams(window.location.search).get("state");
-  if (value === "empty" || value === "loading" || value === "error") return value;
-  return "populated";
-}
-
-export function replayOn(): boolean {
-  if (typeof window === "undefined") return false;
-  return new URLSearchParams(window.location.search).get("replay") === "1";
-}
-
-export function askOpen(): boolean {
-  if (typeof window === "undefined") return false;
-  return new URLSearchParams(window.location.search).get("ask") === "1";
-}
 
 const NEVER = new Promise<never>(() => {});
 
@@ -73,4 +55,7 @@ export const mockApi = {
   setup: (): Promise<SetupItem[]> => respond(fx.SETUP, []),
 };
 
+export { startMockLive, emptyLiveState, flatSamples } from "./live";
+export { mockState, replayOn, askOpen } from "./state";
+export type { MockState } from "./state";
 export { fx as fixtures };

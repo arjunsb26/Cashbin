@@ -1,8 +1,7 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
-import { API_URL, MOCK } from "./api";
-import { fixtures, mockState, replayOn, askOpen } from "./mock";
+import { useEffect, useState } from "react";
+import { API_URL, MOCK, emptyLive, mockLive } from "./api";
 import type { AskState, DeviceStatus, EventDetail, EventSummary, UiMessage } from "./types";
 
 export type TicketPhase = "weighing" | "identified";
@@ -27,27 +26,7 @@ export type LiveState = {
   device: DeviceStatus;
 };
 
-const WINDOW = 120;
-const BASELINE = 2412;
-
-function flatSamples(base: number): number[] {
-  return Array.from({ length: WINDOW }, (_, i) => base + Math.sin(i * 1.7) * 0.8);
-}
-
 const OFFLINE: DeviceStatus = { bin: "offline", phone: "offline", last_weight_g: 0 };
-
-function emptyState(): LiveState {
-  return {
-    connected: false,
-    weight_g: 0,
-    samples: flatSamples(0),
-    steps: [],
-    tape: [],
-    ticket: null,
-    ask: null,
-    device: OFFLINE,
-  };
-}
 
 /**
  * One socket for the whole dashboard, PLAN.md section 6 topics.
@@ -55,93 +34,14 @@ function emptyState(): LiveState {
  * demo tosses arrive on a timer so the ticket motion can be watched.
  */
 export function useLive(): LiveState {
-  const [state, setState] = useState<LiveState>(emptyState);
-  const timers = useRef<ReturnType<typeof setInterval>[]>([]);
+  const [state, setState] = useState<LiveState>(emptyLive);
 
   useEffect(() => {
-    if (MOCK) return startMock(setState, timers);
+    if (MOCK && mockLive) return mockLive(setState);
     return startSocket(setState);
   }, []);
 
   return state;
-}
-
-function startMock(
-  setState: (fn: (prev: LiveState) => LiveState) => void,
-  timers: { current: ReturnType<typeof setInterval>[] },
-): () => void {
-  const view = mockState();
-  if (view === "loading" || view === "error" || view === "empty") {
-    setState(() => ({
-      ...emptyState(),
-      connected: view !== "error",
-      device: view === "error" ? OFFLINE : { bin: "connected", phone: "connected", last_weight_g: 0 },
-      samples: flatSamples(view === "empty" ? 0 : 0),
-    }));
-    return () => {};
-  }
-
-  const order = [102, 101, 103, 104];
-  const seeded = fixtures.EVENT_DETAILS[102] as EventDetail;
-  const asking = fixtures.EVENT_DETAILS[105] as EventDetail;
-  const showAsk = askOpen();
-
-  setState(() => ({
-    connected: true,
-    weight_g: BASELINE,
-    samples: flatSamples(BASELINE),
-    steps: [42, 78],
-    tape: fixtures.EVENTS,
-    ticket: showAsk
-      ? { detail: asking, phase: "weighing", arrival: 0 }
-      : { detail: seeded, phase: "identified", arrival: 0 },
-    ask: showAsk ? asking.ask : null,
-    device: { bin: "connected", phone: "connected", last_weight_g: BASELINE },
-  }));
-
-  // The scale never stops reading.
-  const tick = setInterval(() => {
-    setState((prev) => {
-      const last = prev.samples[prev.samples.length - 1] ?? BASELINE;
-      const next = [...prev.samples.slice(1), last + (Math.random() - 0.5) * 1.2];
-      return { ...prev, samples: next, weight_g: next[next.length - 1] ?? BASELINE };
-    });
-  }, 100);
-  timers.current.push(tick);
-
-  if (replayOn()) {
-    let index = 0;
-    const replay = setInterval(() => {
-      const id = order[index % order.length] as number;
-      const detail = fixtures.EVENT_DETAILS[id] as EventDetail;
-      index += 1;
-      setState((prev) => {
-        const last = prev.samples[prev.samples.length - 1] ?? BASELINE;
-        const next = [...prev.samples.slice(1), last + detail.event.mass_g];
-        return {
-          ...prev,
-          samples: next,
-          weight_g: next[next.length - 1] ?? BASELINE,
-          steps: [...prev.steps.slice(-4), next.length - 1],
-          ticket: { detail, phase: "weighing", arrival: (prev.ticket?.arrival ?? 0) + 1 },
-          tape: [detail.event, ...prev.tape.filter((e) => e.id !== detail.event.id)],
-        };
-      });
-      setTimeout(() => {
-        setState((prev) =>
-          prev.ticket && prev.ticket.detail.event.id === id
-            ? { ...prev, ticket: { ...prev.ticket, phase: "identified" } }
-            : prev,
-        );
-      }, 700);
-    }, 9000);
-    timers.current.push(replay);
-  }
-
-  return () => {
-    timers.current.forEach(clearInterval);
-    timers.current = [];
-  };
 }
 
 function startSocket(setState: (fn: (prev: LiveState) => LiveState) => void): () => void {

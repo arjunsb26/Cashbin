@@ -1,7 +1,7 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { mockApi } from "./mock";
+import { emptyLiveState, fixtures, mockApi, startMockLive } from "./mock";
 import type {
   Asset,
   CloseReport,
@@ -55,6 +55,21 @@ const source = MOCK
       setup: () => get<SetupItem[]>("/api/setup"),
     };
 
+/**
+ * The mock lives behind this one switch. Nothing outside this file imports from
+ * lib/mock, so a build without the flag has no mock data on any render path.
+ * The screen sample data for /kit comes through here for the same reason.
+ */
+export const mockLive = MOCK ? startMockLive : null;
+export const emptyLive = emptyLiveState;
+export const sampleData = fixtures;
+
+/**
+ * Four of these paths are not in PLAN.md section 14 yet. They are what the
+ * dashboard needs, and the backend lane has to serve them before the swap:
+ * GET /api/events/{id}/evidence, GET /api/journal/trial-balance,
+ * GET /api/close/latest, GET /api/setup.
+ */
 export const keys = {
   summary: ["summary"] as const,
   events: ["events"] as const,

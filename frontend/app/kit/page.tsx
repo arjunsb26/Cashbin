@@ -5,7 +5,7 @@ import * as Dialog from "@radix-ui/react-dialog";
 import * as Popover from "@radix-ui/react-popover";
 import * as Tabs from "@radix-ui/react-tabs";
 import * as Tooltip from "@radix-ui/react-tooltip";
-import { fixtures } from "@/lib/mock";
+import { sampleData as fixtures } from "@/lib/api";
 import type { EventDetail } from "@/lib/types";
 import { AskPanel } from "@/components/AskPanel";
 import { AssetTag } from "@/components/AssetTag";
