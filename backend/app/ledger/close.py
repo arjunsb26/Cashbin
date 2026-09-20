@@ -24,6 +24,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app import models
+from app.engine import carbon
 from app.engine.options import summarise
 from app.engine.records import AssetInfo, EngineSettings, Option
 from app.engine.records import AssetStatus as EngineAssetStatus
@@ -427,6 +428,7 @@ def sustainability(rows: PeriodRows, settings: EngineSettings) -> dict[str, Any]
     kg_diverted = 0.0
     kg_co2e_actual = 0.0
     kg_co2e_best = 0.0
+    kg_co2e_avoided = 0.0
     kg_ewaste = 0.0
     unknown_carbon = 0
     cheapest_is_greenest = 0
@@ -461,6 +463,11 @@ def sustainability(rows: PeriodRows, settings: EngineSettings) -> dict[str, Any]
             unknown_carbon += 1
         if best is not None and best.kg_co2e is not None:
             kg_co2e_best += best.kg_co2e
+        if trash is not None and best is not None:
+            # Added per event and never below zero, so the total reads as emissions this
+            # period could have avoided rather than as a difference of two signed figures.
+            avoided = carbon.avoided_co2e(trash.kg_co2e, best.kg_co2e)
+            kg_co2e_avoided += avoided or 0.0
 
         if (
             ranking.best_option is not None
@@ -476,7 +483,7 @@ def sustainability(rows: PeriodRows, settings: EngineSettings) -> dict[str, Any]
         "kg_diverted_if_followed": round(kg_diverted, 4),
         "kg_co2e_actual": round(kg_co2e_actual, 4),
         "kg_co2e_best": round(kg_co2e_best, 4),
-        "kg_co2e_avoided": round(kg_co2e_actual - kg_co2e_best, 4),
+        "kg_co2e_avoided": round(kg_co2e_avoided, 4),
         "cheapest_equals_greenest_pct": round(share, 1),
         "kg_ewaste": round(kg_ewaste, 4),
         "events_scored": scored,

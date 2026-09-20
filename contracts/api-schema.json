@@ -1174,6 +1174,12 @@
           ],
           "default": null
         },
+        "flags": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
         "id": {
           "type": "integer"
         },
@@ -1218,6 +1224,17 @@
           "default": null
         },
         "net_book_cents": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "posted_cents": {
           "anyOf": [
             {
               "type": "integer"
@@ -1755,6 +1772,17 @@
           "type": "integer"
         },
         "kg_co2e": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "kg_co2e_avoided": {
           "anyOf": [
             {
               "type": "number"

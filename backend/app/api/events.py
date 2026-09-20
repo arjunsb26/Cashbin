@@ -16,16 +16,26 @@ from fastapi import APIRouter, HTTPException, Query, status
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app.config import get_settings
 from app.db import session_scope
+from app.engine.carbon import avoided_co2e
 from app.engine.records import EstimateSource
+from app.engine.records import ItemClass as EngineItemClass
 from app.ingest.media import media_url
+from app.ledger.journal import FLAG_POSSIBLE_UNRECORDED_ASSET, looks_unrecorded
 from app.ledger.queries import account_name
 from app.models import (
+    ACCOUNT_CHARITABLE,
+    ACCOUNT_GAIN_ON_DISPOSAL,
+    ACCOUNT_LOSS_ON_DISPOSAL,
+    ACCOUNT_REPAIRS,
+    ACCOUNT_WASTE_EXPENSE,
     Correction,
     Event,
     EventStatus,
     Identification,
     ItemRecord,
+    JournalBasis,
     JournalEntry,
     JournalLine,
     OptionKind,
@@ -51,6 +61,18 @@ log = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/events", tags=["events"])
 
 LIST_LIMIT = 200
+
+# The income statement accounts. A debit to one of these is a cost and a credit is a gain,
+# which is why `posted_cents` is a credit minus a debit and reads negative for a loss.
+PROFIT_AND_LOSS_ACCOUNTS: frozenset[str] = frozenset(
+    {
+        ACCOUNT_WASTE_EXPENSE,
+        ACCOUNT_LOSS_ON_DISPOSAL,
+        ACCOUNT_GAIN_ON_DISPOSAL,
+        ACCOUNT_REPAIRS,
+        ACCOUNT_CHARITABLE,
+    }
+)
 
 
 def _loads(raw: str | None, fallback: Any) -> Any:
@@ -83,11 +105,48 @@ def _summary(session: Session, row: Event) -> EventSummary:
         crop_url=media_url(row.crop),
         crop_quality=row.crop_quality,
         net_book_cents=record.book_value_cents if record else None,
+        posted_cents=_posted_cents(session, int(row.id)),
         is_estimate=_is_estimate(record),
         best_option=best.option if best else None,
         saved_if_followed_cents=_saved_if_followed(options, best),
+        flags=_flags(record),
         round_id=row.round_id,
     )
+
+
+def _posted_cents(session: Session, event_id: int) -> int | None:
+    """What this ticket did to the income statement, on the books.
+
+    Lane D's concern 5: the tape has to read one number per row and `net_book_cents` is
+    the book value of a tagged asset, which is zero for everything else. This is the
+    amount the journal actually posted. Null means no entry was written at all, which is
+    a different thing from an entry that moved nothing.
+    """
+    rows = session.execute(
+        select(JournalLine.account, JournalLine.debit_cents, JournalLine.credit_cents)
+        .join(JournalEntry, JournalEntry.id == JournalLine.entry_id)
+        .where(JournalEntry.event_id == event_id)
+        .where(JournalEntry.basis == JournalBasis.book)
+    ).all()
+    if not rows:
+        return None
+    return sum(
+        int(credit) - int(debit)
+        for account, debit, credit in rows
+        if str(account) in PROFIT_AND_LOSS_ACCOUNTS
+    )
+
+
+def _flags(record: ItemRecord | None) -> list[str]:
+    """What the close would raise about this ticket, on the ticket."""
+    if record is None:
+        return []
+    threshold = get_settings().capitalization_threshold_cents
+    # The engine has its own copy of the class enum, so the value crosses, not the member.
+    item_class = EngineItemClass(record.item_class.value)
+    if looks_unrecorded(item_class, record.fmv_mid, threshold):
+        return [FLAG_POSSIBLE_UNRECORDED_ASSET]
+    return []
 
 
 def _is_estimate(record: ItemRecord | None) -> bool:
@@ -278,9 +337,13 @@ def _item_record(session: Session, event_id: int) -> ItemRecordRead | None:
 
 
 def _options(session: Session, event_id: int) -> list[OptionScoreRead]:
-    rows = session.scalars(
-        select(OptionScore).where(OptionScore.event_id == event_id).order_by(OptionScore.id)
-    ).all()
+    rows = list(
+        session.scalars(
+            select(OptionScore).where(OptionScore.event_id == event_id).order_by(OptionScore.id)
+        ).all()
+    )
+    binned = next((row for row in rows if row.option is OptionKind.trash), None)
+    trash_co2e = binned.kg_co2e if binned is not None else None
     return [
         OptionScoreRead(
             id=int(row.id),
@@ -292,6 +355,7 @@ def _options(session: Session, event_id: int) -> list[OptionScoreRead]:
             tax_effect_cents=row.tax_effect_cents,
             net_after_tax_cents=row.net_after_tax_cents,
             kg_co2e=row.kg_co2e,
+            kg_co2e_avoided=avoided_co2e(trash_co2e, row.kg_co2e),
             kg_landfill=row.kg_landfill,
             needs_human_review=row.needs_human_review,
             notes=_loads(row.notes_json, []),

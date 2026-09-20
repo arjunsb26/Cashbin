@@ -256,3 +256,114 @@ def test_the_ticket_names_every_account_it_posted_to(client: TestClient) -> None
     lines = client.get(f"/api/events/{event_id}").json()["entries"][0]["lines"]
     named = {line["account"]: line["account_name"] for line in lines}
     assert named == {"5100": "Waste and Shrink Expense", "1200": "Inventory"}
+
+
+def test_the_ticket_says_what_the_journal_actually_posted(client: TestClient) -> None:
+    """`net_book_cents` is a book value. The tape wants the amount that hit the books."""
+    from app.ledger import queries
+    from app.ledger.journal import Account, Basis, JournalEntry, JournalLine
+
+    with session_scope() as session:
+        event = Event(kind=EventKind.toss, mass_g=95.0, status=EventStatus.posted)
+        session.add(event)
+        session.flush()
+        event_id = int(event.id)
+        queries.post_entry(
+            session,
+            JournalEntry(
+                memo="Write off bagel",
+                basis=Basis.book,
+                lines=[
+                    JournalLine(account=Account.waste_and_shrink, debit_cents=33),
+                    JournalLine(account=Account.inventory, credit_cents=33),
+                ],
+            ),
+            event_id=event_id,
+        )
+
+    summary = client.get(f"/api/events/{event_id}").json()["event"]
+    assert summary["posted_cents"] == -33
+
+
+def test_a_ticket_that_posted_nothing_says_nothing_rather_than_zero(
+    client: TestClient,
+) -> None:
+    with session_scope() as session:
+        event = Event(kind=EventKind.toss, mass_g=95.0, status=EventStatus.identified)
+        session.add(event)
+        session.flush()
+        event_id = int(event.id)
+
+    summary = client.get(f"/api/events/{event_id}").json()["event"]
+    assert summary["posted_cents"] is None
+
+
+def test_a_gain_on_the_books_reads_as_a_positive_amount(client: TestClient) -> None:
+    from app.ledger import queries
+    from app.ledger.journal import Account, Basis, JournalEntry, JournalLine
+
+    with session_scope() as session:
+        event = Event(kind=EventKind.toss, mass_g=780.0, status=EventStatus.posted)
+        session.add(event)
+        session.flush()
+        event_id = int(event.id)
+        queries.post_entry(
+            session,
+            JournalEntry(
+                memo="Dispose of keyboard",
+                basis=Basis.book,
+                lines=[
+                    JournalLine(account=Account.cash, debit_cents=500),
+                    JournalLine(account=Account.gain_on_disposal, credit_cents=500),
+                ],
+            ),
+            event_id=event_id,
+        )
+
+    summary = client.get(f"/api/events/{event_id}").json()["event"]
+    assert summary["posted_cents"] == 500
+
+
+def test_a_valuable_untracked_thing_is_flagged_on_the_ticket(
+    client: TestClient, settings: Settings
+) -> None:
+    """The close already raises this. The ticket is where a person would act on it."""
+    with session_scope() as session:
+        event = Event(kind=EventKind.toss, mass_g=200.0, status=EventStatus.posted)
+        session.add(event)
+        session.flush()
+        event_id = int(event.id)
+        session.add(
+            ItemRecord(
+                event_id=event_id,
+                label="phone",
+                item_class=ItemClass.untracked,
+                mass_g=200.0,
+                fmv_mid=settings.capitalization_threshold_cents + 1,
+            )
+        )
+
+    summary = client.get(f"/api/events/{event_id}").json()["event"]
+    assert summary["flags"] == ["possible_unrecorded_asset"]
+
+
+def test_a_cheap_untracked_thing_carries_no_flag(
+    client: TestClient, settings: Settings
+) -> None:
+    with session_scope() as session:
+        event = Event(kind=EventKind.toss, mass_g=12.0, status=EventStatus.posted)
+        session.add(event)
+        session.flush()
+        event_id = int(event.id)
+        session.add(
+            ItemRecord(
+                event_id=event_id,
+                label="water bottle empty",
+                item_class=ItemClass.untracked,
+                mass_g=12.0,
+                fmv_mid=50,
+            )
+        )
+
+    summary = client.get(f"/api/events/{event_id}").json()["event"]
+    assert summary["flags"] == []

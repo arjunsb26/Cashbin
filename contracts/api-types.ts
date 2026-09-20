@@ -501,6 +501,7 @@ export interface EventSummary {
   created_at: string;
   crop_quality?: CropQuality | null;
   crop_url?: string | null;
+  flags?: string[];
   id: number;
   is_estimate?: boolean;
   kind: EventKind;
@@ -508,6 +509,7 @@ export interface EventSummary {
   mass_err_g?: number | null;
   mass_g?: number | null;
   net_book_cents?: number | null;
+  posted_cents?: number | null;
   round_id?: number | null;
   saved_if_followed_cents?: number | null;
   status: EventStatus;
@@ -583,6 +585,7 @@ export interface OptionScoreRead {
   event_id: number;
   id: number;
   kg_co2e?: number | null;
+  kg_co2e_avoided?: number | null;
   kg_landfill?: number;
   needs_human_review?: boolean;
   net_after_tax_cents: number;

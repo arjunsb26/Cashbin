@@ -13,12 +13,16 @@ from app.engine import carbon, tax
 from app.engine.records import (
     AssetInfo,
     EngineSettings,
+    ItemClass,
     ItemRecord,
     Option,
     OptionScore,
 )
 
 Tone = str
+
+# User copy. A person reads this on the ticket, so it says what to do about it.
+EQUIPMENT_NOTE = "Looks like equipment. Confirm on the Assets page."
 
 TONE_GREEN = "green"
 TONE_AMBER = "amber"
@@ -57,6 +61,9 @@ def score_one(
             f"Repairing avoids buying a replacement at {tax.money(record.replacement_cents)}."
         )
 
+    if option is Option.trash and _looks_like_equipment(record, settings):
+        notes.append(EQUIPMENT_NOTE)
+
     if result.missing_materials:
         names = ", ".join(result.missing_materials)
         notes.append(f"Carbon is unknown because there is no factor for {names}.")
@@ -77,6 +84,20 @@ def score_one(
         notes=notes,
         rule_ids=list(effect.rule_ids),
         rank=None,
+    )
+
+
+def _looks_like_equipment(record: ItemRecord, settings: EngineSettings) -> bool:
+    """Would this have gone on the register if anyone had been asked?
+
+    The close raises `possible_unrecorded_asset` off what the thing is worth. This note is
+    the seam beside it, off what it would cost to buy again, because that is the number a
+    person recognises when they decide whether something is equipment.
+    """
+    return (
+        record.item_class is ItemClass.untracked
+        and record.replacement_cents is not None
+        and record.replacement_cents > settings.capitalization_threshold_cents
     )
 
 

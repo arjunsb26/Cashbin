@@ -204,15 +204,34 @@ class Flag(BaseModel):
     message: str
 
 
+FLAG_POSSIBLE_UNRECORDED_ASSET = "possible_unrecorded_asset"
+
+
+def looks_unrecorded(
+    item_class: ItemClass, fmv_mid: int | None, threshold_cents: int
+) -> bool:
+    """The one test for "valuable, untracked, and on nobody's register".
+
+    The close raises it and the ticket shows it, so the rule lives here once rather than
+    being written out twice and drifting.
+    """
+    return (
+        item_class is ItemClass.untracked
+        and fmv_mid is not None
+        and fmv_mid > threshold_cents
+    )
+
+
 def untracked_flag(record: ItemRecord, settings: EngineSettings) -> Flag | None:
     """Raise a flag when something valuable was thrown out that no register knew about."""
-    if record.item_class is not ItemClass.untracked:
+    if not looks_unrecorded(
+        record.item_class, record.fmv_mid, settings.capitalization_threshold_cents
+    ):
         return None
     value = record.fmv_mid
-    if value is None or value <= settings.capitalization_threshold_cents:
-        return None
+    assert value is not None
     return Flag(
-        kind="possible_unrecorded_asset",
+        kind=FLAG_POSSIBLE_UNRECORDED_ASSET,
         event_id=record.event_id,
         label=record.label,
         amount_cents=value,

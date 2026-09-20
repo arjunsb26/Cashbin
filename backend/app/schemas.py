@@ -518,9 +518,16 @@ class EventSummary(ApiModel):
     crop_url: str | None = None
     crop_quality: CropQuality | None = None
     net_book_cents: int | None = None
+    # What the journal actually posted for this ticket, on the books, as an income
+    # statement amount: negative for a loss, positive for a gain, null when nothing
+    # posted at all. `net_book_cents` is a book value and answers a different question.
+    posted_cents: int | None = None
     is_estimate: bool = False
     best_option: OptionKind | None = None
     saved_if_followed_cents: int | None = None
+    # Things the close would raise about this ticket, so a person sees them where they
+    # can act on them. Today the only one is possible_unrecorded_asset.
+    flags: list[str] = Field(default_factory=list)
     round_id: int | None = None
 
 
@@ -577,6 +584,11 @@ class OptionScoreRead(ApiModel):
     tax_effect_cents: int
     net_after_tax_cents: int
     kg_co2e: float | None = None
+    # What choosing this option instead of the bin avoids, as a positive number. WARM's
+    # source reduction factors are negative because they are avoided emissions, so
+    # `kg_co2e` on a resale reads as a negative figure that nobody can act on. This is
+    # the same fact the other way up. `kg_co2e` is left exactly as it is for the audit.
+    kg_co2e_avoided: float | None = None
     kg_landfill: float = 0.0
     needs_human_review: bool = False
     notes: list[str] = Field(default_factory=list)
