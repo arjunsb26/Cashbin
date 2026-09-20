@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { blocksOf, reconciliationFoots, rollforwardParts } from "./cfo.ts";
-import type { RollforwardRow } from "./cfo.ts";
+import type { RollforwardRow } from "./types.ts";
 
 const disposed: RollforwardRow = {
   opening_cost_cents: 12000,

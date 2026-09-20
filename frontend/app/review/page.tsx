@@ -4,13 +4,8 @@ import { useState } from "react";
 import Link from "next/link";
 import { useReview, useReviewAnswer, useReviewDecision } from "@/lib/api";
 import { formatMoney, formatProbability, formatTag, formatTime, readLabel } from "@/lib/format";
-import {
-  REVIEW_GROUPS,
-  REVIEW_KIND_WORDS,
-  type ReviewItemRead,
-  type ReviewKind,
-  type ReviewStatus,
-} from "@/lib/review";
+import { REVIEW_GROUPS, REVIEW_KIND_WORDS } from "@/lib/review";
+import type { ReviewItemRead, ReviewKind, ReviewStatus } from "@/lib/types";
 import {
   Button,
   EmptyState,

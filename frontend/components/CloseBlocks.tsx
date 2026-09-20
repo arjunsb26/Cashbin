@@ -1,14 +1,13 @@
 "use client";
 
 import Link from "next/link";
-import {
-  reconciliationFoots,
-  rollforwardParts,
-  type Form4797Block,
-  type Form4797Row,
-  type ReconciliationBlock,
-  type RollforwardBlock,
-} from "@/lib/cfo";
+import { reconciliationFoots, rollforwardParts } from "@/lib/cfo";
+import type {
+  Form4797Block,
+  Form4797Row,
+  ReconciliationBlock,
+  RollforwardBlock,
+} from "@/lib/types";
 import { formatDate, formatMoney, formatTag } from "@/lib/format";
 import { noteBlocks } from "@/lib/derive";
 import { SectionTitle, cx } from "./ui";

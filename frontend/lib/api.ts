@@ -3,7 +3,7 @@
 import { useMutation, useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
 import { emptyLiveState, fixtures, mockApi, startMockLive } from "./mock";
 import { mediaSrc } from "./derive";
-import type { StatsRange, StatsResponse } from "./derive";
+import type { StatsRange } from "./derive";
 import type {
   AssetCreate,
   AssetListResponse,
@@ -16,16 +16,19 @@ import type {
   EventListResponse,
   EventSummary,
   JournalResponse,
+  ReviewDecisionResponse,
+  ReviewListResponse,
+  ReviewRunResponse,
   RoundListResponse,
   RoundRead,
   RulesResponse,
   SettingsRead,
   SettingsUpdate,
   SetupResponse,
+  StatsResponse,
   SummaryResponse,
   VoidResponse,
 } from "./types";
-import type { ReviewDecisionResponse, ReviewListResponse } from "./review";
 
 export const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "https://localhost:8443";
 export const MOCK = process.env.NEXT_PUBLIC_API_MOCK === "1";
@@ -110,7 +113,7 @@ const source = MOCK
       // Two routes newer than this screen. A backend without them answers 404, and
       // null is read as "not answering yet" rather than as an empty page, so
       // nobody is told there is no waste when nobody was asked.
-      stats: (range: StatsRange) => getOrNull<StatsResponse>(`/api/stats?range=${range}`),
+      stats: (range: StatsRange) => getOrNull<StatsResponse>(`/api/stats?bucket=${range}`),
       review: () => getOrNull<ReviewListResponse>("/api/review"),
     };
 

@@ -4,12 +4,14 @@ import { useState } from "react";
 import { useRounds, useStats } from "@/lib/api";
 import {
   categoryBars,
+  statsAverages,
   statsEmpty,
+  statsTotals,
   type CategoryBar,
   type StatsRange,
-  type StatsResponse,
 } from "@/lib/derive";
-import { formatCount, formatMass, formatMoney, formatPercent } from "@/lib/format";
+import type { StatsResponse } from "@/lib/types";
+import { formatCount, formatDate, formatMass, formatMoney, formatPercent } from "@/lib/format";
 import { LearningChart } from "@/components/LearningChart";
 import {
   EmptyState,
@@ -65,6 +67,15 @@ export default function TrendsPage() {
           </div>
         }
       />
+
+      {/* The span the figures cover, said in dates, because "by day" on its own
+          does not tell anyone how far back the totals reach. */}
+      {data?.period_start && data?.period_end ? (
+        <p className="-mt-6 text-caption text-ink-soft">
+          {formatDate(data.period_start)} to {formatDate(data.period_end)}
+          {data.averages?.days ? ", " + formatCount(Math.round(data.averages.days)) + " days" : ""}
+        </p>
+      ) : null}
 
       {stats.isPending ? <TrendsSkeleton /> : null}
 
@@ -136,10 +147,15 @@ export default function TrendsPage() {
 
 function Figures({ stats, range }: { stats: StatsResponse; range: StatsRange }) {
   const bars = categoryBars(stats);
-  const totals = stats.totals ?? {};
-  const averages = stats.averages ?? {};
+  const totals = statsTotals(stats);
+  const averages = statsAverages(stats);
   const unit = range === "day" ? "day" : "week";
+  const per = range === "day" ? 1 : 7;
   const suggestions = stats.suggestions ?? [];
+  // The bars add up all three kinds of money, so the share a bar is a share of
+  // has to be the same sum. Reading one of the three here would print a row at
+  // 140 percent of the total and be wrong on the page nobody checks.
+  const barTotal = bars.reduce((sum, bar) => sum + bar.cents, 0);
 
   return (
     <>
@@ -147,44 +163,61 @@ function Figures({ stats, range }: { stats: StatsResponse; range: StatsRange }) 
         <div className="grid grid-cols-2 gap-x-8 gap-y-4 border-b border-rule pb-4 sm:grid-cols-4">
           <Figure
             label="Off the books"
-            value={formatMoney(totals.wasted_cents ?? 0, { symbol: true })}
-            under={formatMoney(averages.wasted_cents ?? 0, { symbol: true }) + " a " + unit}
+            value={formatMoney(totals.wasted_cents, { symbol: true })}
+            under={
+              formatMoney(Math.round((averages.wasted_cents_per_day ?? 0) * per), {
+                symbol: true,
+              }) +
+              " a " +
+              unit
+            }
+          />
+          <Figure
+            label="Written off"
+            value={formatMoney(totals.book_loss_cents, { symbol: true })}
+            under={
+              totals.book_loss_cents === 0
+                ? "Nothing left the register"
+                : "Book value of equipment that left the register"
+            }
           />
           <Figure
             label="Tosses"
-            value={formatCount(totals.events ?? 0)}
-            under={formatCount(Math.round(averages.events ?? 0)) + " a " + unit}
+            value={formatCount(totals.tosses)}
+            under={formatCount(Math.round((averages.tosses_per_day ?? 0) * per)) + " a " + unit}
           />
           <Figure
-            label="Kept from landfill"
-            value={formatMass((totals.kg_diverted ?? 0) * 1000)}
-            under={formatMass((averages.kg_diverted ?? 0) * 1000) + " a " + unit}
-          />
-          <Figure
-            label="Saved if followed"
-            value={formatMoney(totals.saved_if_followed_cents ?? 0, { symbol: true })}
-            under={
-              (totals.open_asks ?? 0) > 0
-                ? formatCount(totals.open_asks ?? 0) + " still waiting on a person"
-                : "Nothing waiting on a person"
-            }
+            label="To landfill"
+            value={formatMass(totals.kg_landfill * 1000)}
+            under={formatMass((averages.kg_per_day ?? 0) * per * 1000) + " a " + unit}
           />
         </div>
+        <p className="pt-2 text-caption text-ink-soft">
+          {totals.asks > 0
+            ? formatCount(totals.asks) +
+              (totals.asks === 1 ? " toss" : " tosses") +
+              " needed a person. "
+            : "Nothing needed a person. "}
+          {totals.kg_co2e_avoided > 0
+            ? formatMass(totals.kg_co2e_avoided * 1000) +
+              " of carbon stayed out of the air where the advice was followed."
+            : ""}
+        </p>
       </section>
 
       <section>
         <SectionTitle>Where it went</SectionTitle>
         <ul className="m-0 list-none p-0 pt-3">
           {bars.map((bar) => (
-            <CategoryRow key={bar.category} bar={bar} total={totals.wasted_cents ?? 0} />
+            <CategoryRow key={bar.category} bar={bar} total={barTotal} />
           ))}
         </ul>
       </section>
 
-      {suggestions.length > 0 ? (
+      {suggestions.length > 0 || stats.summary_md ? (
         <section>
           <SectionTitle>What the numbers say</SectionTitle>
-          <ul className="m-0 list-none p-0 pt-3">
+          <ul className="m-0 list-none p-0 pt-3 empty:hidden">
             {suggestions.map((line) => (
               <li key={line} className="border-b border-rule py-2">
                 <p className="text-body">{line}</p>
@@ -230,7 +263,7 @@ function CategoryRow({ bar, total }: { bar: CategoryBar; total: number }) {
         <div className="h-2 bg-ink" style={{ width: Math.round(bar.share * 100) + "%" }} />
       </div>
       <p className="pt-1 text-caption text-ink-soft">
-        {formatCount(bar.events)} {bar.events === 1 ? "toss" : "tosses"}, {formatMass(bar.massG)}
+        {formatCount(bar.tosses)} {bar.tosses === 1 ? "toss" : "tosses"}, {formatMass(bar.massG)}
       </p>
     </li>
   );

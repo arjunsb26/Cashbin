@@ -2,6 +2,9 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   accountNames,
+  categoryBars,
+  statsEmpty,
+  statsTotals,
   checkProse,
   noteBlocks,
   asEstimateSource,
@@ -34,6 +37,7 @@ import {
   trashBlocked,
   visionCandidates,
 } from "./derive.ts";
+import type { StatsResponse } from "./types.ts";
 import type {
   CloseRead,
   EventDetail,
@@ -838,4 +842,68 @@ test("a question with nothing to offer is still a question", () => {
   assert.equal(view?.event_id, 9);
   assert.deepEqual(view?.candidates, []);
   assert.equal(view?.description, "something small and black");
+});
+
+// Trends ------------------------------------------------------------------
+
+const RANGE: StatsResponse = {
+  bucket: "day",
+  period_start: "2026-09-18",
+  period_end: "2026-09-19",
+  buckets: [
+    {
+      start: "2026-09-18",
+      tosses: 3,
+      wasted_cents: 400,
+      book_loss_cents: 1000,
+      kg_landfill: 0.5,
+      kg_co2e_avoided: 0.2,
+      asks: 1,
+      by_category: [
+        { category: "food", tosses: 2, cents: 400, kg: 0.3 },
+        { category: "equipment", tosses: 1, cents: 1000, kg: 0.2 },
+      ],
+    },
+    {
+      start: "2026-09-19",
+      tosses: 2,
+      wasted_cents: 150,
+      estimated_value_cents: 600,
+      kg_landfill: 0.25,
+      asks: 0,
+      by_category: [{ category: "food", tosses: 2, cents: 150, kg: 0.25 }],
+    },
+  ],
+};
+
+test("the range is the sum of its buckets, and a missing figure counts as nothing", () => {
+  const totals = statsTotals(RANGE);
+  assert.equal(totals.tosses, 5);
+  assert.equal(totals.wasted_cents, 550);
+  assert.equal(totals.book_loss_cents, 1000);
+  assert.equal(totals.estimated_value_cents, 600);
+  assert.equal(totals.asks, 1);
+  assert.equal(Math.round(totals.kg_landfill * 100), 75);
+  assert.equal(Math.round(totals.kg_co2e_avoided * 100), 20);
+});
+
+test("a category is added across every bucket before it is drawn", () => {
+  const bars = categoryBars(RANGE);
+  assert.deepEqual(
+    bars.map((bar) => bar.category),
+    ["equipment", "food"],
+  );
+  const food = bars.find((bar) => bar.category === "food");
+  assert.equal(food?.cents, 550);
+  assert.equal(food?.tosses, 4);
+  assert.equal(Math.round(food?.massG ?? 0), 550);
+  assert.equal(food?.label, "Food");
+  // The bar is a share of the largest row, which is equipment at 1000.
+  assert.equal(Math.round((food?.share ?? 0) * 100), 55);
+});
+
+test("a range that came back with no buckets is empty, and no range at all is too", () => {
+  assert.equal(statsEmpty({ bucket: "day", buckets: [] } as StatsResponse), true);
+  assert.equal(statsEmpty(null), true);
+  assert.equal(statsEmpty(RANGE), false);
 });
