@@ -35,3 +35,9 @@ frontend/playwright-report/
 .vscode/
 .DS_Store
 Thumbs.db
+
+# Claude Code skills output
+/CLAUDE.md
+/HANDOFF.md
+/PASSOFF.md
+/docs/
