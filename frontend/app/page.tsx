@@ -86,11 +86,11 @@ export default function LivePage() {
         detail={live.bin.detail}
       />
 
-      <div className="grid grid-cols-1 gap-8 lg:grid-cols-[560px_minmax(0,1fr)]">
+      <div className="grid grid-cols-1 gap-8 lg:grid-cols-[var(--ticket-w)_minmax(0,1fr)]">
         <section aria-label="Current ticket">
           {live.status === "connecting" ? (
             <div className="flex w-ticket max-w-full flex-col gap-3 border border-rule bg-surface p-5">
-              <Skeleton className="h-[72px] w-[72px]" />
+              <Skeleton className="h-[var(--crop-ticket)] w-[var(--crop-ticket)]" />
               <Skeleton className="h-14 w-48" />
               <Skeleton className="h-row w-full" />
               <Skeleton className="h-row w-full" />

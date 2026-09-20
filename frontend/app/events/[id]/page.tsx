@@ -26,7 +26,7 @@ export default function EventPage({ params }: { params: Promise<{ id: string }> 
     return (
       <div className="flex flex-col gap-4">
         <Skeleton className="h-7 w-48" />
-        <div className="grid grid-cols-1 gap-8 lg:grid-cols-[560px_minmax(0,1fr)]">
+        <div className="grid grid-cols-1 gap-8 lg:grid-cols-[var(--ticket-w)_minmax(0,1fr)]">
           <Skeleton className="h-[420px] w-full" />
           <Skeleton className="h-[420px] w-full" />
         </div>
@@ -59,7 +59,7 @@ export default function EventPage({ params }: { params: Promise<{ id: string }> 
         description={`Ticket ${detail.event.id}, ${formatDate(detail.event.created_at)} at ${formatTime(detail.event.created_at)}`}
       />
 
-      <div className="grid grid-cols-1 gap-8 lg:grid-cols-[560px_minmax(0,1fr)]">
+      <div className="grid grid-cols-1 gap-8 lg:grid-cols-[var(--ticket-w)_minmax(0,1fr)]">
         <div>
           <Ticket event={detail.event} detail={detail} phase={phase} showMenu />
         </div>

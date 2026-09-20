@@ -32,6 +32,50 @@
   --radius-control: 6px;
   --radius-ticket: 2px;
   --gutter: 32px;
+
+  /*
+    Type scale. These are the phone values, which are DESIGN.md section 2 as
+    written. The laptop layout below raises every one of them a step, because the
+    Live page is read from a metre or two away on the demo screen.
+  */
+  --size-figure: 56px;
+  --line-figure: 56px;
+  --size-total: 28px;
+  --line-total: 32px;
+  --size-title: 20px;
+  --line-title: 28px;
+  --size-section: 15px;
+  --line-section: 22px;
+  --size-body: 14px;
+  --line-body: 20px;
+  --size-caption: 12.5px;
+  --line-caption: 18px;
+
+  /* The ticket sheet, the ruled row and the ticket's crop, which move with the type */
+  --ticket-w: 560px;
+  --row-h: 36px;
+  --crop-ticket: 72px;
+}
+
+@media (min-width: 1024px) {
+  :root {
+    --size-figure: 72px;
+    --line-figure: 72px;
+    --size-total: 36px;
+    --line-total: 40px;
+    --size-title: 24px;
+    --line-title: 32px;
+    --size-section: 17px;
+    --line-section: 24px;
+    --size-body: 16px;
+    --line-body: 24px;
+    --size-caption: 14px;
+    --line-caption: 20px;
+
+    --ticket-w: 640px;
+    --row-h: 44px;
+    --crop-ticket: 88px;
+  }
 }
 
 @media (max-width: 640px) {

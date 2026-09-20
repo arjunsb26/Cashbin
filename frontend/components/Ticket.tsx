@@ -61,7 +61,7 @@ export function Ticket({
   detail,
   phase = "identified",
   arrival = 0,
-  width = 560,
+  width,
   showMenu = true,
   children,
 }: {
@@ -69,7 +69,7 @@ export function Ticket({
   detail?: EventDetail | null;
   phase?: TicketPhase;
   arrival?: number;
-  width?: number;
+  width?: number | string;
   showMenu?: boolean;
   children?: React.ReactNode;
 }) {
@@ -83,10 +83,10 @@ export function Ticket({
   return (
     <article
       className={cx(
-        "ticket-arrive rounded-ticket border border-rule bg-surface p-5 shadow-ticket",
+        "ticket-arrive rounded-ticket border border-rule bg-surface p-5 shadow-ticket lg:p-6",
         arrival > 0 && "animate-ticket-in",
       )}
-      style={{ width, maxWidth: "100%" }}
+      style={{ width: width ?? "var(--ticket-w)", maxWidth: "100%" }}
       key={arrival}
     >
       <header className="flex items-start gap-3">
@@ -95,7 +95,7 @@ export function Ticket({
           <CropFrame
             src={imageSrc(event.crop_url)}
             label={event.label ?? "Item on the scale"}
-            size={72}
+            size="var(--crop-ticket)"
             className={identified ? "animate-fade-in" : undefined}
           />
         )}
