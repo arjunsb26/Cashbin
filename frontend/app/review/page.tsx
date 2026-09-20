@@ -15,6 +15,7 @@ import {
 import { PROPOSAL_WORDS, REVIEW_GROUPS, REVIEW_KIND_WORDS } from "@/lib/review";
 import type { ReviewItemRead, ReviewKind, ReviewStatus } from "@/lib/types";
 import {
+  Badge,
   Button,
   EmptyState,
   ErrorState,
@@ -39,6 +40,8 @@ export default function ReviewPage() {
   const answer = useReviewAnswer();
   const run = useReviewRun();
   const items = review.data?.items ?? [];
+  /** The one waiting count, from the queue itself. Never counted here. */
+  const waiting = review.data?.open_count ?? 0;
 
   /**
    * The screen never waits on the network. The row moves the moment it is clicked
@@ -133,8 +136,21 @@ export default function ReviewPage() {
         />
       ) : null}
 
-      {review.data && items.length === 0 ? (
+      {/* The empty state is the queue's own count saying zero, not this screen's
+          list coming back short. A count above zero with no rows to show it is a
+          queue still arriving, and it says so rather than claiming all is settled. */}
+      {review.data && waiting === 0 && items.length === 0 ? (
         <EmptyState title="Nothing is waiting. Items land here when the bin cannot tell what something was, when a value came out of a model, or when something worth tagging was never on the register." />
+      ) : null}
+
+      {review.data && waiting > 0 && items.length === 0 ? (
+        <>
+          <p className="text-body">
+            {waiting === 1 ? "One thing is" : waiting + " things are"} waiting on a person. Reading
+            the queue now.
+          </p>
+          <QueueSkeleton />
+        </>
       ) : null}
 
       {items.length > 0
@@ -147,8 +163,10 @@ export default function ReviewPage() {
               <section key={group.id}>
                 <SectionTitle
                   right={
+                    /* A group speaks for its own rows only. "All settled" read as
+                       a verdict on the whole queue while the rail counted five. */
                     <span className="text-caption text-ink-soft">
-                      {open === 0 ? "All settled" : open + " open"}
+                      {open === 0 ? "None open here" : open + " open"}
                     </span>
                   }
                 >
@@ -156,9 +174,7 @@ export default function ReviewPage() {
                 </SectionTitle>
                 <p className="pt-1 text-caption text-ink-soft">{group.blurb}</p>
                 {rows.length === 0 ? (
-                  <p className="pt-3 text-body text-ink-soft">
-                    Nothing in this group. {group.blurb}
-                  </p>
+                  <p className="pt-3 text-body text-ink-soft">Nothing of this kind is open.</p>
                 ) : (
                   <ul className="m-0 list-none p-0 pt-2">
                     {rows.map((item) => (
@@ -212,7 +228,9 @@ function ReviewRow({
         <span className="text-section">
           {item.label || "Unidentified"}
           {item.asset_tag ? (
-            <span className="pl-2 font-condensed text-body">{formatTag(item.asset_tag)}</span>
+            <Badge tone="ink" size="body" condensed>
+              {formatTag(item.asset_tag)}
+            </Badge>
           ) : null}
         </span>
         <span className="text-body">
@@ -243,9 +261,7 @@ function ReviewRow({
             {candidates.map((candidate) => (
               <Button key={candidate.label} onClick={() => onAnswer(item, candidate.label)}>
                 {candidate.label}
-                <span className="pl-2 text-caption text-ink-soft">
-                  {formatProbability(candidate.p)}
-                </span>
+                <Badge>{formatProbability(candidate.p)}</Badge>
               </Button>
             ))}
             {other ? null : <Button onClick={() => setOther(true)}>Something else</Button>}

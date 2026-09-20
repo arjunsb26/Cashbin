@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { useRounds, useStats } from "@/lib/api";
+import { useRounds, useStats, useWaiting } from "@/lib/api";
 import {
   categoryBars,
   statsAverages,
@@ -12,8 +12,10 @@ import {
 } from "@/lib/derive";
 import type { StatsResponse } from "@/lib/types";
 import { formatCount, formatDate, formatMass, formatMoney, formatPercent } from "@/lib/format";
+import { waitingSentence } from "@/lib/copy";
 import { LearningChart } from "@/components/LearningChart";
 import {
+  Badge,
   EmptyState,
   ErrorState,
   FinanceFooter,
@@ -146,6 +148,7 @@ export default function TrendsPage() {
 }
 
 function Figures({ stats, range }: { stats: StatsResponse; range: StatsRange }) {
+  const waiting = useWaiting();
   const bars = categoryBars(stats);
   const totals = statsTotals(stats);
   const averages = statsAverages(stats);
@@ -193,11 +196,8 @@ function Figures({ stats, range }: { stats: StatsResponse; range: StatsRange }) 
           />
         </div>
         <p className="pt-2 text-caption text-ink-soft">
-          {totals.asks > 0
-            ? formatCount(totals.asks) +
-              (totals.asks === 1 ? " toss" : " tosses") +
-              " needed a person. "
-            : "Nothing needed a person. "}
+          {/* The same count the rail and the tape print, read from the queue. */}
+          {waitingSentence(waiting) + " "}
           {totals.kg_co2e_avoided > 0
             ? formatMass(totals.kg_co2e_avoided * 1000) +
               " of carbon stayed out of the air where the advice was followed."
@@ -256,7 +256,7 @@ function CategoryRow({ bar, total }: { bar: CategoryBar; total: number }) {
         <span className="text-body">{bar.label}</span>
         <span className="text-body">
           {formatMoney(bar.cents, { symbol: true })}
-          <span className="pl-2 text-caption text-ink-soft">{formatPercent(share)}</span>
+          <Badge>{formatPercent(share)}</Badge>
         </span>
       </div>
       <div className="mt-1 h-2 w-full bg-bar" aria-hidden="true">

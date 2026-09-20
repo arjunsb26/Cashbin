@@ -10,7 +10,7 @@ import type {
 } from "@/lib/types";
 import { formatDate, formatMoney, formatTag } from "@/lib/format";
 import { noteBlocks } from "@/lib/derive";
-import { SectionTitle, cx } from "./ui";
+import { Badge, SectionTitle, cx } from "./ui";
 
 /**
  * The close memo, in prose, under the title.
@@ -161,9 +161,9 @@ export function Reconciliation({ block }: { block: ReconciliationBlock }) {
                       {row.description || "Ticket " + row.event_id}
                     </Link>
                     {row.tag ? (
-                      <span className="pl-2 font-condensed text-caption">
+                      <Badge tone="ink" condensed>
                         {formatTag(row.tag)}
-                      </span>
+                      </Badge>
                     ) : null}
                   </td>
                   <td className="text-right">{formatMoney(row.book_loss_cents ?? 0)}</td>
