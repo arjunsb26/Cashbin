@@ -124,6 +124,8 @@ export interface BinBooksContracts {
   ReviewItemRead?: ReviewItemRead;
   ReviewKind?: ReviewKind;
   ReviewListResponse?: ReviewListResponse;
+  ReviewProposal?: ReviewProposal;
+  ReviewRunResponse?: ReviewRunResponse;
   ReviewStatus?: ReviewStatus;
   RollforwardBlock?: RollforwardBlock;
   RollforwardRow?: RollforwardRow;
@@ -148,6 +150,7 @@ export interface BinBooksContracts {
   StatsResponse?: StatsResponse;
   SummaryResponse?: SummaryResponse;
   TaxMethod?: TaxMethod;
+  ToolStep?: ToolStep;
   TrialBalanceRow?: TrialBalanceRow;
   UiAskOpened?: UiAskOpened;
   UiAskResolved?: UiAskResolved;
@@ -399,6 +402,7 @@ export interface CloseRead {
   form4797?: Form4797Block | null;
   id: number;
   investigation_md?: string | null;
+  investigation_steps?: ToolStep[];
   memo_md?: string | null;
   period_end: string;
   period_start: string;
@@ -439,6 +443,17 @@ export interface Form4797Row {
   part?: "II" | "III";
   recapture_note?: string;
   rule_ids?: string[];
+}
+/**
+ * One lookup an agent made, and what it found. This is the working, shown.
+ *
+ * This interface was referenced by `BinBooksContracts`'s JSON-Schema
+ * via the `definition` "ToolStep".
+ */
+export interface ToolStep {
+  args_summary?: string;
+  finding?: string;
+  tool?: string;
 }
 /**
  * The M-1 shape: book loss, less the differences, equals the tax loss.
@@ -857,6 +872,7 @@ export interface ReviewDecision {
  * via the `definition` "ReviewDecisionResponse".
  */
 export interface ReviewDecisionResponse {
+  agreed_with_agent?: boolean | null;
   detail?: string;
   difference_cents?: number;
   item: ReviewItemRead;
@@ -869,6 +885,7 @@ export interface ReviewDecisionResponse {
  * via the `definition` "ReviewItemRead".
  */
 export interface ReviewItemRead {
+  agreed_with_agent?: boolean | null;
   amount_cents?: number;
   asset_id?: number | null;
   asset_tag?: string | null;
@@ -881,8 +898,26 @@ export interface ReviewItemRead {
   kind: ReviewKind;
   label?: string | null;
   note?: string | null;
+  proposal?: ReviewProposal | null;
   reason?: string;
   status: ReviewStatus;
+}
+/**
+ * What the review agent thinks, and how it got there. It never acts on this.
+ *
+ * This interface was referenced by `BinBooksContracts`'s JSON-Schema
+ * via the `definition` "ReviewProposal".
+ */
+export interface ReviewProposal {
+  decision?: "approve" | "reject" | "ask_person";
+  downgraded_reason?: string | null;
+  evidence?: string[];
+  latency_ms?: number | null;
+  model?: string;
+  provider?: string;
+  reason?: string;
+  steps?: ToolStep[];
+  tool_calls?: number;
 }
 /**
  * This interface was referenced by `BinBooksContracts`'s JSON-Schema
@@ -891,6 +926,16 @@ export interface ReviewItemRead {
 export interface ReviewListResponse {
   items?: ReviewItemRead[];
   open_count?: number;
+}
+/**
+ * What one run of the review agent produced.
+ *
+ * This interface was referenced by `BinBooksContracts`'s JSON-Schema
+ * via the `definition` "ReviewRunResponse".
+ */
+export interface ReviewRunResponse {
+  items?: ReviewItemRead[];
+  proposed?: number;
 }
 /**
  * This interface was referenced by `BinBooksContracts`'s JSON-Schema

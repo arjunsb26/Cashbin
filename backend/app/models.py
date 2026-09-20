@@ -390,6 +390,10 @@ class ReviewItem(Base):
     decided_at: Mapped[str | None] = mapped_column(String(32))
     note: Mapped[str | None] = mapped_column(String(240))
     created_at: Mapped[str] = mapped_column(String(32), nullable=False, default=utc_now_iso)
+    # What the review agent proposed, and whether the person went along with it. The
+    # proposal is never acted on: it sits here until a person decides.
+    proposal_json: Mapped[str | None] = mapped_column(Text)
+    agreed_with_agent: Mapped[bool | None] = mapped_column(Boolean)
 
 
 ALL_TABLES: tuple[str, ...] = (

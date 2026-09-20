@@ -28,6 +28,7 @@ from app.schemas import (
     Form4797Block,
     ReconciliationBlock,
     RollforwardBlock,
+    ToolStep,
 )
 
 router = APIRouter(prefix="/api/close", tags=["close"])
@@ -57,17 +58,34 @@ def _block(totals: Any, key: str, kind: type[Any]) -> Any:
         return None
 
 
+def _steps(report: Any) -> list[ToolStep]:
+    """The lookups the investigator made, off the saved report."""
+    found = report.get("investigation") if isinstance(report, dict) else None
+    raw = found.get("steps") if isinstance(found, dict) else None
+    if not isinstance(raw, list):
+        return []
+    out: list[ToolStep] = []
+    for item in raw:
+        try:
+            out.append(ToolStep.model_validate(item))
+        except ValueError:
+            continue
+    return out
+
+
 def read_close(row: models.Close) -> CloseRead:
     """One saved close as the wire type the Close page reads."""
     checks = _load_json(row.checks_json, [])
     totals = _load_json(row.totals_json, {})
     report = _load_json(row.report_json, {})
     memo = report.get("memo_md") if isinstance(report, dict) else None
+    steps = _steps(report)
     return CloseRead(
         rollforward=_block(totals, "rollforward", RollforwardBlock),
         reconciliation=_block(totals, "reconciliation", ReconciliationBlock),
         form4797=_block(totals, "form4797", Form4797Block),
         memo_md=memo if isinstance(memo, str) and memo else None,
+        investigation_steps=steps,
         id=row.id,
         period_start=row.period_start,
         period_end=row.period_end,

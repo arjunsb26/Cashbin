@@ -844,6 +844,7 @@ class CloseRead(ApiModel):
     reconciliation: ReconciliationBlock | None = None
     form4797: Form4797Block | None = None
     memo_md: str | None = None
+    investigation_steps: list[ToolStep] = Field(default_factory=list)
 
 
 class RuleRead(ApiModel):
@@ -971,6 +972,28 @@ REVIEW_NOTE_MAX = 240
 DECIDED_BY_MAX = 40
 
 
+class ToolStep(ApiModel):
+    """One lookup an agent made, and what it found. This is the working, shown."""
+
+    tool: str = Field(default="", max_length=40)
+    args_summary: str = Field(default="", max_length=120)
+    finding: str = Field(default="", max_length=240)
+
+
+class ReviewProposal(ApiModel):
+    """What the review agent thinks, and how it got there. It never acts on this."""
+
+    decision: Literal["approve", "reject", "ask_person"] = "ask_person"
+    reason: str = Field(default="", max_length=REVIEW_NOTE_MAX)
+    evidence: list[str] = Field(default_factory=list)
+    steps: list[ToolStep] = Field(default_factory=list)
+    downgraded_reason: str | None = Field(default=None, max_length=REVIEW_NOTE_MAX)
+    provider: str = ""
+    model: str = ""
+    tool_calls: int = 0
+    latency_ms: int | None = None
+
+
 class ReviewItemRead(ApiModel):
     """One open question, as the Review tab lists it."""
 
@@ -990,6 +1013,8 @@ class ReviewItemRead(ApiModel):
     # An unresolved ask carries what the bin was asking, so a person can answer it from
     # the queue instead of going to find the ticket.
     candidates: list[AskCandidate] = Field(default_factory=list)
+    proposal: ReviewProposal | None = None
+    agreed_with_agent: bool | None = None
 
 
 class ReviewListResponse(ApiModel):
@@ -1022,6 +1047,14 @@ class ReviewDecisionResponse(ApiModel):
     reversing_entry_ids: list[int] = Field(default_factory=list)
     difference_cents: int = 0
     detail: str = ""
+    agreed_with_agent: bool | None = None
+
+
+class ReviewRunResponse(ApiModel):
+    """What one run of the review agent produced."""
+
+    proposed: int = 0
+    items: list[ReviewItemRead] = Field(default_factory=list)
 
 
 class RollforwardRow(ApiModel):

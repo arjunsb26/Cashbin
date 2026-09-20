@@ -8,9 +8,11 @@ the same answer given anywhere else.
 
 from __future__ import annotations
 
-from fastapi import APIRouter, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 
 from app import models
+from app.agent import reviewer
+from app.config import Settings, get_settings
 from app.db import session_scope
 from app.learn.corrections import CorrectionRefusedError, apply_correction
 from app.ledger import review
@@ -20,6 +22,7 @@ from app.schemas import (
     ReviewDecision,
     ReviewDecisionResponse,
     ReviewListResponse,
+    ReviewRunResponse,
     ValidatedLabel,
 )
 
@@ -58,7 +61,22 @@ def _decide(item_id: int, body: ReviewDecision, approved: bool) -> ReviewDecisio
         reversing_entry_ids=reversing,
         difference_cents=difference,
         detail=detail,
+        agreed_with_agent=read.agreed_with_agent,
     )
+
+
+@router.post("/run", response_model=ReviewRunResponse)
+def run_agent(settings: Settings = Depends(get_settings)) -> ReviewRunResponse:
+    """Have the review agent look at every open item that has no proposal yet.
+
+    It proposes and nothing else. Every item comes back still open, with the
+    agent's reading of it and the lookups it made attached.
+    """
+    with session_scope() as session:
+        made = reviewer.run_open(session, settings)
+        session.commit()
+        listed = review.list_items(session, models.ReviewStatus.open)
+    return ReviewRunResponse(proposed=len(made), items=listed.items)
 
 
 @router.post("/{item_id}/approve", response_model=ReviewDecisionResponse)

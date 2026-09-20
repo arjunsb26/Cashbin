@@ -791,6 +791,12 @@
           ],
           "default": null
         },
+        "investigation_steps": {
+          "items": {
+            "$ref": "#/$defs/ToolStep"
+          },
+          "type": "array"
+        },
         "memo_md": {
           "anyOf": [
             {
@@ -2256,6 +2262,17 @@
     "ReviewDecisionResponse": {
       "description": "What the decision did: the item as it now stands, and what it moved.",
       "properties": {
+        "agreed_with_agent": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
         "detail": {
           "default": "",
           "type": "string"
@@ -2282,6 +2299,17 @@
     "ReviewItemRead": {
       "description": "One open question, as the Review tab lists it.",
       "properties": {
+        "agreed_with_agent": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
         "amount_cents": {
           "default": 0,
           "type": "integer"
@@ -2371,6 +2399,17 @@
           ],
           "default": null
         },
+        "proposal": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ReviewProposal"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
         "reason": {
           "default": "",
           "type": "string"
@@ -2407,6 +2446,89 @@
           "type": "array"
         },
         "open_count": {
+          "default": 0,
+          "type": "integer"
+        }
+      },
+      "type": "object"
+    },
+    "ReviewProposal": {
+      "description": "What the review agent thinks, and how it got there. It never acts on this.",
+      "properties": {
+        "decision": {
+          "default": "ask_person",
+          "enum": [
+            "approve",
+            "reject",
+            "ask_person"
+          ],
+          "type": "string"
+        },
+        "downgraded_reason": {
+          "anyOf": [
+            {
+              "maxLength": 240,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "evidence": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "latency_ms": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "model": {
+          "default": "",
+          "type": "string"
+        },
+        "provider": {
+          "default": "",
+          "type": "string"
+        },
+        "reason": {
+          "default": "",
+          "maxLength": 240,
+          "type": "string"
+        },
+        "steps": {
+          "items": {
+            "$ref": "#/$defs/ToolStep"
+          },
+          "type": "array"
+        },
+        "tool_calls": {
+          "default": 0,
+          "type": "integer"
+        }
+      },
+      "type": "object"
+    },
+    "ReviewRunResponse": {
+      "description": "What one run of the review agent produced.",
+      "properties": {
+        "items": {
+          "items": {
+            "$ref": "#/$defs/ReviewItemRead"
+          },
+          "type": "array"
+        },
+        "proposed": {
           "default": 0,
           "type": "integer"
         }
@@ -3382,6 +3504,27 @@
       ],
       "type": "string"
     },
+    "ToolStep": {
+      "description": "One lookup an agent made, and what it found. This is the working, shown.",
+      "properties": {
+        "args_summary": {
+          "default": "",
+          "maxLength": 120,
+          "type": "string"
+        },
+        "finding": {
+          "default": "",
+          "maxLength": 240,
+          "type": "string"
+        },
+        "tool": {
+          "default": "",
+          "maxLength": 40,
+          "type": "string"
+        }
+      },
+      "type": "object"
+    },
     "TrialBalanceRow": {
       "properties": {
         "account": {
@@ -3996,6 +4139,12 @@
     "ReviewListResponse": {
       "$ref": "#/$defs/ReviewListResponse"
     },
+    "ReviewProposal": {
+      "$ref": "#/$defs/ReviewProposal"
+    },
+    "ReviewRunResponse": {
+      "$ref": "#/$defs/ReviewRunResponse"
+    },
     "ReviewStatus": {
       "$ref": "#/$defs/ReviewStatus"
     },
@@ -4067,6 +4216,9 @@
     },
     "TaxMethod": {
       "$ref": "#/$defs/TaxMethod"
+    },
+    "ToolStep": {
+      "$ref": "#/$defs/ToolStep"
     },
     "TrialBalanceRow": {
       "$ref": "#/$defs/TrialBalanceRow"

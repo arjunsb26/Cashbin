@@ -16,7 +16,7 @@ from typing import Any
 from pydantic import BaseModel, ValidationError
 
 from app.config import Settings
-from app.identify.openai_provider import PROVIDER_NAME
+from app.identify.openai_provider import PROVIDER_NAME as PROVIDER_NAME
 from app.identify.openai_request import strict_schema
 
 log = logging.getLogger(__name__)

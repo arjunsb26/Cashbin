@@ -361,8 +361,13 @@ def to_read(session: Session, row: models.ReviewItem) -> ReviewItemRead:
         if row.kind is models.ReviewKind.unresolved_ask
         else []
     )
+    from app.agent.reviewer import stored
+
+    proposal = stored(row)
     return ReviewItemRead(
         candidates=candidates,
+        proposal=proposal,
+        agreed_with_agent=row.agreed_with_agent,
         id=row.id,
         kind=row.kind,
         status=row.status,
@@ -438,6 +443,13 @@ def _record_correction(
     session.flush()
 
 
+# What a person clicking approve or reject means the agent got right.
+_AGREES: dict[models.ReviewStatus, str] = {
+    models.ReviewStatus.approved: "approve",
+    models.ReviewStatus.rejected: "reject",
+}
+
+
 def _mark(
     item: models.ReviewItem, status: models.ReviewStatus, by: str, note: str
 ) -> None:
@@ -445,6 +457,22 @@ def _mark(
     item.decided_by = by[:40] or "person"
     item.decided_at = models.utc_now_iso()
     item.note = note[:240] or None
+    item.agreed_with_agent = _agreement(item, status)
+
+
+def _agreement(item: models.ReviewItem, status: models.ReviewStatus) -> bool | None:
+    """Did the person go the way the agent proposed?
+
+    Nothing is recorded when the agent had no proposal, or when it proposed
+    ask_person, because asking a person and then the person deciding is not a
+    disagreement. Only a real call against a real call counts.
+    """
+    from app.agent.reviewer import DECISION_ASK, stored
+
+    proposal = stored(item)
+    if proposal is None or proposal.decision == DECISION_ASK:
+        return None
+    return proposal.decision == _AGREES.get(status)
 
 
 def approve(
