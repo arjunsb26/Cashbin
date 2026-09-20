@@ -170,3 +170,40 @@ export function ErrorState({ title, onRetry }: { title: string; onRetry?: () => 
 export function FinanceFooter() {
   return <p className="pt-6 text-caption text-ink-soft">{FINANCE_FOOTER}</p>;
 }
+
+/**
+ * A short word set beside a label: "best", "review", an asset tag, a share.
+ *
+ * The gap in front of it is a real space, not left padding. Padding is invisible
+ * to a screen reader and to a copy and paste, which is how "Recycle" and "best"
+ * became "Recyclebest" in three separate components at once. One component now
+ * carries both the space and the type, so there is one place left to get wrong.
+ */
+export function Badge({
+  tone = "soft",
+  size = "caption",
+  condensed = false,
+  children,
+}: {
+  tone?: "soft" | "kept" | "caution" | "ink";
+  size?: "caption" | "body";
+  condensed?: boolean;
+  children: ReactNode;
+}) {
+  return (
+    <>
+      {" "}
+      <span
+        className={cx(
+          size === "body" ? "text-body" : "text-caption",
+          condensed && "font-condensed",
+          tone === "kept" && "text-kept",
+          tone === "caution" && "text-caution",
+          tone === "soft" && "text-ink-soft",
+        )}
+      >
+        {children}
+      </span>
+    </>
+  );
+}

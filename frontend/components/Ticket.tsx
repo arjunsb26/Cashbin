@@ -29,7 +29,7 @@ import {
 import { Co2, Mass, Money } from "./Figure";
 import { Term } from "./Term";
 import { CropFrame } from "./CropFrame";
-import { Button, Field, Input, cx } from "./ui";
+import { Badge, Button, Field, Input, cx } from "./ui";
 
 // The central object of the interface. It prints on Live, in the tape, on the event
 // page and on the phone. The phone page copies this markup by hand, so keep the
@@ -444,9 +444,9 @@ export function OptionTable({
                     <span className={cx(!option.allowed && "line-through")}>
                       {formatOption(option.option)}
                     </span>
-                    {isBest ? <span className="pl-2 text-caption text-kept">best</span> : null}
+                    {isBest ? <Badge tone="kept">best</Badge> : null}
                     {option.needs_human_review ? (
-                      <span className="pl-2 text-caption text-caution">review</span>
+                      <Badge tone="caution">review</Badge>
                     ) : null}
                     {!option.allowed && option.blocked_reason ? (
                       <span className="block text-caption">{option.blocked_reason}</span>

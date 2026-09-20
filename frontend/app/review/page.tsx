@@ -15,6 +15,7 @@ import {
 import { PROPOSAL_WORDS, REVIEW_GROUPS, REVIEW_KIND_WORDS } from "@/lib/review";
 import type { ReviewItemRead, ReviewKind, ReviewStatus } from "@/lib/types";
 import {
+  Badge,
   Button,
   EmptyState,
   ErrorState,
@@ -227,7 +228,9 @@ function ReviewRow({
         <span className="text-section">
           {item.label || "Unidentified"}
           {item.asset_tag ? (
-            <span className="pl-2 font-condensed text-body">{formatTag(item.asset_tag)}</span>
+            <Badge tone="ink" size="body" condensed>
+              {formatTag(item.asset_tag)}
+            </Badge>
           ) : null}
         </span>
         <span className="text-body">
@@ -258,9 +261,7 @@ function ReviewRow({
             {candidates.map((candidate) => (
               <Button key={candidate.label} onClick={() => onAnswer(item, candidate.label)}>
                 {candidate.label}
-                <span className="pl-2 text-caption text-ink-soft">
-                  {formatProbability(candidate.p)}
-                </span>
+                <Badge>{formatProbability(candidate.p)}</Badge>
               </Button>
             ))}
             {other ? null : <Button onClick={() => setOther(true)}>Something else</Button>}

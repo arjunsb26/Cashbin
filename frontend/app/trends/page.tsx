@@ -15,6 +15,7 @@ import { formatCount, formatDate, formatMass, formatMoney, formatPercent } from 
 import { waitingSentence } from "@/lib/copy";
 import { LearningChart } from "@/components/LearningChart";
 import {
+  Badge,
   EmptyState,
   ErrorState,
   FinanceFooter,
@@ -255,7 +256,7 @@ function CategoryRow({ bar, total }: { bar: CategoryBar; total: number }) {
         <span className="text-body">{bar.label}</span>
         <span className="text-body">
           {formatMoney(bar.cents, { symbol: true })}
-          <span className="pl-2 text-caption text-ink-soft">{formatPercent(share)}</span>
+          <Badge>{formatPercent(share)}</Badge>
         </span>
       </div>
       <div className="mt-1 h-2 w-full bg-bar" aria-hidden="true">
