@@ -83,6 +83,10 @@ test("counts group thousands", () => {
   assert.equal(formatCount(2412), "2,412");
 });
 
+test("an empty scale reads zero, not minus zero", () => {
+  assert.equal(formatCount(Math.round(-0.4)), "0");
+});
+
 test("a typed label is lowercased and trimmed", () => {
   const read = readLabel("  Blue Keyboard  ");
   assert.equal(read.label, "blue keyboard");

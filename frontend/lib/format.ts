@@ -98,7 +98,9 @@ export function formatPercent(fraction: number, decimals = 0): string {
 }
 
 export function formatCount(n: number): string {
-  return whole.format(n);
+  // An empty scale reads a fraction of a gram under zero, and rounding that gives
+  // negative zero, which the formatter prints as "-0". Nothing weighs minus nothing.
+  return whole.format(Object.is(n, -0) ? 0 : n);
 }
 
 const fourDecimal = new Intl.NumberFormat("en-US", {
