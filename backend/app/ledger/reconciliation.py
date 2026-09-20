@@ -29,6 +29,10 @@ TITLE = "Book to tax, losses on disposals (Schedule M-1 shape)"
 
 REASON_OVERRIDE = "override"
 REASON_STRAIGHT_LINE = "straight line, no difference"
+# Straight line should leave book and tax equal. When it does not, the register and the
+# ticket disagree about this asset, and saying "no difference" beside a difference would
+# be a lie on the face of the schedule.
+REASON_STRAIGHT_LINE_GAP = "straight line, but the basis on file does not match the books"
 
 
 def _loads(raw: str | None, fallback: Any) -> Any:
@@ -69,7 +73,7 @@ def reason_for(asset: models.Asset | None, difference_cents: int) -> str:
     if asset.tax_method is models.TaxMethod.bonus_100:
         year = (asset.in_service_date or "")[:4] or "an earlier year"
         return f"bonus_100 taken in {year}"
-    return REASON_STRAIGHT_LINE
+    return REASON_STRAIGHT_LINE if difference_cents == 0 else REASON_STRAIGHT_LINE_GAP
 
 
 def rule_ids_for(asset: models.Asset | None) -> list[str]:

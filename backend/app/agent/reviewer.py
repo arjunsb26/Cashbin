@@ -279,7 +279,7 @@ def _finding_for_event(event: dict[str, Any]) -> str:
     if not isinstance(item, dict):
         return "The ticket has no item record."
     return (
-        f"The ticket is a {item.get('class')} called {item.get('label')} with "
+        f"The ticket is {item.get('class')}, called {item.get('label')}, with "
         f"{item.get('cost_basis_cents')} cents of cost on the books."
     )
 

@@ -132,3 +132,23 @@ def test_a_disposal_outside_the_period_is_not_in_it(settings: Settings) -> None:
         block = reconciliation.compute(session, PERIOD_START, PERIOD_END)
 
     assert block.rows == []
+
+
+def test_a_straight_line_asset_that_does_differ_says_so(settings: Settings) -> None:
+    """The register and the ticket disagree. The reason may not say there is no gap."""
+    with session_scope() as session:
+        asset = _asset(
+            session, "bb-0024", "mechanical keyboard", 12_000, "2024-03-01", 36,
+            tax_method=models.TaxMethod.straight_line,
+        )
+        _disposal(
+            session, asset, "2026-09-15", label="mechanical keyboard",
+            book_value_cents=3_000, tax_basis_cents=2_000,
+        )
+        session.commit()
+        block = reconciliation.compute(session, PERIOD_START, PERIOD_END)
+
+    row = block.rows[0]
+    assert row.difference_cents == 1_000
+    assert row.reason == reconciliation.REASON_STRAIGHT_LINE_GAP
+    assert block.ties is True

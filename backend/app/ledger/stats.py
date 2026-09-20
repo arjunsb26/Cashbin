@@ -340,6 +340,11 @@ def averages(buckets: list[Bucket], start: date, end: date) -> dict[str, float]:
 # Suggestions ---------------------------------------------------------------
 
 
+def _plural(count: int, one: str, many: str) -> str:
+    """Counted nouns read as a person would say them, never "1 tickets"."""
+    return f"{count} {one if count == 1 else many}"
+
+
 def _worth_saying(cents: int, count: int) -> bool:
     """The floor under every sentence. Small money and small counts stay quiet."""
     return cents >= MIN_SUGGESTION_CENTS or count >= MIN_SUGGESTION_COUNT
@@ -404,8 +409,8 @@ def suggestions(
                 (
                     cents,
                     f"{name.capitalize()} is the biggest group at {money(cents)} dollars "
-                    f"across {count} tickets, {share:.0f} percent of the "
-                    f"{money(base)} dollars in the range.",
+                    f"across {_plural(count, 'ticket', 'tickets')}, {share:.0f} percent "
+                    f"of the {money(base)} dollars in the range.",
                 )
             )
 
@@ -415,8 +420,9 @@ def suggestions(
         found.append(
             (
                 resale_cents,
-                f"{len(resale)} items nothing on the books tracked went in the bin, "
-                f"and the engine priced selling them at {money(resale_cents)} dollars.",
+                f"{_plural(len(resale), 'item', 'items')} nothing on the books tracked "
+                f"went in the bin, and the engine priced selling them at "
+                f"{money(resale_cents)} dollars.",
             )
         )
 
@@ -427,8 +433,8 @@ def suggestions(
             found.append(
                 (
                     waiting,
-                    f"{asks} tickets are still waiting on a person, holding "
-                    f"{money(waiting)} dollars that has not posted.",
+                    f"{_plural(asks, 'ticket is', 'tickets are')} still waiting on a "
+                    f"person, holding {money(waiting)} dollars that has not posted.",
                 )
             )
 
@@ -444,8 +450,8 @@ def suggestions(
         found.append(
             (
                 book_loss,
-                f"{disposals} assets came off the register this range at a book loss of "
-                f"{money(book_loss)} dollars.",
+                f"{_plural(disposals, 'asset', 'assets')} came off the register this "
+                f"range at a book loss of {money(book_loss)} dollars.",
             )
         )
 

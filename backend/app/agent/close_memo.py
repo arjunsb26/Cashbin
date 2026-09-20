@@ -109,6 +109,11 @@ def build_block(
     }
 
 
+def _plural(count: int, one: str, many: str) -> str:
+    """Counted nouns read as a person would say them, never "1 assets"."""
+    return f"{count} {one if count == 1 else many}"
+
+
 def stub_memo(
     result: CloseResult,
     rollforward: dict[str, Any] | None = None,
@@ -131,16 +136,16 @@ def stub_memo(
     parts.append(
         f"The period from {result.period_start} to {result.period_end} closed "
         f"{result.status.replace('_', ' ')}. "
-        f"{events.get('counted', 0)} tickets counted, "
+        f"{_plural(int(events.get('counted', 0)), 'ticket', 'tickets')} counted, "
         f"{events.get('void', 0)} void. "
         f"Write-offs came to {money(int(write_offs.get('total_cents', 0)))} dollars "
-        f"across {write_offs.get('count', 0)} items."
+        f"across {_plural(int(write_offs.get('count', 0)), 'item', 'items')}."
     )
 
     count = int(disposals.get("count", 0))
     if count:
         parts.append(
-            f"{count} assets came off the register at a book loss of "
+            f"{_plural(count, 'asset', 'assets')} came off the register at a book loss of "
             f"{money(int(disposals.get('book_loss_cents', 0)))} dollars and a tax loss of "
             f"{money(int(disposals.get('tax_loss_cents', 0)))} dollars. "
             f"The difference of "
@@ -182,8 +187,9 @@ def stub_memo(
 
     asking = int(events.get("asking", 0))
     if asking:
+        noun = "ticket is" if asking == 1 else "tickets are"
         parts.append(
-            f"{asking} tickets are still waiting on a person and have nothing posted "
+            f"{asking} {noun} still waiting on a person and have nothing posted "
             "behind them."
         )
 
