@@ -170,9 +170,35 @@ body {
     calc(env(safe-area-inset-bottom) + 32px) calc(env(safe-area-inset-left) + 16px);
 }
 
+/* The mark, the name and one sentence, together in the middle of the screen. */
+.start__hero {
+  margin: auto 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 8px;
+  padding: 0 8px;
+}
+
+.start__mark {
+  display: block;
+  width: 128px;
+  height: 128px;
+}
+
 .start__brand {
-  font-size: 12.5px;
-  line-height: 18px;
+  font-size: 24px;
+  line-height: 32px;
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.start__lead {
+  margin: 0;
+  max-width: 34ch;
+  font-size: 16px;
+  line-height: 24px;
   color: var(--ink-soft);
 }
 
