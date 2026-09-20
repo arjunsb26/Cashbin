@@ -8,6 +8,7 @@ from fastapi import APIRouter, HTTPException, Request, status
 
 from app.config import REPO_DIR
 from app.db import session_scope
+from app.detect.crop import CropParams
 from app.detect.steps import Step
 from app.identify.stub import get_expect_queue
 from app.ingest.events import create_event_from_step
@@ -21,6 +22,9 @@ router = APIRouter(prefix="/api/sim", tags=["sim"])
 
 SIM_ASSETS = (REPO_DIR / "sim" / "assets").resolve()
 IMAGE_SUFFIXES = frozenset({".jpg", ".jpeg", ".png"})
+
+# The empty bin, which is what the camera was looking at a moment before the toss.
+EMPTY_BIN_IMAGE = "bin.png"
 
 # The shape of the fake step. Open a second before now so the ring has a before frame
 # to reach back to, and settle just before now so the image pushed below counts as the
@@ -80,6 +84,26 @@ def synthetic_step(mass_g: float, now_ms: float) -> Step:
     )
 
 
+def _push_empty_bin(deps: IngestState, now_ms: float) -> None:
+    """Put an empty bin in the ring behind the injected frame.
+
+    A crop is the difference between two frames, so one frame alone gives no crop, no
+    exemplar and nothing for memory to recognise the next time the same thing goes in. A
+    caller who hands this route an image is simulating the camera for this toss, so it gets
+    the simulator's own background as the frame from a moment earlier, and the pair is the
+    same pair every time that image is tossed. Leaving whatever the last toss left in the
+    ring would diff one sprite against another and give a different crop each time.
+
+    It lands exactly on the crop's own cutoff, which is the newest a before frame may be,
+    so it wins over anything older without hiding anything the step itself needs.
+    """
+    empty = asset_bytes(EMPTY_BIN_IMAGE)
+    if empty is None:
+        log.warning("the simulator background is missing, the injected toss has no crop")
+        return
+    deps.frames.push(empty, now_ms - OPEN_LEAD_MS - CropParams().before_lead_ms)
+
+
 @router.post("/toss", response_model=SimTossResponse)
 async def inject_toss(body: SimTossRequest, request: Request) -> SimTossResponse:
     """Make one event without a scale. The dashboard demo path when no bin is plugged in."""
@@ -93,6 +117,7 @@ async def inject_toss(body: SimTossRequest, request: Request) -> SimTossResponse
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="That image is not one of the simulator's.",
             )
+        _push_empty_bin(deps, now_ms)
         deps.frames.push(data, now_ms)
 
     step = synthetic_step(body.mass_g, now_ms)

@@ -1174,6 +1174,10 @@
         "id": {
           "type": "integer"
         },
+        "is_estimate": {
+          "default": false,
+          "type": "boolean"
+        },
         "kind": {
           "$ref": "#/$defs/EventKind"
         },

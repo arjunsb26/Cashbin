@@ -23,7 +23,7 @@ ignored.
 Useful flags:
 
 ```
---gap 4          seconds between steps
+--gap 7          seconds between steps, enough for a real vision call to land
 --lead 3         seconds of quiet baseline before the first step
 --tail 3         seconds after the last step
 --land-delay 0.3 seconds between the item appearing in frame and hitting the scale

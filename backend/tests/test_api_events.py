@@ -207,3 +207,23 @@ def test_voiding_something_that_is_not_there_is_a_404(client: TestClient) -> Non
 
 def test_the_sim_route_is_not_in_the_demo_build(client: TestClient) -> None:
     assert client.post("/api/sim/toss", json=BAGEL).status_code == 404
+
+
+def test_an_event_is_marked_an_estimate_when_the_value_came_from_a_model(
+    dev_client: TestClient,
+) -> None:
+    """PLAN.md 21a item 18. The tape marks a model figure so nobody reads it as measured."""
+    dev_client.post("/api/sim/expect", json={"label": "bagel"})
+    event_id = dev_client.post("/api/sim/toss", json=BAGEL).json()["event_id"]
+
+    listed = dev_client.get("/api/events").json()["events"]
+    assert listed[0]["is_estimate"] is False
+
+    with session_scope() as session:
+        record = session.get(ItemRecord, event_id)
+        assert record is not None
+        record.fmv_source = "model_estimate"
+
+    marked = dev_client.get("/api/events").json()["events"]
+    assert marked[0]["is_estimate"] is True
+    assert dev_client.get(f"/api/events/{event_id}").json()["event"]["is_estimate"] is True

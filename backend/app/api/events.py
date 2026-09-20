@@ -17,6 +17,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.db import session_scope
+from app.engine.records import EstimateSource
 from app.ingest.media import media_url
 from app.models import (
     Correction,
@@ -81,10 +82,20 @@ def _summary(session: Session, row: Event) -> EventSummary:
         crop_url=media_url(row.crop),
         crop_quality=row.crop_quality,
         net_book_cents=record.book_value_cents if record else None,
+        is_estimate=_is_estimate(record),
         best_option=best.option if best else None,
         saved_if_followed_cents=_saved_if_followed(options, best),
         round_id=row.round_id,
     )
+
+
+def _is_estimate(record: ItemRecord | None) -> bool:
+    """PLAN.md 21a item 18: does the figure on this ticket come from a model estimate?
+
+    The tape marks an estimate with "est." and it reads one list, so the flag rides along
+    with the figure rather than costing the dashboard a second request per row.
+    """
+    return record is not None and record.fmv_source == EstimateSource.model_estimate.value
 
 
 def _best_option(options: list[OptionScore]) -> OptionScore | None:

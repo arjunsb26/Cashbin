@@ -165,7 +165,12 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--expect-url", default=None, help="POST /api/sim/expect, dev only")
     parser.add_argument("--assets", default=str(ASSETS))
     parser.add_argument("--insecure", action="store_true", help="skip TLS verification")
-    parser.add_argument("--gap", type=float, default=4.0, help="seconds between steps")
+    parser.add_argument(
+        "--gap",
+        type=float,
+        default=7.0,
+        help="seconds between steps, long enough for a real vision call to land",
+    )
     parser.add_argument("--lead", type=float, default=3.0, help="seconds of baseline first")
     parser.add_argument("--tail", type=float, default=3.0, help="seconds after the last step")
     parser.add_argument("--land-delay", type=float, default=0.3, help="frame before scale, seconds")

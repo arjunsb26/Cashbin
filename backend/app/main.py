@@ -10,7 +10,8 @@ import sys
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
-from fastapi import APIRouter, FastAPI, WebSocket
+from fastapi import APIRouter, FastAPI, Request, WebSocket
+from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
@@ -147,6 +148,23 @@ def _sockets(app: FastAPI) -> None:
         await ui_socket.serve(websocket)
 
 
+# What a refused request says back. DESIGN.md section 8: say what happened and what to do.
+# The default body repeats every rejected field verbatim, which hands a hostile string
+# straight back to whatever renders the error, and says nothing a person can act on.
+REFUSED_DETAIL = "That is not something this field accepts. Check the value and try again."
+
+
+def _refuse_quietly(request: Request, error: RequestValidationError) -> JSONResponse:
+    """Refuse a bad request without echoing what was sent.
+
+    The full reason goes to the log, where an engineer can read it. What goes back on the
+    wire is one sentence, because the request body may hold anything at all and the
+    dashboard and the phone both draw whatever comes back.
+    """
+    log.warning("refused %s %s: %s", request.method, request.url.path, error.errors())
+    return JSONResponse(status_code=422, content={"detail": REFUSED_DETAIL})
+
+
 def create_app(active: Settings | None = None) -> FastAPI:
     """Build the app. Pass settings in tests so each case gets its own database file."""
     conf = active or get_settings()
@@ -159,6 +177,7 @@ def create_app(active: Settings | None = None) -> FastAPI:
         openapi_url="/api/openapi.json" if conf.dev_tools else None,
     )
     app.state.settings = conf
+    app.add_exception_handler(RequestValidationError, _refuse_quietly)  # type: ignore[arg-type]
 
     # The dashboard runs on its own port in development and on the same origin in the demo.
     app.add_middleware(

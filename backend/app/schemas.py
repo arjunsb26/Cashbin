@@ -513,6 +513,7 @@ class EventSummary(ApiModel):
     crop_url: str | None = None
     crop_quality: CropQuality | None = None
     net_book_cents: int | None = None
+    is_estimate: bool = False
     best_option: OptionKind | None = None
     saved_if_followed_cents: int | None = None
     round_id: int | None = None
