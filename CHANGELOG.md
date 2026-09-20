@@ -40,6 +40,10 @@ Newest first. Each lane writes under its own heading.
   journal entry, the material is what the container is made of, and the line says
   "Recycle, not trash".
 
+- `scripts/acceptance.py --scenario demo` passes all fifteen checks. The bagel's donation
+  now ranks, and the harness counts four result screens because it reads the bin's copy
+  rather than a list of it typed out last week.
+
 
 ## 2026-09-20, lane q: the dashboard for two audiences
 
