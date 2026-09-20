@@ -103,15 +103,19 @@ export default function LivePage() {
         )}
       </section>
 
-      <ScaleStrip
-        samples={live.samples}
-        steps={live.steps}
-        stepMasses={live.stepMasses}
-        weight_g={live.weight_g}
-        connected={live.bin.connected}
-        reach={reach}
-        detail={live.bin.detail}
-      />
+      {/* The scale strip is shown only while a scale is talking. Without one it is a
+          flat line and a "connecting" that never ends, which is nothing to look at. */}
+      {live.bin.connected ? (
+        <ScaleStrip
+          samples={live.samples}
+          steps={live.steps}
+          stepMasses={live.stepMasses}
+          weight_g={live.weight_g}
+          connected={live.bin.connected}
+          reach={reach}
+          detail={live.bin.detail}
+        />
+      ) : null}
 
       <div className="grid grid-cols-1 gap-8 lg:grid-cols-[var(--ticket-w)_minmax(0,1fr)]">
         <section aria-label="Current ticket">

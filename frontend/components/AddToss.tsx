@@ -56,7 +56,7 @@ export function AddToss() {
       }}
     >
       <Dialog.Trigger asChild>
-        <Button>Add a toss</Button>
+        <Button tone="primary">Measure</Button>
       </Dialog.Trigger>
       <Dialog.Portal>
         <Dialog.Overlay className="fixed inset-0 bg-[var(--scrim)]" />
@@ -70,7 +70,7 @@ export function AddToss() {
             }
           }}
         >
-          <Dialog.Title className="text-title">Add a toss</Dialog.Title>
+          <Dialog.Title className="text-title">Measure</Dialog.Title>
           <div className="pt-4">
             <Field
               label="Weight"
