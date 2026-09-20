@@ -655,14 +655,24 @@ async def identify_event(
                 vision.label,
             )
 
-        # 4. Mass prior fusion, when a prior has enough weighings behind it to count.
+        # 4. Mass prior fusion, but only when the scale has something to say about the
+        # answer. PLAN.md 21a item 49: a label the catalog has never heard of has no prior,
+        # so fusing pushed it down against catalog rows that merely weigh about the same,
+        # and a battery the model named at 0.98 opened an ask. The scale judges the
+        # catalog's own labels, and nothing else.
         final_dist = vision_dist
-        if any(facts.priors.get(label, _NO_PRIOR).usable for label in vision_dist):
+        top_label = str(vision.label)
+        in_the_catalog = facts.priors.get(top_label, _NO_PRIOR).usable
+        if in_the_catalog:
             # Fusion works on a normalised distribution, so the share the model left
             # unspoken for is put back afterwards rather than quietly filled in.
             claimed = min(sum(vision_dist.values()), 1.0)
             fused = fuse(vision_dist, mass_g, mass_err_g, facts.priors)
-            final_dist = {label: p * claimed for label, p in fused.items()}
+            # And never a label the model did not itself offer: the scale reweighs the
+            # model's guesses, it does not add guesses of its own.
+            final_dist = {
+                label: p * claimed for label, p in fused.items() if label in vision_dist
+            }
             best, _ = top_two(final_dist)
             row = write_identification(
                 session,
@@ -687,15 +697,16 @@ async def identify_event(
         sure = best[1] >= settings.confident_p
         clear = margin >= settings.min_margin
         same_books = second is not None and facts.same_treatment(best[0], second[0])
-        if sure and not clear and same_books:
-            log.info(
-                "event %s: %s and %s are too close to call and come out the same on the "
-                "books, so %s is taken",
-                event_id,
-                best[0],
-                second[0] if second else None,
-                best[0],
-            )
+        log.info(
+            "event %s decided: label=%s p=%.2f margin=%.2f prior=%s treatment=%s -> %s",
+            event_id,
+            best[0],
+            best[1],
+            margin,
+            "catalog" if in_the_catalog else "none",
+            "same" if same_books else "differs",
+            "accepted" if sure and (clear or same_books) else "asking",
+        )
         if sure and (clear or same_books):
             row.is_final = True
             row.label = best[0]
@@ -706,13 +717,6 @@ async def identify_event(
                 row.posterior_json = json.dumps({**final_dist, SAME_TREATMENT_KEY: 1.0})
             session.flush()
             return await _finalise(session, event, row, active, started)
-        log.info(
-            "event %s: asking, p=%.2f margin=%.2f same treatment=%s",
-            event_id,
-            best[1],
-            margin,
-            same_books,
-        )
         return await _ask(
             session, event, final_dist, active, started, row, vision.description
         )
