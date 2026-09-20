@@ -5,6 +5,7 @@ import * as Popover from "@radix-ui/react-popover";
 import * as Tabs from "@radix-ui/react-tabs";
 import * as Tooltip from "@radix-ui/react-tooltip";
 import { sampleData as fixtures } from "@/lib/api";
+import { bookVsTax, evidenceBundle, traceView } from "@/lib/derive";
 import type { EventDetail } from "@/lib/types";
 import { AskPanel } from "@/components/AskPanel";
 import { AssetTag } from "@/components/AssetTag";
@@ -39,6 +40,10 @@ export default function KitPage() {
   const keyboard = fixtures.EVENT_DETAILS[102] as EventDetail;
   const asking = fixtures.EVENT_DETAILS[105] as EventDetail;
   const charger = fixtures.EVENT_DETAILS[103] as EventDetail;
+  const bagel = fixtures.EVENT_DETAILS[101] as EventDetail;
+  const noDetails = new Map<number, EventDetail>(
+    Object.values(fixtures.EVENT_DETAILS).map((d) => [d.event.id, d]),
+  );
 
   return (
     <div className="flex flex-col gap-10">
@@ -98,7 +103,7 @@ export default function KitPage() {
       <Block title="Fields">
         <div className="grid max-w-[520px] grid-cols-1 gap-4">
           <Field label="Tag" hint="Two letters, a hyphen, four digits." htmlFor="kit-tag">
-            <Input id="kit-tag" placeholder="BB-0013" />
+            <Input id="kit-tag" placeholder="bb-0013" />
           </Field>
           <Field
             label="Cost"
@@ -261,14 +266,14 @@ export default function KitPage() {
             </tr>
           </thead>
           <tbody>
-            {fixtures.TRIAL_BALANCE.slice(0, 4).map((row) => (
+            {(fixtures.JOURNAL.trial_balance ?? []).slice(0, 4).map((row) => (
               <tr key={row.account} className="h-row border-b border-rule hover:bg-bar">
-                <td className="pl-2">{row.account}</td>
+                <td className="pl-2">{row.account_name || row.account}</td>
                 <td className="text-right">
-                  <Money cents={row.debit_cents} />
+                  <Money cents={row.debit_cents ?? 0} />
                 </td>
                 <td className="pr-2 text-right">
-                  <Money cents={row.credit_cents} />
+                  <Money cents={row.credit_cents ?? 0} />
                 </td>
               </tr>
             ))}
@@ -300,33 +305,33 @@ export default function KitPage() {
 
       <Block title="The ticket">
         <div className="flex flex-wrap items-start gap-6">
-          <Ticket detail={keyboard} phase="weighing" />
-          <Ticket detail={keyboard} phase="identified" />
+          <Ticket event={keyboard.event} detail={keyboard} phase="weighing" />
+          <Ticket event={keyboard.event} detail={keyboard} phase="identified" />
         </div>
         <div className="flex flex-wrap items-start gap-6 pt-6">
-          <Ticket detail={charger} />
-          <Ticket detail={asking} phase="weighing">
-            {asking.ask ? <AskPanel ask={asking.ask} /> : undefined}
+          <Ticket event={charger.event} detail={charger} />
+          <Ticket event={asking.event} detail={asking} phase="weighing">
+            <AskPanel ask={fixtures.ASK} />
           </Ticket>
         </div>
         <div className="pt-6">
           <p className="pb-2 text-caption text-ink-soft">At phone width, 390 px.</p>
-          <Ticket detail={keyboard} width={358} showMenu={false} />
+          <Ticket event={keyboard.event} detail={keyboard} width={358} showMenu={false} />
         </div>
       </Block>
 
       <Block title="Tape">
         <div className="max-w-[420px]">
-          <Tape events={fixtures.EVENTS} />
+          <Tape events={fixtures.EVENTS} details={noDetails} />
         </div>
         <div className="max-w-[420px] pt-4">
-          <Tape events={[]} />
+          <Tape events={[]} details={new Map()} />
         </div>
       </Block>
 
       <Block title="Evidence">
         <div className="max-w-[420px]">
-          <EvidenceBody evidence={fixtures.EVIDENCE[102]!} />
+          <EvidenceBody evidence={evidenceBundle(keyboard)} />
         </div>
       </Block>
 
@@ -334,12 +339,12 @@ export default function KitPage() {
         <div className="flex flex-wrap items-start gap-8">
           <CropFrame src={null} label="Empty crop" size={96} />
           <div className="w-[360px]">
-            <TraceChart trace={fixtures.EVIDENCE[101]!.trace} />
+            <TraceChart trace={traceView(bagel.trace)!} />
           </div>
           <div className="w-[240px]">
             <ProbabilityBars
               title="From the photo alone"
-              candidates={fixtures.EVIDENCE[101]!.identification.candidates}
+              candidates={bagel.identifications?.[0]?.candidates ?? []}
             />
           </div>
         </div>
@@ -347,19 +352,19 @@ export default function KitPage() {
 
       <Block title="T-accounts">
         <TAccounts
-          entries={fixtures.ENTRIES.filter((e) => e.event_id === 102)}
-          difference="The books lose 20.00. The tax deduction is 0.00 because this asset was fully expensed when it was bought."
+          entries={keyboard.entries ?? []}
+          difference={bookVsTax("fixed_asset")}
         />
       </Block>
 
       <Block title="Learning chart">
-        <LearningChart rounds={fixtures.ROUNDS} />
+        <LearningChart rounds={fixtures.ROUNDS.rounds ?? []} />
       </Block>
 
       <Block title="Asset tag">
         <div className="flex flex-wrap gap-3">
           <AssetTag asset={fixtures.ASSETS[1]!} />
-          <AssetTag asset={fixtures.ASSETS[8]!} />
+          <AssetTag asset={fixtures.ASSETS[3]!} />
         </div>
       </Block>
 

@@ -1,6 +1,6 @@
 "use client";
 
-import type { Candidate } from "@/lib/types";
+import type { VisionCandidate } from "@/lib/types";
 import { formatProbability } from "@/lib/format";
 
 /** One set of candidate probabilities. Two of these sit side by side in the drawer. */
@@ -10,7 +10,7 @@ export function ProbabilityBars({
   note,
 }: {
   title: string;
-  candidates: Candidate[];
+  candidates: VisionCandidate[];
   note?: string;
 }) {
   return (

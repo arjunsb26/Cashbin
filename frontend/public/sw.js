@@ -1,6 +1,6 @@
 // Caches the app shell so the dashboard opens with no network.
 // API calls and the socket are never cached: live data must be live.
-const SHELL = "binbooks-shell-v1";
+const SHELL = "dashboard-shell-v1";
 const FILES = ["/", "/manifest.webmanifest", "/icon-192.png", "/icon-512.png"];
 
 self.addEventListener("install", (event) => {

@@ -4,8 +4,8 @@ import { useState } from "react";
 import Link from "next/link";
 import * as Dialog from "@radix-ui/react-dialog";
 import { useAddAsset, useAssets } from "@/lib/api";
-import { formatDate, readLabel } from "@/lib/format";
-import type { Asset, AssetStatus, NewAsset } from "@/lib/types";
+import { formatDate, formatTag, readLabel } from "@/lib/format";
+import type { AssetCreate, AssetRead, AssetStatus } from "@/lib/types";
 import { Money } from "@/components/Figure";
 import {
   Button,
@@ -116,10 +116,10 @@ export default function AssetsPage() {
   );
 }
 
-function AssetRow({ asset }: { asset: Asset }) {
+function AssetRow({ asset }: { asset: AssetRead }) {
   return (
     <tr className="h-row border-b border-rule hover:bg-bar">
-      <td className="font-condensed">{asset.tag}</td>
+      <td className="font-condensed">{formatTag(asset.tag)}</td>
       <td>{asset.description}</td>
       <td className="text-right">
         <Money cents={asset.cost_cents} eventId={asset.disposed_event_id} focus="cost" />
@@ -127,13 +127,13 @@ function AssetRow({ asset }: { asset: Asset }) {
       <td className="whitespace-nowrap text-ink-soft">{formatDate(asset.in_service_date)}</td>
       <td className="text-right">
         <Money
-          cents={asset.book_value_cents}
+          cents={asset.book_value_cents ?? 0}
           eventId={asset.disposed_event_id}
           focus="book value"
         />
       </td>
       <td className="text-right">
-        <Money cents={asset.tax_basis_cents} eventId={asset.disposed_event_id} focus="tax basis" />
+        <Money cents={asset.tax_basis_cents ?? 0} eventId={asset.disposed_event_id} focus="tax basis" />
       </td>
       <td>
         <span className="flex items-center gap-2 whitespace-nowrap">
@@ -145,24 +145,25 @@ function AssetRow({ asset }: { asset: Asset }) {
   );
 }
 
-const EMPTY_FORM: NewAsset = {
+const EMPTY_FORM: AssetCreate = {
   tag: "",
   description: "",
   category: "",
   cost_cents: 0,
   in_service_date: "",
   book_life_months: 36,
+  salvage_cents: 0,
   tax_method: "bonus_100",
   location: "",
 };
 
 function AddAssetDialog() {
   const [open, setOpen] = useState(false);
-  const [form, setForm] = useState<NewAsset>(EMPTY_FORM);
+  const [form, setForm] = useState<AssetCreate>(EMPTY_FORM);
   const [cost, setCost] = useState("");
   const add = useAddAsset();
   const description = readLabel(form.description);
-  const tagOk = /^[A-Za-z]{2}-\d{4}$/.test(form.tag);
+  const tagOk = /^[A-Za-z]{2}-\d{4}$/.test(form.tag.trim());
   const costCents = Math.round(Number(cost.replace(/[^0-9.]/g, "")) * 100);
   const ready = tagOk && description.ok && Number.isFinite(costCents) && costCents > 0;
 
@@ -246,7 +247,7 @@ function AddAssetDialog() {
                 id="asset-tax"
                 value={form.tax_method}
                 onChange={(e) =>
-                  setForm({ ...form, tax_method: e.target.value as NewAsset["tax_method"] })
+                  setForm({ ...form, tax_method: e.target.value as AssetCreate["tax_method"] })
                 }
               >
                 <option value="bonus_100">Bonus, 100% in year one</option>
@@ -256,7 +257,7 @@ function AddAssetDialog() {
             <Field label="Location" hint="Where it normally lives." htmlFor="asset-location">
               <Input
                 id="asset-location"
-                value={form.location}
+                value={form.location ?? ""}
                 onChange={(e) => setForm({ ...form, location: e.target.value })}
                 placeholder="Desk 1"
               />
@@ -272,7 +273,12 @@ function AddAssetDialog() {
               loading={add.isPending}
               onClick={() => {
                 add.mutate(
-                  { ...form, description: description.label, cost_cents: costCents },
+                  {
+                    ...form,
+                    tag: form.tag.trim().toLowerCase(),
+                    description: description.label,
+                    cost_cents: costCents,
+                  },
                   { onSuccess: () => setOpen(false) },
                 );
               }}

@@ -3,9 +3,10 @@
 import { useState } from "react";
 import Link from "next/link";
 import * as Tabs from "@radix-ui/react-tabs";
-import { useJournal, useTrialBalance } from "@/lib/api";
+import { useJournal } from "@/lib/api";
 import { entrySides, formatDate, formatMoney } from "@/lib/format";
-import type { Basis } from "@/lib/types";
+import type { JournalBasis, TrialBalanceRow } from "@/lib/types";
+import { accountWords } from "@/components/TAccounts";
 import { Money } from "@/components/Figure";
 import {
   EmptyState,
@@ -18,10 +19,11 @@ import {
 } from "@/components/ui";
 
 export default function BooksPage() {
-  const [basis, setBasis] = useState<Basis | "all">("all");
+  const [basis, setBasis] = useState<JournalBasis | "all">("all");
   const journal = useJournal();
-  const trial = useTrialBalance();
-  const entries = (journal.data ?? []).filter((e) => basis === "all" || e.basis === basis);
+  const all = journal.data?.entries ?? [];
+  const entries = all.filter((e) => basis === "all" || e.basis === basis);
+  const trial = journal.data?.trial_balance ?? [];
 
   return (
     <div>
@@ -32,7 +34,7 @@ export default function BooksPage() {
             View
             <Select
               value={basis}
-              onChange={(e) => setBasis(e.target.value as Basis | "all")}
+              onChange={(e) => setBasis(e.target.value as JournalBasis | "all")}
               aria-label="Which set of entries to show"
             >
               <option value="all">Book and tax</option>
@@ -76,16 +78,19 @@ export default function BooksPage() {
                 </thead>
                 <tbody>
                   {entries.flatMap((entry) => {
-                    const sides = entrySides(entry.lines);
-                    return entry.lines.map((line, i) => (
-                      <tr
-                        key={`${entry.id}-${line.account}`}
-                        className="h-row border-b border-rule hover:bg-bar"
-                      >
+                    const lines = entry.lines ?? [];
+                    const sides = entrySides(
+                      lines.map((l) => ({
+                        debit_cents: l.debit_cents ?? 0,
+                        credit_cents: l.credit_cents ?? 0,
+                      })),
+                    );
+                    return lines.map((line, i) => (
+                      <tr key={line.id} className="h-row border-b border-rule hover:bg-bar">
                         <td className="whitespace-nowrap text-ink-soft">
                           {i === 0 ? formatDate(entry.posted_at) : ""}
                         </td>
-                        <td>{line.account}</td>
+                        <td>{accountWords(line)}</td>
                         <td className="text-ink-soft">{i === 0 ? entry.memo : ""}</td>
                         <td className="whitespace-nowrap text-ink-soft">
                           {entry.basis === "book" ? "Book" : "Tax memo"}
@@ -93,7 +98,7 @@ export default function BooksPage() {
                         <td className="text-right">
                           {sides[i] === "debit" ? (
                             <Money
-                              cents={line.debit_cents}
+                              cents={line.debit_cents ?? 0}
                               eventId={entry.event_id}
                               focus="debit"
                             />
@@ -102,7 +107,7 @@ export default function BooksPage() {
                         <td className="text-right">
                           {sides[i] === "credit" ? (
                             <Money
-                              cents={line.credit_cents}
+                              cents={line.credit_cents ?? 0}
                               eventId={entry.event_id}
                               focus="credit"
                             />
@@ -128,17 +133,19 @@ export default function BooksPage() {
         </Tabs.Content>
 
         <Tabs.Content value="trial" className="pt-4">
-          {trial.isPending ? <TableSkeleton /> : null}
-          {trial.isError ? (
+          {journal.isPending ? <TableSkeleton /> : null}
+          {journal.isError ? (
             <ErrorState
               title="The trial balance did not load. The backend is not answering."
-              onRetry={() => trial.refetch()}
+              onRetry={() => journal.refetch()}
             />
           ) : null}
-          {trial.data && trial.data.length === 0 ? (
+          {journal.data && trial.length === 0 ? (
             <EmptyState title="Nothing posted yet, so the trial balance is empty." />
           ) : null}
-          {trial.data && trial.data.length > 0 ? <TrialBalance rows={trial.data} /> : null}
+          {trial.length > 0 ? (
+            <TrialBalance rows={trial} balanced={journal.data?.balanced ?? true} />
+          ) : null}
         </Tabs.Content>
       </Tabs.Root>
 
@@ -147,13 +154,9 @@ export default function BooksPage() {
   );
 }
 
-function TrialBalance({
-  rows,
-}: {
-  rows: { account: string; debit_cents: number; credit_cents: number }[];
-}) {
-  const debits = rows.reduce((sum, r) => sum + r.debit_cents, 0);
-  const credits = rows.reduce((sum, r) => sum + r.credit_cents, 0);
+function TrialBalance({ rows, balanced }: { rows: TrialBalanceRow[]; balanced: boolean }) {
+  const debits = rows.reduce((sum, r) => sum + (r.debit_cents ?? 0), 0);
+  const credits = rows.reduce((sum, r) => sum + (r.credit_cents ?? 0), 0);
   return (
     <div className="overflow-x-auto">
       <table className="ledger green-bar w-full min-w-[420px] max-w-[720px] border-collapse text-body">
@@ -167,12 +170,12 @@ function TrialBalance({
         <tbody>
           {rows.map((row) => (
             <tr key={row.account} className="h-row border-b border-rule hover:bg-bar">
-              <td>{row.account}</td>
+              <td>{row.account_name || row.account}</td>
               <td className="text-right">
-                {row.debit_cents > 0 ? formatMoney(row.debit_cents) : ""}
+                {(row.debit_cents ?? 0) > 0 ? formatMoney(row.debit_cents ?? 0) : ""}
               </td>
               <td className="text-right">
-                {row.credit_cents > 0 ? formatMoney(row.credit_cents) : ""}
+                {(row.credit_cents ?? 0) > 0 ? formatMoney(row.credit_cents ?? 0) : ""}
               </td>
             </tr>
           ))}
@@ -185,6 +188,11 @@ function TrialBalance({
           </tr>
         </tfoot>
       </table>
+      {!balanced ? (
+        <p className="border-l-2 border-red-ink pl-3 pt-3 text-body">
+          The two columns do not agree. The close names the entries that caused it.
+        </p>
+      ) : null}
     </div>
   );
 }

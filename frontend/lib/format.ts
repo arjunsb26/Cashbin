@@ -187,3 +187,82 @@ export function readLabel(raw: string): ReadLabel {
   }
   return { ok: capped.length > 0, label: capped, dropped };
 }
+
+/**
+ * Asset tags are stored lowercase, because the API validates every label down to
+ * lowercase and the QR reader normalises what it decodes. A tag is a code, so it
+ * reads uppercase wherever a person sees it. PLAN.md 21a item 16.
+ * This is the only place that does it, and the stored value is never touched.
+ */
+export function formatTag(tag: string): string {
+  return tag.trim().toUpperCase();
+}
+
+const OPTION_WORDS: Record<string, string> = {
+  trash: "Trash",
+  recycle: "Recycle",
+  repair: "Repair",
+  resell: "Resell",
+  donate: "Donate",
+};
+
+export function formatOption(option: string): string {
+  return OPTION_WORDS[option] ?? option;
+}
+
+const ESTIMATE_SOURCE_WORDS: Record<string, string> = {
+  catalog: "from the catalog",
+  register: "from the register",
+  model_estimate: "estimated by the model",
+  human: "confirmed by a person",
+};
+
+/** Every estimate says where it came from. PLAN.md rule 5. */
+export function formatEstimateSource(source: string | null | undefined): string | null {
+  if (!source) return null;
+  return ESTIMATE_SOURCE_WORDS[source] ?? null;
+}
+
+const METHOD_WORDS: Record<string, string> = {
+  qr: "Read the asset tag",
+  memory: "Matched from memory",
+  cloud: "Vision model",
+  human: "Answered by a person",
+  stub: "Local stand-in",
+};
+
+export function formatMethod(method: string): string {
+  return METHOD_WORDS[method] ?? method;
+}
+
+const STATUS_WORDS: Record<string, string> = {
+  detected: "Weighed",
+  identified: "Identified",
+  asking: "Asking",
+  confirmed: "Confirmed",
+  posted: "Posted",
+  void: "Void",
+};
+
+export function formatStatus(status: string): string {
+  return STATUS_WORDS[status] ?? status;
+}
+
+/**
+ * A line the backend wrote about a device, set as a sentence. The backend is
+ * terse ("the bin disconnected"); the screen is not the log.
+ */
+export function asSentence(text: string): string {
+  const trimmed = text.trim();
+  if (trimmed.length === 0) return "";
+  const capitalised = trimmed.charAt(0).toUpperCase() + trimmed.slice(1);
+  return /[.!?]$/.test(capitalised) ? capitalised : `${capitalised}.`;
+}
+
+/**
+ * Always grams, whatever the size. The mass check is a balance to the gram, and
+ * rounding it into kilograms would hide the difference it exists to show.
+ */
+export function formatGrams(grams: number): string {
+  return `${whole.format(grams)}${THIN_SPACE}g`;
+}

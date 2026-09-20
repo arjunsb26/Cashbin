@@ -1,6 +1,7 @@
 "use client";
 
-import { useSummary } from "@/lib/api";
+import { useEventDetails, useSummary } from "@/lib/api";
+import { askFromDetail, type AskView } from "@/lib/derive";
 import { useLive } from "@/lib/live";
 import { formatCount, formatMoney, formatPercent, massParts } from "@/lib/format";
 import { AskPanel } from "@/components/AskPanel";
@@ -16,10 +17,27 @@ import {
   cx,
 } from "@/components/ui";
 
+const TAPE_ROWS = 25;
+
 export default function LivePage() {
   const summary = useSummary();
   const live = useLive();
-  const ticket = live.ticket;
+  const tape = live.tape.slice(0, TAPE_ROWS);
+  const details = useEventDetails(tape);
+  // A question outranks the next toss. While one is open it holds the ticket, so a
+  // toss landing seven seconds later cannot carry an unanswered ask off the screen.
+  const waiting = tape.find((e) => e.status === "asking") ?? null;
+  const open = live.ask;
+  const ask: AskView | null =
+    open && tape.some((e) => e.id === open.event_id)
+      ? { ...open, type: "ask.opened", crop_url: open.crop_url ?? null }
+      : askFromDetail(waiting ? details.get(waiting.id) : null);
+  const asked = ask ? (tape.find((e) => e.id === ask.event_id) ?? null) : null;
+  const ticket = asked
+    ? { event: asked, phase: "weighing" as const, arrival: 0 }
+    : live.ticket;
+  const ticketDetail = ticket ? (details.get(ticket.event.id) ?? null) : null;
+  const totals = summary.data;
 
   return (
     <div className="flex flex-col gap-4">
@@ -34,18 +52,26 @@ export default function LivePage() {
             <Total
               label="Saved if followed"
               value={
-                summary.data ? formatMoney(summary.data.saved_if_followed_cents, { symbol: true }) : null
+                totals ? formatMoney(totals.saved_if_followed_cents ?? 0, { symbol: true }) : null
               }
             />
             <Total
               label="Kept from landfill"
-              value={summary.data ? massParts(summary.data.kg_diverted * 1000).value : null}
-              unit={summary.data ? massParts(summary.data.kg_diverted * 1000).unit : ""}
+              value={totals ? massParts((totals.kg_diverted ?? 0) * 1000).value : null}
+              unit={totals ? massParts((totals.kg_diverted ?? 0) * 1000).unit : ""}
             />
-            <Total label="Tosses" value={summary.data ? formatCount(summary.data.n_events) : null} />
+            <Total label="Tosses" value={totals ? formatCount(totals.events ?? 0) : null} />
             <Total
               label="Right first try"
-              value={summary.data ? formatPercent(summary.data.first_try_accuracy) : null}
+              value={
+                totals
+                  ? totals.first_try_accuracy === null ||
+                    totals.first_try_accuracy === undefined
+                    ? "None scored yet"
+                    : formatPercent(totals.first_try_accuracy)
+                  : null
+              }
+              quiet={totals ? totals.first_try_accuracy === null : false}
             />
           </div>
         )}
@@ -55,8 +81,9 @@ export default function LivePage() {
         samples={live.samples}
         steps={live.steps}
         weight_g={live.weight_g}
-        connected={live.device.bin === "connected"}
+        connected={live.bin.connected}
         connecting={live.status === "connecting"}
+        detail={live.bin.detail}
       />
 
       <div className="grid grid-cols-1 gap-8 lg:grid-cols-[560px_minmax(0,1fr)]">
@@ -70,8 +97,13 @@ export default function LivePage() {
               <Skeleton className="h-row w-full" />
             </div>
           ) : ticket ? (
-            <Ticket detail={ticket.detail} phase={ticket.phase} arrival={ticket.arrival}>
-              {live.ask ? <AskPanel ask={live.ask} /> : undefined}
+            <Ticket
+              event={ticket.event}
+              detail={ticketDetail}
+              phase={ticket.phase}
+              arrival={ticket.arrival}
+            >
+              {asked && ask ? <AskPanel ask={ask} /> : undefined}
             </Ticket>
           ) : (
             <EmptyState title="No ticket on the scale. Toss something in the bin, or run the simulator." />
@@ -96,7 +128,7 @@ export default function LivePage() {
                 ))}
               </div>
             ) : (
-              <Tape events={live.tape} />
+              <Tape events={tape} details={details} />
             )}
           </div>
         </section>
@@ -107,12 +139,24 @@ export default function LivePage() {
   );
 }
 
-function Total({ label, value, unit }: { label: string; value: string | null; unit?: string }) {
+function Total({
+  label,
+  value,
+  unit,
+  quiet = false,
+}: {
+  label: string;
+  value: string | null;
+  unit?: string;
+  quiet?: boolean;
+}) {
   return (
     <div>
       <p className="text-caption text-ink-soft">{label}</p>
       {value === null ? (
         <Skeleton className="mt-1 h-7 w-24" />
+      ) : quiet ? (
+        <p className="pt-2 text-body text-ink-soft">{value}</p>
       ) : (
         <p className={cx("font-condensed text-total")}>
           {value}

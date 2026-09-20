@@ -1,13 +1,13 @@
 id,tag,description,category,cost_cents,in_service_date,book_life_months,salvage_cents,tax_method,tax_basis_cents_override,status,disposed_event_id,insured,location,note
-1,BB-0001,Wireless mouse,peripheral,NEEDS_HUMAN,NEEDS_HUMAN,36,0,NEEDS_HUMAN,,active,,false,hack table,
-2,BB-0002,Mechanical keyboard,peripheral,NEEDS_HUMAN,NEEDS_HUMAN,36,0,NEEDS_HUMAN,,active,,false,hack table,
-3,BB-0003,Laptop charger 65W,power,NEEDS_HUMAN,NEEDS_HUMAN,36,0,NEEDS_HUMAN,,active,,false,hack table,
-4,BB-0004,Laptop charger 65W spare,power,NEEDS_HUMAN,NEEDS_HUMAN,36,0,NEEDS_HUMAN,,active,,false,backpack,
-5,BB-0005,Webcam 1080p,peripheral,NEEDS_HUMAN,NEEDS_HUMAN,36,0,NEEDS_HUMAN,,active,,false,hack table,
-6,BB-0006,Desk monitor 24 inch,display,NEEDS_HUMAN,NEEDS_HUMAN,60,0,NEEDS_HUMAN,,active,,false,hack table,
-7,BB-0007,Soldering iron,tool,NEEDS_HUMAN,NEEDS_HUMAN,60,0,NEEDS_HUMAN,,active,,false,hardware bench,"bought after 2025-01-19, bonus_100 candidate"
-8,BB-0008,3D printer,tool,NEEDS_HUMAN,NEEDS_HUMAN,60,0,NEEDS_HUMAN,,active,,false,hardware bench,"bought after 2025-01-19, bonus_100 candidate"
-9,BB-0009,Multimeter,tool,NEEDS_HUMAN,NEEDS_HUMAN,60,0,NEEDS_HUMAN,,active,,false,hardware bench,
-10,BB-0010,Power bank 10000 mAh,power,NEEDS_HUMAN,NEEDS_HUMAN,36,0,NEEDS_HUMAN,,active,,false,backpack,
-11,BB-0011,Portable monitor 15 inch,display,NEEDS_HUMAN,NEEDS_HUMAN,36,0,NEEDS_HUMAN,,active,,false,backpack,
-12,BB-0012,Wireless earbuds,peripheral,NEEDS_HUMAN,NEEDS_HUMAN,36,0,NEEDS_HUMAN,,active,,false,backpack,
+1,BB-0001,Wireless mouse,peripheral,7999,2024-02-10,36,0,straight_line,,active,,false,hack table,"approximate price and date, user's word 2026-09-19"
+2,BB-0002,Mechanical keyboard,peripheral,13000,2025-03-14,36,0,bonus_100,,active,,false,hack table,"approximate price and date, user's word 2026-09-19; bought after 2025-01-19"
+3,BB-0003,Laptop charger 65W,power,2599,2023-09-05,36,0,straight_line,,active,,false,hack table,"approximate price and date, user's word 2026-09-19"
+4,BB-0004,Laptop charger 65W spare,power,2599,2024-08-22,36,0,straight_line,,active,,false,backpack,"approximate price and date, user's word 2026-09-19"
+5,BB-0005,Webcam 1080p,peripheral,2899,2024-01-18,36,0,straight_line,,active,,false,hack table,"approximate price and date, user's word 2026-09-19"
+6,BB-0006,Desk monitor 24 inch,display,5699,2023-11-27,60,0,straight_line,,active,,false,hack table,"approximate price and date, user's word 2026-09-19"
+7,BB-0007,Soldering iron,tool,2999,2025-02-03,60,0,bonus_100,,active,,false,hardware bench,"approximate price and date, user's word 2026-09-19; bought after 2025-01-19"
+8,BB-0008,3D printer,tool,22999,2025-06-20,60,0,bonus_100,,active,,false,hardware bench,"approximate price and date, user's word 2026-09-19; bought after 2025-01-19"
+9,BB-0009,Multimeter,tool,3999,2024-05-09,60,0,straight_line,,active,,false,hardware bench,"approximate price and date, user's word 2026-09-19"
+10,BB-0010,Power bank 10000 mAh,power,2499,2024-10-30,36,0,straight_line,,active,,false,backpack,"approximate price and date, user's word 2026-09-19"
+11,BB-0011,Portable monitor 15 inch,display,12999,2024-11-15,36,0,straight_line,,active,,false,backpack,"approximate price and date, user's word 2026-09-19"
+12,BB-0012,Wireless earbuds,peripheral,4999,2025-08-12,36,0,bonus_100,,active,,false,backpack,"approximate price and date, user's word 2026-09-19; bought after 2025-01-19"

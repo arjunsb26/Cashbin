@@ -2,14 +2,15 @@
 
 import { useEffect, useRef, useState } from "react";
 import QRCode from "qrcode";
-import type { Asset } from "@/lib/types";
+import type { AssetRead } from "@/lib/types";
+import { formatTag } from "@/lib/format";
 import { brand } from "@/lib/brand";
 
 /**
  * A printed asset tag. The code in the QR is the tag itself, which is what the
  * camera reads back when the item is tossed.
  */
-export function AssetTag({ asset, size = 96 }: { asset: Asset; size?: number }) {
+export function AssetTag({ asset, size = 96 }: { asset: AssetRead; size?: number }) {
   const [src, setSrc] = useState<string | null>(null);
   const host = useRef<HTMLDivElement | null>(null);
 
@@ -34,7 +35,7 @@ export function AssetTag({ asset, size = 96 }: { asset: Asset; size?: number }) 
     >
       {src ? (
         // eslint-disable-next-line @next/next/no-img-element
-        <img src={src} alt={`QR code for ${asset.tag}`} width={size} height={size} />
+        <img src={src} alt={`QR code for ${formatTag(asset.tag)}`} width={size} height={size} />
       ) : (
         <span
           className="block animate-skeleton bg-bar"
@@ -43,9 +44,9 @@ export function AssetTag({ asset, size = 96 }: { asset: Asset; size?: number }) 
         />
       )}
       <div className="min-w-0">
-        <p className="font-condensed text-section">{asset.tag}</p>
+        <p className="font-condensed text-section">{formatTag(asset.tag)}</p>
         <p className="truncate text-caption">{asset.description}</p>
-        <p className="truncate text-caption text-ink-soft">{asset.location}</p>
+        <p className="truncate text-caption text-ink-soft">{asset.location ?? ""}</p>
         <p className="pt-1 text-caption text-ink-soft">{brand.short_name}</p>
       </div>
     </div>
