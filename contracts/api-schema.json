@@ -1585,6 +1585,18 @@
           ],
           "default": null
         },
+        "sense_check": {
+          "anyOf": [
+            {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
         "tokens_in": {
           "anyOf": [
             {
@@ -2047,6 +2059,18 @@
           "anyOf": [
             {
               "maxLength": 80,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "question": {
+          "anyOf": [
+            {
+              "maxLength": 60,
               "type": "string"
             },
             {
@@ -3618,6 +3642,18 @@
           "anyOf": [
             {
               "maxLength": 80,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "question": {
+          "anyOf": [
+            {
+              "maxLength": 60,
               "type": "string"
             },
             {

@@ -195,6 +195,20 @@ CHAOS: list[dict[str, Any]] = [
         ],
     },
     {
+        # A question about a detail of a thing the backend already knows, with the
+        # choices it wants picked between. The answer goes back as a detail.
+        "name": "ask-detail",
+        "after_s": 6.0,
+        "send": [
+            {
+                "type": "ask",
+                "event_id": 30,
+                "question": "How much storage does it have?",
+                "candidates": [{"label": "16 gb", "p": 0.5}, {"label": "64 gb", "p": 0.3}],
+            }
+        ],
+    },
+    {
         # The backend says nothing is happening.
         "name": "idle",
         "after_s": 16.0,
@@ -280,6 +294,7 @@ app = FastAPI()
 clients: set[WebSocket] = set()
 script_on = True
 chaos_on = False
+last_correction: dict[str, Any] | None = None
 refuse_until = 0.0
 
 
@@ -319,8 +334,13 @@ async def crop(event_id: int) -> FileResponse | JSONResponse:
 
 @app.post("/api/corrections")
 async def corrections(request: Request) -> JSONResponse:
+    global last_correction
     body = await request.body()
     log(f"correction posted: {body.decode('utf-8', 'replace')}")
+    try:
+        last_correction = json.loads(body or b"{}")
+    except ValueError:
+        last_correction = None
     await broadcast({"type": "idle"})
     return JSONResponse({"ok": True})
 
@@ -418,6 +438,12 @@ async def run_chaos_step(step: dict[str, Any]) -> None:
             await asyncio.sleep(float(message["wait_s"]))
             continue
         await broadcast(message)
+
+
+@app.get("/api/dev/corrections/last")
+async def last_correction_body() -> JSONResponse:
+    """The last answer the phone posted, so the run can read what it sent."""
+    return JSONResponse(last_correction or {})
 
 
 @app.get("/api/dev/chaos")

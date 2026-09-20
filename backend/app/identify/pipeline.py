@@ -17,7 +17,7 @@ import json
 import logging
 import time
 from collections.abc import Awaitable, Callable, Iterable, Mapping, Sequence
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from typing import Any
 
 from sqlalchemy import select
@@ -49,7 +49,14 @@ from app.models import (
 )
 from app.notify import lcd
 from app.notify.bus import CHANNEL_BIN, CHANNEL_PHONE, CHANNEL_UI, Bus, get_bus
-from app.schemas import AskCandidate, PhoneAsk, UiAskOpened, VisionResult
+from app.schemas import (
+    AskCandidate,
+    PhoneAsk,
+    PhoneIdle,
+    UiAskOpened,
+    UiAskResolved,
+    VisionResult,
+)
 
 log = logging.getLogger(__name__)
 
@@ -60,6 +67,14 @@ MAX_CONTEXT_LABELS = 60
 MAX_CONTEXT_TAGS = 40
 UNKNOWN_LABEL = "unknown object"
 LOCAL_PROVIDER = "local"
+# What the ask says when no model ever answered. A question with no answers in it and no
+# reason given is the nonsense this wording exists to stop.
+NO_CAMERA_ANSWER = "The camera answer did not arrive. What is it?"
+# Who a ticket was settled by when the second call landed after the question went out.
+CAMERA_ANSWERED = "camera"
+
+# Watchers on second calls that were still out when the question went to a person.
+_LATE_WATCHERS: set[asyncio.Task[None]] = set()
 
 OnFinal = Callable[[int, str, ItemClass, IdentifyMethod], Awaitable[None]]
 
@@ -392,6 +407,36 @@ def read_candidates(raw: object) -> list[dict[str, Any]]:
     return [item for item in raw if isinstance(item, dict) and "label" in item]
 
 
+# The key the sense gate's verdict is filed under, beside the numbers that produced it.
+# It carries an underscore, and a validated label cannot, so it can never collide with one.
+SENSE_CHECK_KEY = "sense_check"
+
+
+def read_posterior(raw: object) -> dict[str, float]:
+    """The numeric part of a `posterior_json` value.
+
+    The map is a distribution over labels and the drawer draws it as one. Anything filed
+    beside it that is not a number, which today is the sense gate's verdict, is read by its
+    own name rather than let into the distribution.
+    """
+    if not isinstance(raw, dict):
+        return {}
+    out: dict[str, float] = {}
+    for key, value in raw.items():
+        if isinstance(value, bool) or not isinstance(value, int | float):
+            continue
+        out[str(key)] = float(value)
+    return out
+
+
+def read_sense_check(raw: object) -> dict[str, object] | None:
+    """What the sense gate said about this ticket, when it was asked at all."""
+    if not isinstance(raw, dict):
+        return None
+    found = raw.get(SENSE_CHECK_KEY)
+    return dict(found) if isinstance(found, dict) else None
+
+
 def read_description(raw: object) -> str | None:
     """What the model said it was looking at, when the row has it."""
     if isinstance(raw, dict):
@@ -477,6 +522,7 @@ def open_ask(
     distribution: dict[str, float],
     deps: IdentifyDeps,
     looks_like: str = "",
+    question: str = "",
 ) -> list[AskCandidate]:
     """Set the event to asking and put the question on all three surfaces."""
     candidates = ask_candidates(distribution)
@@ -484,14 +530,25 @@ def open_ask(
     session.flush()
     url = crop_url(event, deps.media_prefix)
     seen = looks_like or None
+    asked = question or None
     deps.bus.publish(
         UiAskOpened(
-            event_id=event.id, candidates=candidates, crop_url=url, looks_like=seen
+            event_id=event.id,
+            candidates=candidates,
+            crop_url=url,
+            looks_like=seen,
+            question=asked,
         ),
         CHANNEL_UI,
     )
     deps.bus.publish(
-        PhoneAsk(event_id=event.id, candidates=candidates, crop_url=url, looks_like=seen),
+        PhoneAsk(
+            event_id=event.id,
+            candidates=candidates,
+            crop_url=url,
+            looks_like=seen,
+            question=asked,
+        ),
         CHANNEL_PHONE,
     )
     deps.bus.publish(lcd.ask(), CHANNEL_BIN)
@@ -586,7 +643,7 @@ async def identify_event(
             mass_err_g=mass_err_g,
             settings=settings,
         )
-        vision = await _vision_answer(active, pending, event_id, crop, context)
+        vision, late = await _vision_answer(active, pending, event_id, crop, context)
         method = IdentifyMethod.stub if active.providers.name == "stub" else IdentifyMethod.cloud
         usage = getattr(active.providers.vision, "last_call", None)
         if vision is None:
@@ -608,7 +665,20 @@ async def identify_event(
                 latency_ms=_elapsed(started),
                 usage=usage,
             )
-            return await _ask(session, event, fallback, active, started, row)
+            # Both goes are spent. The question says why it is being asked rather than
+            # showing a person a bare "which is it" with nothing to pick.
+            outcome = await _ask(
+                session,
+                event,
+                fallback,
+                active,
+                started,
+                row,
+                question=NO_CAMERA_ANSWER,
+            )
+            if late is not None:
+                _watch_late(late, event_id, method, active)
+            return outcome
 
         vision_dist = _distribution(vision)
         if str(vision.label) == UNKNOWN_CHOICE:
@@ -838,7 +908,7 @@ async def _vision_answer(
     event_id: int,
     crop: bytes | None,
     context: IdentifyContext,
-) -> VisionResult | None:
+) -> tuple[VisionResult | None, asyncio.Task[VisionResult] | None]:
     """The model's answer: the call that is already running, or a fresh one.
 
     The early call looks at a picture taken about 300 ms after the item landed, and the
@@ -856,7 +926,7 @@ async def _vision_answer(
                 "event %s was answered by the call that started when the step opened",
                 event_id,
             )
-            return answer
+            return answer, None
         if answer is not None:
             log.info(
                 "the early call for event %s could not name it, so the settled crop is "
@@ -865,17 +935,112 @@ async def _vision_answer(
             )
         else:
             log.info("the early call for event %s gave nothing, asking now", event_id)
-    return await _call_vision(deps, crop or b"", context)
+    return await _two_goes(deps, crop or b"", context)
+
+
+async def _two_goes(
+    deps: IdentifyDeps, crop: bytes, context: IdentifyContext
+) -> tuple[VisionResult | None, asyncio.Task[VisionResult] | None]:
+    """The settled call, and one more go when it does not come back in time.
+
+    A live HP flash drive timed out at five seconds and the person was shown a question
+    with no answers in it. The answer was coming; nothing was waiting for it. So a call
+    that does not land gets a second go, thinking a little, with a longer budget, and the
+    ask only opens when that one fails too. The second task is handed back rather than
+    cancelled, because an answer that arrives late can still close the question.
+    """
+    answer = await _call_vision(deps, crop, context, deps.settings.llm_timeout_s)
+    if answer is not None:
+        return answer, None
+    retry = replace(context, effort=deps.settings.vision_retry_effort)
+    task: asyncio.Task[VisionResult] = asyncio.create_task(
+        asyncio.to_thread(deps.providers.vision.identify, crop, retry)
+    )
+    try:
+        again = await asyncio.wait_for(
+            asyncio.shield(task), timeout=deps.settings.vision_retry_timeout_s
+        )
+    except TimeoutError:
+        log.warning(
+            "the second vision call for event %s is still out after %.0f s, so a person "
+            "is asked and the answer is still waited for",
+            context.event_id,
+            deps.settings.vision_retry_timeout_s,
+        )
+        return None, task
+    except Exception:
+        log.exception("the second vision call for event %s failed", context.event_id)
+        return None, None
+    log.info("event %s was answered by the second vision call", context.event_id)
+    return again, None
+
+
+def _watch_late(
+    task: asyncio.Task[VisionResult],
+    event_id: int,
+    method: IdentifyMethod,
+    deps: IdentifyDeps,
+) -> None:
+    """Take a camera answer that arrives after the question went out, if nobody answered.
+
+    A person who has already said what it is beats the camera every time, so this only
+    does anything while the ticket is still waiting.
+    """
+
+    async def _settle() -> None:
+        try:
+            answer = await task
+        except Exception:
+            log.info("the late vision call for event %s never landed", event_id)
+            return
+        if answer is None or str(answer.label) == UNKNOWN_CHOICE:
+            return
+        session = deps.session_factory()
+        try:
+            event = session.get(Event, event_id)
+            if event is None or event.status is not EventStatus.asking:
+                log.info("event %s was already settled, so the late answer is dropped", event_id)
+                return
+            facts = catalog_facts(session)
+            label = str(answer.label)
+            remember_vision(deps.providers.vision, event_id, answer)
+            row = write_identification(
+                session,
+                event_id=event_id,
+                method=method,
+                label=label,
+                item_class=class_for(label, facts, answer.description),
+                confidence=answer.confidence,
+                candidates=[(c.label, c.p) for c in answer.candidates],
+                posterior=_distribution(answer),
+                usage=getattr(deps.providers.vision, "last_call", None),
+                is_final=True,
+                description=answer.description,
+            )
+            log.info("event %s was settled by a late camera answer: %s", event_id, label)
+            deps.bus.publish(
+                UiAskResolved(event_id=event_id, label=label, by=CAMERA_ANSWERED), CHANNEL_UI
+            )
+            deps.bus.publish(PhoneIdle(), CHANNEL_PHONE)
+            await _finalise(session, event, row, deps, time.perf_counter())
+        finally:
+            session.commit()
+            session.close()
+
+    # Held so the loop cannot collect the task while it is still out.
+    watcher = asyncio.create_task(_settle())
+    _LATE_WATCHERS.add(watcher)
+    watcher.add_done_callback(_LATE_WATCHERS.discard)
 
 
 async def _call_vision(
-    deps: IdentifyDeps, crop: bytes, context: IdentifyContext
+    deps: IdentifyDeps, crop: bytes, context: IdentifyContext, timeout_s: float
 ) -> VisionResult | None:
     """Off the event loop, under the timeout, and never raising into ingest."""
     try:
         return await asyncio.wait_for(
             asyncio.to_thread(deps.providers.vision.identify, crop, context),
-            timeout=deps.settings.llm_timeout_s,
+            timeout=timeout_s,
         )
     except TimeoutError:
         log.warning("vision call for event %s timed out", context.event_id)
@@ -926,10 +1091,11 @@ async def _ask(
     started: float,
     row: Identification,
     looks_like: str = "",
+    question: str = "",
 ) -> Outcome:
     from app.learn import metrics, rounds
 
-    candidates = open_ask(session, event, distribution, deps, looks_like)
+    candidates = open_ask(session, event, distribution, deps, looks_like, question)
     rounds.record_event(
         session,
         deps.settings,
@@ -989,6 +1155,7 @@ def mass_fit_scores(
 
 __all__ = [
     "SAME_TREATMENT_KEY",
+    "SENSE_CHECK_KEY",
     "CatalogFacts",
     "IdentifyDeps",
     "Outcome",
@@ -1006,6 +1173,8 @@ __all__ = [
     "open_ask",
     "read_candidates",
     "read_description",
+    "read_posterior",
+    "read_sense_check",
     "remember_vision",
     "reset_identify",
     "reset_providers",

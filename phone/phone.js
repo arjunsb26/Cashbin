@@ -99,6 +99,7 @@ let sheetState = "idle";
 let resultEventId = null;
 let resultShown = null; // the message on the screen, so a second pass can fill it in
 let askEventId = null;
+let askIsDetail = false; // a question about a detail of a thing, not about what it is
 let resultTimer = 0;
 let valuingTimer = 0;
 let askWaitTimer = 0;
@@ -697,6 +698,9 @@ function onAsk(message) {
   const eventId = eventOf(message);
   askEventId = eventId;
   answering = false;
+  // A question the backend words itself is asking about a detail of the thing,
+  // such as which size it is, so the answer goes back under its own name.
+  askIsDetail = text(message.question, QUESTION_MAX).length > 0;
 
   const candidates = Array.isArray(message.candidates) ? message.candidates.slice(0, 4) : [];
   askOptions.textContent = "";
@@ -738,9 +742,12 @@ function onAsk(message) {
   askReadBack.textContent = "";
   askSend.disabled = true;
   askOther.hidden = false;
-  askNotNow.disabled = false;
   hide(askNote);
   hide(askWaiting);
+  // Answering a question disables its buttons while the answer is in flight. A
+  // new question gets them all back, or the way into the free text box stays
+  // dead for the rest of the session.
+  setAskDisabled(false);
   // A question never times out. After a while it says it is still waiting, so a
   // screen that is holding still does not read as a screen that has died.
   askWaitTimer = setTimeout(() => {
@@ -843,11 +850,18 @@ async function answer(label) {
   setAskDisabled(true);
   hide(askNote);
 
+  const body = { event_id: askEventId };
+  if (askIsDetail) {
+    body.detail = read.value;
+  } else {
+    body.label = read.value;
+  }
+
   try {
     const res = await fetch("/api/corrections", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ event_id: askEventId, label: read.value }),
+      body: JSON.stringify(body),
     });
     if (!res.ok) throw new Error("rejected");
   } catch (err) {

@@ -106,6 +106,17 @@ class Settings(BaseSettings):
     # The value estimate is off the critical path, and pricing a particular product off a
     # photograph is the one call here that is worth thinking about.
     llm_estimate_effort: str = "low"
+    # PLAN.md 21a item 50. The sense gate reads a finished ticket and either agrees or
+    # rewrites two short lines, which is judgement rather than arithmetic, so it thinks a
+    # little. The question writer picks words for a person to read and does the same.
+    llm_sense_effort: str = "low"
+    llm_question_effort: str = "low"
+    # Both of those sit between the answer and the bin drawing it, so neither may cost a
+    # person more than a couple of seconds of standing there.
+    sense_check_timeout_s: float = Field(default=2.0, gt=0.0)
+    question_timeout_s: float = Field(default=2.0, gt=0.0)
+    # How many questions one toss may ever ask a person. PLAN.md 21a item 38.
+    max_questions_per_toss: int = Field(default=2, ge=0, le=4)
     # How the host is asked to schedule the call. "fast" is the low latency queue; "default"
     # turns the request back into an ordinary one.
     llm_service_tier: str = "fast"
@@ -115,6 +126,12 @@ class Settings(BaseSettings):
     # R measured p90 at 3.1 s and 5 of 68 calls over 4 s on the hotspot, so four cut off
     # answers that were coming.
     llm_timeout_s: float = Field(default=5.0, gt=0.0)
+    # A camera answer that does not arrive in five seconds gets one more go, thinking a
+    # little, on the settled crop, with a longer budget. A live HP flash drive timed out at
+    # five seconds and the person was shown a question with no answers in it, which is the
+    # nonsense this exists to stop. The ask only opens when this one fails too.
+    vision_retry_timeout_s: float = Field(default=10.0, gt=0.0)
+    vision_retry_effort: str = "low"
     # The longest side of the picture actually sent. The full size crop stays on disk for the
     # evidence drawer; the model is classifying a thing, not reading fine print.
     vision_image_max_px: int = Field(default=384, ge=64, le=4096)
@@ -157,6 +174,9 @@ class Settings(BaseSettings):
         "llm_vision_effort",
         "llm_text_effort",
         "llm_estimate_effort",
+        "vision_retry_effort",
+        "llm_sense_effort",
+        "llm_question_effort",
         "llm_service_tier",
         "dashboard_url",
         "openai_api_key",
@@ -169,7 +189,14 @@ class Settings(BaseSettings):
     def _clean_str(cls, value: Any) -> Any:
         return _clean(value) if isinstance(value, str) else value
 
-    @field_validator("llm_vision_effort", "llm_text_effort", "llm_estimate_effort")
+    @field_validator(
+        "llm_vision_effort",
+        "llm_text_effort",
+        "llm_estimate_effort",
+        "llm_sense_effort",
+        "llm_question_effort",
+        "vision_retry_effort",
+    )
     @classmethod
     def _known_effort(cls, value: str) -> str:
         """An effort the host does not know is a 400 on every call, so refuse it here."""
