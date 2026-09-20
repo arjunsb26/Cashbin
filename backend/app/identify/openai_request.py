@@ -19,6 +19,7 @@ from typing import Any
 
 from pydantic import BaseModel
 
+from app.engine import carbon
 from app.identify.providers import IdentifyContext
 from app.schemas import ValueEstimate, VisionResult, normalise_label
 
@@ -41,8 +42,14 @@ VISION_TASK = (
 ESTIMATE_TASK = (
     "Estimate fair market value, repair cost, replacement cost and scrap value for the "
     "object described in the data block, each as whole US cents low, mid and high, with a "
-    "one line rationale. Material mix fractions must sum to 1."
+    "one line rationale. Material mix fractions must sum to 1, and every material key must "
+    "be one of the strings in the materials list in the data block."
 )
+
+# The only material names that mean anything downstream. Anything else comes back from the
+# engine as "carbon is unknown", which is what put two tickets in the first real run with no
+# climate figure at all. The list is the EPA WARM table's own keys, so it cannot drift.
+MATERIAL_VOCABULARY: tuple[str, ...] = tuple(sorted(carbon.known_materials()))
 
 
 def strict_schema(model: type[BaseModel], drop: tuple[str, ...] = ()) -> dict[str, Any]:
@@ -133,6 +140,7 @@ def build_estimate_request(label: str, vision: VisionResult, mass_g: float, mode
         "condition": vision.condition,
         "material": str(vision.material) if vision.material else None,
         "mass_g": round(mass_g, 2),
+        "materials": list(MATERIAL_VOCABULARY),
     }
     # A material mix is an open set of keys, which strict mode cannot express, so this one
     # asks for the schema without the strict flag and lets pydantic be the wall.
