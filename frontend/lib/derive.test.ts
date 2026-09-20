@@ -17,6 +17,7 @@ import {
   fineToBin,
   headlineText,
   splitHeadline,
+  eventCategory,
   isPackaging,
   ticketHeadline,
   checkNumbers,
@@ -710,6 +711,38 @@ test("packaging reads as the carbon, not as forty cents", () => {
   assert.equal(line.kg, 0.42);
   assert.equal(line.cents, null);
   assert.equal(line.trail, "kg CO2e out of the air");
+});
+
+test("the backend's own category retires the material mix guess", () => {
+  const box = record({
+    class: "inventory",
+    cost_basis_cents: 38,
+    regulatory_flags: [],
+    material_mix: { corrugated_containers: 1 },
+  });
+  const options = [
+    option({ option: "trash", rank: 2, kg_co2e_avoided: 0 }),
+    option({ option: "recycle", rank: 1, kg_co2e_avoided: 0.42 }),
+  ];
+  // The mix still says packaging, and it is no longer asked.
+  assert.equal(isPackaging(box), true);
+  const said = event({ class: "inventory", label: "cardboard box small" }) as never;
+  const line = ticketHeadline({ ...(said as object), category: "other" } as never, box, options);
+  assert.equal(line.kind, "wasted");
+  assert.equal(line.cents, 38);
+  const agreed = ticketHeadline(
+    { ...(said as object), category: "packaging" } as never,
+    box,
+    options,
+  );
+  assert.equal(agreed.kind, "carbon");
+});
+
+test("a word that is not one of the five categories is not a category", () => {
+  assert.equal(eventCategory({ category: "cardboard" } as never), null);
+  assert.equal(eventCategory({ category: 7 } as never), null);
+  assert.equal(eventCategory(null), null);
+  assert.equal(eventCategory({ category: "e-waste" } as never), "e-waste");
 });
 
 test("food is never packaging, whatever its wrapper is made of", () => {

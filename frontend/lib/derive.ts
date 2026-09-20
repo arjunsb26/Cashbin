@@ -131,6 +131,23 @@ const PACKAGING_MATERIALS = new Set([
   "steel_cans",
 ]);
 
+/**
+ * The category the backend put the ticket in, when it sends one.
+ *
+ * The five groups are the same five `GET /api/stats` buckets tickets into, and
+ * the backend decides them from the item record rather than guessing at the
+ * material mix. Anything that is not one of the five is not a category, so an
+ * unknown word reads as nothing rather than as a sixth group.
+ */
+export function eventCategory(
+  event: EventSummary | null | undefined,
+): StatsCategory | null {
+  const raw = (event as { category?: unknown } | null | undefined)?.category;
+  if (typeof raw !== "string") return null;
+  const found = STATS_CATEGORIES.find((name) => name === raw);
+  return found ?? null;
+}
+
 /** True when every material on the item record is packaging and none of it is food. */
 export function isPackaging(record: ItemRecordRead | null | undefined): boolean {
   if (!record || record.class !== "inventory") return false;
@@ -203,7 +220,13 @@ export function ticketHeadline(
     };
   }
   if (itemClass === "inventory") {
-    if (isPackaging(record)) {
+    // The backend's own category wins where it sends one. The material mix guess
+    // below is only a stand in for it: a cardboard box around something expensive
+    // reads as packaging to the mix and does not to the backend, so the moment the
+    // category is on the wire the guess stops being consulted at all.
+    const category = eventCategory(event);
+    const packaging = category !== null ? category === "packaging" : isPackaging(record);
+    if (packaging) {
       const best = bestOption(options);
       const kg = best ? co2eAvoided(best) : null;
       if (kg != null) {
