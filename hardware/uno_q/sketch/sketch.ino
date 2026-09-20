@@ -17,16 +17,30 @@
 //   in:  {"type":"screen","s":"result","l1":"Keyboard","big":"-$20","l2":"Off books","c":"amber"}
 //   in:  {"type":"tare"}
 //
-// Libraries: Adafruit GFX plus one panel driver (see bin_display.h), and HX711 by
-// Bogdan Necula, listed in the Library Manager as "HX711 Arduino Library", version
-// 0.7.5. On the UNO Q also Arduino_RouterBridge, which ships with the UNO Q core.
+// One more line in, which is not part of the firmware contract and which the backend
+// never sends. It exists so the two calibration points can be taken with a serial
+// monitor and nothing else, and it answers with the raw counts to write down:
+//
+//   in:  {"type":"calibrate"}
+//   out: {"type":"calibration","source":"analog","counts":2048.50,"zero":2040.00,"per_gram":1.0000,"g":8.50}
+//
+// The weight comes from one of two things, chosen by WEIGHT_SOURCE in bin_config.h: a
+// load cell behind an HX711, or a load gauge putting out an analog voltage straight into
+// the board's own converter. Nothing above this line changes either way.
+//
+// Libraries: Adafruit GFX plus one panel driver (see bin_display.h). With the HX711
+// source, also HX711 by Bogdan Necula, listed in the Library Manager as "HX711 Arduino
+// Library", version 0.7.5; the analog source needs no library at all. On the UNO Q also
+// Arduino_RouterBridge, which ships with the UNO Q core.
 
 #include <string.h>
 
 #include "bin_config.h"
 #include "bin_display.h"
 
+#if WEIGHT_SOURCE == WEIGHT_SOURCE_HX711
 #include <HX711.h>
+#endif
 
 #if USE_APP_LAB_RPC
 #include <Arduino_RouterBridge.h>
@@ -34,9 +48,17 @@
 
 // State --------------------------------------------------------------------
 
+#if WEIGHT_SOURCE == WEIGHT_SOURCE_HX711
 HX711 scale;
+#endif
 
 static float lastGrams = 0.0f;
+// The raw reading behind lastGrams, kept so `calibrate` can report it. On the HX711 it is
+// the amplifier's count, on the analog gauge it is the averaged ADC count.
+static float lastCounts = 0.0f;
+// What the analog gauge read with an empty bin. It starts at the calibrated number and
+// tare moves it, which is the same job HX711::tare does on the other path.
+static float analogZero = ANALOG_ZERO_COUNTS;
 static unsigned long lastWeightAt = 0;
 static unsigned long lastHostAt = 0;
 static bool offlineDrawn = false;
@@ -239,17 +261,71 @@ static void queueScreen(const char* state, const char* l1, const char* big, cons
 
 // The scale ----------------------------------------------------------------
 
+#if WEIGHT_SOURCE == WEIGHT_SOURCE_ANALOG
+
+// Average a handful of conversions. The gauge has no instrumentation amplifier in front
+// of it, so a single reading jitters by more than a gram and averaging is what makes the
+// number usable. Returned as a float because the average of eight integers is not one.
+static float readAnalogCounts() {
+  uint32_t total = 0;
+  for (uint8_t i = 0; i < ANALOG_AVERAGE_OF; i++) {
+    total += (uint32_t)analogRead(ANALOG_WEIGHT_PIN);
+  }
+  return (float)total / (float)ANALOG_AVERAGE_OF;
+}
+
+#endif
+
 void tareScale() {
+#if WEIGHT_SOURCE == WEIGHT_SOURCE_HX711
   // HX711::tare(byte times = 10) averages that many readings and stores the offset.
   scale.tare(10);
+#else
+  // The same idea without a library: whatever the gauge reads now becomes the new zero.
+  analogZero = readAnalogCounts();
+  lastCounts = analogZero;
+#endif
   lastGrams = 0.0f;
 }
 
 static void readScale() {
+#if WEIGHT_SOURCE == WEIGHT_SOURCE_HX711
   // is_ready() is false while the amplifier is still converting. Asking anyway would
   // block the loop for up to a tenth of a second at 10 samples per second.
   if (!scale.is_ready()) return;
+  lastCounts = scale.get_value(HX711_AVERAGE_OF);
   lastGrams = scale.get_units(HX711_AVERAGE_OF);
+#else
+  // Two points make a line: the counts at zero, and how far the counts move per gram.
+  lastCounts = readAnalogCounts();
+  lastGrams = (lastCounts - analogZero) / ANALOG_COUNTS_PER_GRAM;
+#endif
+}
+
+// What `calibrate` prints. Both numbers the two-point procedure needs are here, so the
+// person doing it never has to work anything out on paper: the raw counts to write down,
+// and what the sketch currently believes that means in grams.
+static void reportCalibration() {
+#if WEIGHT_SOURCE == WEIGHT_SOURCE_HX711
+  const char* source = "hx711";
+  float zero = 0.0f;
+  float perGram = HX711_CALIBRATION;
+#else
+  const char* source = "analog";
+  float zero = analogZero;
+  float perGram = ANALOG_COUNTS_PER_GRAM;
+#endif
+  BIN_SERIAL.print("{\"type\":\"calibration\",\"source\":\"");
+  BIN_SERIAL.print(source);
+  BIN_SERIAL.print("\",\"counts\":");
+  BIN_SERIAL.print(lastCounts, 2);
+  BIN_SERIAL.print(",\"zero\":");
+  BIN_SERIAL.print(zero, 2);
+  BIN_SERIAL.print(",\"per_gram\":");
+  BIN_SERIAL.print(perGram, 4);
+  BIN_SERIAL.print(",\"g\":");
+  BIN_SERIAL.print(lastGrams, 2);
+  BIN_SERIAL.println("}");
 }
 
 // The serial link ----------------------------------------------------------
@@ -284,6 +360,13 @@ static void handleLine(const char* line) {
 
   if (strcmp(type, "tare") == 0) {
     tareScale();
+    return;
+  }
+  // Not part of the firmware contract and never sent by the backend. It exists so the
+  // two calibration points can be taken with nothing but a serial monitor.
+  if (strcmp(type, "calibrate") == 0) {
+    readScale();
+    reportCalibration();
     return;
   }
   if (strcmp(type, "screen") != 0) return;
@@ -353,6 +436,15 @@ bool rpcTare() {
   return true;
 }
 
+// The two calibration points over the bridge, for when there is no serial adapter to
+// hand. Returns the raw counts, which is the number the procedure asks you to write down.
+float rpcCalibrate() {
+  lastHostAt = millis();
+  readScale();
+  reportCalibration();
+  return lastCounts;
+}
+
 bool rpcShowScreen(String state, String l1, String big, String l2, String tone) {
   lastHostAt = millis();
   queueScreen(state.c_str(), l1.c_str(), big.c_str(), l2.c_str(), tone.c_str());
@@ -375,16 +467,25 @@ void setup() {
   copyField(curState, sizeof(curState), "boot");
   applyScreen("offline", "Starting", "", "Zeroing the scale", "neutral");
 
+#if WEIGHT_SOURCE == WEIGHT_SOURCE_HX711
   // HX711::begin(byte dout, byte pd_sck, byte gain = 128). Gain 128 is channel A, the
   // one a load cell bridge is wired to.
   scale.begin(HX711_DT_PIN, HX711_SCK_PIN);
   scale.set_scale(HX711_CALIBRATION);
   scale.tare(10);
+#else
+  // Ask the converter for its full width before the first reading, so the calibration
+  // numbers and the live readings are on the same scale.
+  analogReadResolution(ANALOG_READ_BITS);
+  pinMode(ANALOG_WEIGHT_PIN, INPUT);
+  tareScale();
+#endif
 
 #if USE_APP_LAB_RPC
   Bridge.begin();
   Bridge.provide_safe("read_grams", rpcReadGrams);
   Bridge.provide_safe("tare", rpcTare);
+  Bridge.provide_safe("calibrate", rpcCalibrate);
   Bridge.provide_safe("show_screen", rpcShowScreen);
 #endif
 

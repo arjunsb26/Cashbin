@@ -65,6 +65,38 @@ Newest first. Each lane writes under its own heading.
   "In the bin", "$41.80", "2,412 g, 7 items", and an empty bin says it is empty instead of
   drawing a row of zeroes.
 
+## 2026-09-20, lane s part 2: the analog gauge, the webcam on the board, one command up
+
+- The bin's weight sensor is a load gauge that puts out an analog voltage, not an HX711,
+  so the sketch now reads either one. `WEIGHT_SOURCE` in `bin_config.h` picks between
+  `WEIGHT_SOURCE_ANALOG` and `WEIGHT_SOURCE_HX711`, and analog is the default because that
+  is what the bin has. The HX711 path is kept whole, because it costs nothing and it is the
+  commoner part if one has to be bought in a hurry.
+- The analog read asks the converter for 12 bits, the widest the STM32U585 has, averages
+  eight samples because there is no instrumentation amplifier smoothing the signal, and
+  turns counts into grams with a two point line: `ANALOG_ZERO_COUNTS` and
+  `ANALOG_COUNTS_PER_GRAM`. Both live in `bin_config.h` and both are marked as needing a
+  measurement.
+- A `calibrate` command takes those two points. Send `{"type":"calibrate"}` on the serial
+  link, or call `calibrate` over the board's bridge, and it answers with the raw counts to
+  write down. It is not part of the firmware contract and the backend never sends it.
+- The README's section 5 now has both procedures side by side, the two point one first.
+  It also says the three things that waste time: counts going down is fine and just makes
+  the number negative, counts capped at 1023 means the converter fell back to 10 bits, and
+  counts that barely move mean the gauge is not carrying the load.
+- The webcam runs on the board now, not the laptop, because the Brio is plugged into the
+  board and there is to be no cable. `webcam_client.py` picks its capture backend by
+  operating system, Video4Linux on the board and DirectShow here, instead of trying
+  Windows-only backends everywhere. Behaviour on the laptop is unchanged.
+- `board_up.sh` starts the bridge and the webcam together, each under a loop that restarts
+  it if it dies, logging to `~/binbooks/logs/`. It takes the laptop's address as an
+  argument or from `board.env`. `board_down.sh` stops them and leaves nothing holding the
+  camera. Both are documented with a systemd user unit and a cron line for coming up on
+  power.
+- Shell scripts and the two python files the board runs are pinned to Unix line endings.
+  Git on Windows was about to check them out with carriage returns, which bash on Debian
+  reads as part of the command, and the error it prints does not mention them.
+
 ## 2026-09-20, lane o: the phone page can never get stuck
 
 - The sheets on the phone are one state machine now: `idle`, `result`, `ask`, `adding`, one

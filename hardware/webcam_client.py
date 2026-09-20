@@ -19,6 +19,11 @@ Packages: this repo installs `opencv-python-headless`, which captures on Windows
 no window support, so `--preview` draws with tkinter from the standard library instead.
 Nothing new is needed. If you would rather have the OpenCV window, install the full
 `opencv-python` in place of the headless build; do not add it to `pyproject.toml`.
+
+It runs on the bin's own Debian as well as on the laptop. The capture backend is chosen
+by operating system, Video4Linux there and DirectShow here, and `--preview` turns itself
+off when there is no window toolkit and no display, which is the normal case on the board.
+See `hardware/uno_q/board_linux_setup.md` section 10.
 """
 
 from __future__ import annotations
@@ -29,6 +34,7 @@ import base64
 import contextlib
 import json
 import ssl
+import sys
 import threading
 import time
 from dataclasses import dataclass, field
@@ -46,15 +52,40 @@ REOPEN_WAIT_S = 2.0
 
 
 def api_preferences(name: str) -> list[tuple[str, int]]:
-    """The capture backends to try, in order. DirectShow opens fastest on Windows."""
+    """The capture backends to try, in order.
+
+    DirectShow opens fastest on Windows and does not exist anywhere else. Video4Linux is
+    the one that works on the bin's own Debian. Asking for a backend the build does not
+    have is not an error worth crashing over, so a missing constant is simply skipped and
+    `any` is always left at the end as the backend that exists everywhere.
+    """
     table = {
-        "dshow": [("dshow", cv2.CAP_DSHOW)],
-        "msmf": [("msmf", cv2.CAP_MSMF)],
-        "any": [("any", cv2.CAP_ANY)],
+        "dshow": ["CAP_DSHOW"],
+        "msmf": ["CAP_MSMF"],
+        "v4l2": ["CAP_V4L2", "CAP_V4L"],
+        "avfoundation": ["CAP_AVFOUNDATION"],
+        "any": ["CAP_ANY"],
     }
     if name in table:
-        return table[name]
-    return [("dshow", cv2.CAP_DSHOW), ("msmf", cv2.CAP_MSMF), ("any", cv2.CAP_ANY)]
+        wanted = list(table[name])
+    elif sys.platform == "win32":
+        wanted = ["CAP_DSHOW", "CAP_MSMF", "CAP_ANY"]
+    elif sys.platform == "darwin":
+        wanted = ["CAP_AVFOUNDATION", "CAP_ANY"]
+    else:
+        wanted = ["CAP_V4L2", "CAP_V4L", "CAP_ANY"]
+
+    order: list[tuple[str, int]] = []
+    for attr in wanted:
+        flag = getattr(cv2, attr, None)
+        if flag is None:
+            continue
+        label = attr.removeprefix("CAP_").lower()
+        if all(existing != flag for _, existing in order):
+            order.append((label, int(flag)))
+    if not order:
+        order = [("any", int(cv2.CAP_ANY))]
+    return order
 
 
 def list_cameras(limit: int = 6, api: str = "auto") -> list[tuple[int, str, int, int]]:
@@ -367,7 +398,12 @@ def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="A webcam on /ws/phone")
     parser.add_argument("--url", default=DEFAULT_URL)
     parser.add_argument("--camera", type=int, default=0, help="capture device index")
-    parser.add_argument("--api", default="auto", choices=["auto", "dshow", "msmf", "any"])
+    parser.add_argument(
+        "--api",
+        default="auto",
+        choices=["auto", "dshow", "msmf", "v4l2", "avfoundation", "any"],
+        help="capture backend, auto picks by operating system",
+    )
     parser.add_argument("--list", action="store_true", help="print the camera indices that open")
     parser.add_argument("--fps", type=float, default=8.0)
     parser.add_argument("--width", type=int, default=640)
