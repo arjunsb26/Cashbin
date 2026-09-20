@@ -17,6 +17,7 @@ __pycache__/
 # data produced at runtime
 backend/media/
 backend/recordings/
+runs/
 *.db
 *.db-wal
 *.db-shm
