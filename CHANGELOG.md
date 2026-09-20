@@ -2,6 +2,43 @@
 
 Newest first. Each lane writes under its own heading.
 
+## 2026-09-19, lane l: a webcam camera and a one-command launcher
+
+- `hardware/webcam_client.py` makes any webcam the eye over the bin. It speaks the same
+  `/ws/phone` protocol the phone page does: a `hello` with `ua = "webcam-client"`, about
+  eight JPEG frames a second at 640 px and quality 70, `pong` for every `ping`, and one
+  readable line for every result and ask that comes back. `--list` prints the camera
+  indices that open with their resolution. `--preview` opens a small window showing what
+  is being sent, captioned with the last result, so the camera can be aimed; it is off by
+  default and is drawn with tkinter, because the headless OpenCV build this repo installs
+  has no window support. Capture runs in its own thread, so the camera keeps running while
+  the socket is away, the socket reconnects with backoff, and an unplugged camera is
+  reopened every two seconds. No new dependency.
+- `scripts/demo_up.py` and `scripts/demo_up.ps1` bring the whole demo up with one command
+  and keep it up. It starts the backend and waits for `/api/health`, retrying the start up
+  to three times when Windows refuses a loopback socket with error 10013. It rebuilds the
+  dashboard only when `.next` is older than the newest file under `frontend/app`,
+  `components` or `lib`, starts it on 3000 with `NEXT_PUBLIC_API_URL` set for the laptop,
+  and waits for it too. It then starts the webcam client and the bin simulator, and prints
+  one block with the three URLs, the laptop's address, which camera is in use and the
+  commands you can type. Typing `toss 150` in the launcher's terminal moves the scale.
+- The launcher watches. It polls health every five seconds, looks again every second once
+  a poll misses, and after three misses in a row restarts the backend and says so in one
+  line. The camera reconnects itself; the bin simulator holds one socket and does not, so
+  the launcher gives it a new process. It also says when the mobile hotspot goes off,
+  which is the real reason the phone drops.
+- Every child's full output is teed to `runs/<timestamp>/`, gitignored, so a crash leaves
+  evidence. The console shows only what a person needs: the camera's results, the bin's
+  LCD boxes, and anything from the backend or the dashboard that reads like trouble.
+- Two things found while proving it, both fixed in the launcher. `localhost` costs two
+  seconds a connection on this laptop, every time: the backend binds IPv4 only, the name
+  resolves to `::1` first, and that attempt sits there until it times out. Every check and
+  every local socket the launcher opens now dials `127.0.0.1`, which costs forty
+  milliseconds. The URLs printed for people keep the word, because a browser tries both at
+  once. And `pnpm start` is a shell that starts Next in a second process, so terminating
+  the shell left Next holding port 3000 and the next launch could not bind it; stopping a
+  child now kills its whole tree.
+
 ## 2026-09-19, lane k: realistic testing with real photographs
 
 - `sim/assets/real/` holds 42 freely licensed photographs of the seventeen things the

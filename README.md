@@ -7,6 +7,19 @@ startup and serves it at `GET /brand.json`, and the dashboard and phone page fet
 there. Nothing else in the repo writes the name down. Change `brand.json` and every surface
 follows.
 
+## Run the demo
+
+```
+scripts\demo_up.ps1
+uv run --project backend python scripts/demo_up.py
+```
+
+One command starts the backend, the dashboard and the webcam, and keeps them up. Use the
+second line if PowerShell refuses to run scripts. The launcher prints this laptop's address
+and the three URLs: the dashboard on `http://localhost:3000`, the phone on
+`https://<laptop>:8443/phone`, the bin on `ws://<laptop>:8000/ws/bin`. In that same
+terminal, type `toss 150` to put a 150 g item on the scale and `quit` to stop everything.
+
 ## Install
 
 You need `uv` for Python and `pnpm` for anything under `frontend` or `phone`.
