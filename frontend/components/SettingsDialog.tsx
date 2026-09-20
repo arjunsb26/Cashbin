@@ -24,7 +24,7 @@ export function SettingsDialog() {
     <Dialog.Root open={open} onOpenChange={setOpen}>
       <Dialog.Trigger
         className={cx(
-          "flex flex-col items-center gap-1 border-l-2 border-l-transparent py-2 text-caption text-ink-soft",
+          "flex w-full flex-col items-center gap-1 border-l-2 border-l-transparent py-2 text-caption text-ink-soft",
           "transition-colors duration-fast ease-standard hover:bg-bar",
         )}
       >
