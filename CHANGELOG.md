@@ -2,6 +2,40 @@
 
 Newest first. Each lane writes under its own heading.
 
+## 2026-09-20, lane q: the dashboard for two audiences
+
+- Five tabs, each with one job. Live and Trends answer what a person wasted. Review, Books
+  and Close answer what it did to the accounts. The rail carries those five and nothing
+  else: the thresholds moved into a Settings dialog at its foot, and `/kit` and `/setup`
+  stay reachable by address only.
+- A toss now says what it meant, in the words its class earns. A register asset reads
+  "Written off, $65.00 book loss", food and anything else bought to be used up reads
+  "Wasted $3.00", something that was never on the books reads "Worth about $12.00", and
+  packaging reads the carbon it keeps out of the air, because a cardboard box's forty
+  cents is noise. When the backend sends its own `headline` that sentence wins, split
+  around its money so the figure stays the big condensed one.
+- When the bin was already the right answer, the option table folds to the one row that
+  settled it under the heading "Fine to bin", with the rest a click away. The landfill
+  column drops below 640 px, which is what stopped the table clipping on a phone.
+- The Live page lost the repeat of the tape. The three tickets before the current one were
+  the tape's top three rows printed a second time and a size larger.
+- Trends: totals and averages by day or by week, the five categories as bars drawn by hand,
+  the computed suggestions under "What the numbers say", the model's paragraph under those,
+  and the accuracy and cost lines that used to be the Learning page. The chart no longer
+  runs off the side of a phone.
+- Review: the open questions with their candidates answered inline, the amounts a person
+  should stand behind approved or rejected with a note, and the equipment that was never on
+  the register. Every action moves the row before the backend answers and puts it back with
+  the backend's own sentence if it refuses. The rail item carries the open count.
+- Books grew a Register sub-tab, so the journal, the register and the trial balance are
+  three addresses under one heading. `/assets` and `/learning` redirect to their new homes.
+- Close grew four blocks: the memo in prose under the title, a fixed asset rollforward that
+  visibly foots, a book to tax reconciliation in the M-1 shape, and a Form 4797 schedule.
+- An ask with no candidates is still an ask. It shows what the model thinks it saw, a box to
+  type in and a way out, rather than a ticket that waits forever with nothing to click. A
+  detail question ("How much does it hold?") renders as the same buttons with the question
+  as the heading.
+
 ## 2026-09-20, lane o: the phone page can never get stuck
 
 - The sheets on the phone are one state machine now: `idle`, `result`, `ask`, `adding`, one
