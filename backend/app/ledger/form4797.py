@@ -65,9 +65,14 @@ def _row(
 ) -> Form4797Row:
     cost = asset.cost_cents if asset is not None else 0
     basis = record.tax_basis_cents
-    # What the tax return has already deducted on this asset, which is its cost less
-    # whatever basis is left. Bonus assets show the whole cost here, which is the point.
-    depreciation_allowed = max(cost - basis, 0)
+    # The accumulated depreciation the disposal entry took off the register, which is the
+    # asset's cost less what the books still carried on the day it left. Reading it off the
+    # same figure the journal posted is the point: this column used to be cost less tax
+    # basis, so a bonus asset counted its first year write off here as well as in the tax
+    # basis, and the schedule said 130.00 where the journal and the disposal table said
+    # 65.00 about one keyboard. The gain or loss below stays on the tax basis, so the
+    # Part II subtotal is still the figure the close reports.
+    depreciation_allowed = max(cost - record.book_value_cents, 0)
     gain_or_loss = proceeds - basis
     abandoned = proceeds == 0
 
