@@ -713,6 +713,9 @@
             "fail"
           ],
           "type": "string"
+        },
+        "title": {
+          "type": "string"
         }
       },
       "required": [
@@ -1171,6 +1174,12 @@
           ],
           "default": null
         },
+        "flags": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
         "id": {
           "type": "integer"
         },
@@ -1215,6 +1224,17 @@
           "default": null
         },
         "net_book_cents": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "posted_cents": {
           "anyOf": [
             {
               "type": "integer"
@@ -1762,6 +1782,17 @@
           ],
           "default": null
         },
+        "kg_co2e_avoided": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
         "kg_landfill": {
           "default": 0.0,
           "type": "number"
@@ -1911,6 +1942,10 @@
           "maxLength": 80,
           "type": "string"
         },
+        "title": {
+          "maxLength": 60,
+          "type": "string"
+        },
         "tone": {
           "enum": [
             "green",
@@ -2055,6 +2090,52 @@
       ],
       "type": "object"
     },
+    "RuleRead": {
+      "description": "One tax rule as the evidence drawer shows it.\n\nThe words and the link come from `tax_rules.yaml`, which is the only copy of either.\nDESIGN.md 4.2 asks the drawer for the rule in plain language with its citation as a link,\nso retyping the text into a client would be a second copy that drifts.",
+      "properties": {
+        "citation_url": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "id": {
+          "type": "string"
+        },
+        "needs_human_review": {
+          "default": false,
+          "type": "boolean"
+        },
+        "plain_text": {
+          "type": "string"
+        },
+        "title": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "title",
+        "plain_text"
+      ],
+      "type": "object"
+    },
+    "RulesResponse": {
+      "properties": {
+        "rules": {
+          "items": {
+            "$ref": "#/$defs/RuleRead"
+          },
+          "type": "array"
+        }
+      },
+      "type": "object"
+    },
     "ScreenAsk": {
       "properties": {
         "l1": {
@@ -2184,8 +2265,42 @@
         "disposal_fee_cents": {
           "type": "integer"
         },
+        "llm_service_tier": {
+          "default": "fast",
+          "enum": [
+            "auto",
+            "default",
+            "flex",
+            "scale",
+            "priority",
+            "fast"
+          ],
+          "type": "string"
+        },
+        "llm_text_effort": {
+          "default": "none",
+          "enum": [
+            "none",
+            "minimal",
+            "low",
+            "medium",
+            "high"
+          ],
+          "type": "string"
+        },
         "llm_timeout_s": {
           "type": "number"
+        },
+        "llm_vision_effort": {
+          "default": "none",
+          "enum": [
+            "none",
+            "minimal",
+            "low",
+            "medium",
+            "high"
+          ],
+          "type": "string"
         },
         "memory_max_dist": {
           "type": "number"
@@ -2280,11 +2395,66 @@
           ],
           "default": null
         },
+        "llm_service_tier": {
+          "anyOf": [
+            {
+              "enum": [
+                "auto",
+                "default",
+                "flex",
+                "scale",
+                "priority",
+                "fast"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "llm_text_effort": {
+          "anyOf": [
+            {
+              "enum": [
+                "none",
+                "minimal",
+                "low",
+                "medium",
+                "high"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
         "llm_timeout_s": {
           "anyOf": [
             {
               "exclusiveMinimum": 0.0,
               "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "llm_vision_effort": {
+          "anyOf": [
+            {
+              "enum": [
+                "none",
+                "minimal",
+                "low",
+                "medium",
+                "high"
+              ],
+              "type": "string"
             },
             {
               "type": "null"
@@ -3110,6 +3280,12 @@
     },
     "RoundRead": {
       "$ref": "#/$defs/RoundRead"
+    },
+    "RuleRead": {
+      "$ref": "#/$defs/RuleRead"
+    },
+    "RulesResponse": {
+      "$ref": "#/$defs/RulesResponse"
     },
     "ScreenAsk": {
       "$ref": "#/$defs/ScreenAsk"

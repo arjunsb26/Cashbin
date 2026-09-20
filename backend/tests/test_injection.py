@@ -138,11 +138,14 @@ async def test_the_class_the_sign_demands_is_not_the_class_that_is_stored(
         event_id = make_event(session).id
     await identify_event(event_id, CROP, [], 95.0, 2.0, make_deps(settings))
     with session_scope() as session:
-        row = session.execute(select(Identification)).scalars().one()
+        rows = list(session.execute(select(Identification).order_by(Identification.id)).scalars())
     # The stub never read a sign, and nothing in the photo can promote an item to a
-    # fixed asset. Only the register does that, through a QR tag.
-    assert row.item_class is not None
-    assert row.item_class.value == "untracked"
+    # fixed asset. Only the register does that, through a QR tag. Every stage agrees,
+    # including the mass prior fusion row that lands on top.
+    assert rows
+    for row in rows:
+        assert row.item_class is not None
+        assert row.item_class.value == "untracked"
 
 
 # The request body ------------------------------------------------------------

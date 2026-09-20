@@ -14,7 +14,7 @@ REPO_DIR = Path(__file__).resolve().parent.parent.parent
 if str(REPO_DIR) not in sys.path:
     sys.path.insert(0, str(REPO_DIR))
 
-from scripts.check_types import check  # noqa: E402
+from scripts.check_types import check, field_names, missing_fields  # noqa: E402
 from scripts.gen_types import EXPORTED, SCHEMA_FILE, TYPES_FILE  # noqa: E402
 
 
@@ -41,3 +41,21 @@ def test_the_typescript_names_the_wire_messages() -> None:
     text = TYPES_FILE.read_text(encoding="utf-8")
     for name in ("UiWeight", "PhoneResult", "ScreenResult", "EventDetail", "BrandInfo"):
         assert f"export interface {name} " in text, name
+
+
+def test_a_field_named_title_survives_the_generator() -> None:
+    """`title` is a JSON Schema keyword, so a field of that name is easy to lose.
+
+    The drift check compared names, not fields, so `CloseCheck.title` vanished from the
+    TypeScript while every check stayed green. One field, named after the keyword, is the
+    canary for the whole class of bug.
+    """
+    defs = json.loads(SCHEMA_FILE.read_text(encoding="utf-8"))["$defs"]
+    assert "title" in defs["CloseCheck"]["properties"]
+    assert "title" in field_names(TYPES_FILE.read_text(encoding="utf-8"))["CloseCheck"]
+
+
+def test_every_field_reaches_the_typescript() -> None:
+    """Every property of every exported model is a key on its TypeScript interface."""
+    problems = missing_fields()
+    assert not problems, "\n".join(problems)

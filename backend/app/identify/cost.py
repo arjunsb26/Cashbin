@@ -16,9 +16,22 @@ from pathlib import Path
 from app.engine.records import LlmPrice, load_llm_prices
 from app.identify.providers import CallUsage
 
-__all__ = ["CallUsage", "Price", "cost_microusd", "price_for"]
+__all__ = [
+    "FAST_TIER_MULTIPLIER",
+    "PREMIUM_TIERS",
+    "CallUsage",
+    "Price",
+    "cost_microusd",
+    "price_for",
+]
 
 log = logging.getLogger(__name__)
+
+# The low latency queues are billed above the standard rate. The price table has one row per
+# model and no tier column, so the multiplier lives here and is applied on top.
+# https://developers.openai.com/api/docs/pricing
+FAST_TIER_MULTIPLIER = 2.0
+PREMIUM_TIERS: frozenset[str] = frozenset({"fast", "priority"})
 
 
 @dataclass(frozen=True)
@@ -62,13 +75,24 @@ def price_for(model: str, provider: str | None = None, path: Path | None = None)
     return None
 
 
-def cost_microusd(tokens_in: int | None, tokens_out: int | None, price: Price | None) -> int | None:
+def cost_microusd(
+    tokens_in: int | None,
+    tokens_out: int | None,
+    price: Price | None,
+    service_tier: str = "",
+) -> int | None:
     """Millionths of a dollar for one call, or None when the price is unknown.
 
     Dollars per million tokens times tokens is already microdollars, so there is no
     rounding step in the middle to lose.
+
+    A call on the fast or priority queue is billed above the standard rate, so the cost
+    chart has to know which queue served it. Without this every fast call read at about
+    half what it really cost.
     """
     if price is None or tokens_in is None or tokens_out is None:
         return None
     total = tokens_in * price.input_usd_per_million + tokens_out * price.output_usd_per_million
+    if service_tier.strip().lower() in PREMIUM_TIERS:
+        total *= FAST_TIER_MULTIPLIER
     return round(total)

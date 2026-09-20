@@ -10,6 +10,7 @@ Everything here runs on the stub provider, so there is no key, no network and no
 
 from __future__ import annotations
 
+import json
 import sys
 from pathlib import Path
 from typing import Any
@@ -130,7 +131,10 @@ def test_an_unknown_thing_asks_everywhere_then_is_answered_and_remembered(
             credited = sum(line["credit_cents"] for line in entry["lines"])
             assert debits == credited
 
-        # The same shape again. Memory answers before anything is called or spent.
+        # The same shape again. PLAN.md 21a item 23: memory no longer answers, so the model
+        # is asked, and the remembered example backs its answer instead of replacing it.
+        # What used to be a free answer is now a posted ticket with no second ask.
+        client.post("/api/sim/expect", json={"label": ANSWER})
         second = client.post(
             "/api/sim/toss",
             json={"label": MYSTERY_LABEL, "mass_g": MYSTERY_MASS_G, "image": MYSTERY_IMAGE},
@@ -149,22 +153,24 @@ def test_an_unknown_thing_asks_everywhere_then_is_answered_and_remembered(
         assert rows, "the repeat toss left no identification row"
         final = [row for row in rows if row.is_final]
         assert len(final) == 1
-        assert final[0].method is IdentifyMethod.memory
         assert final[0].label == ANSWER
-        # PLAN.md section 9 item 2: memory costs nothing, and the row says so.
-        assert final[0].cost_microusd == 0
-        assert final[0].provider == "local"
-        assert all(row.cost_microusd in (0, None) for row in rows)
+        # Memory left its own row behind, not final, carrying the neighbours and how far
+        # away they were, which is what the evidence drawer draws.
+        remembered = [row for row in rows if row.method is IdentifyMethod.memory]
+        assert len(remembered) == 1
+        assert remembered[0].is_final is False
+        assert remembered[0].provider == "local"
+        assert remembered[0].cost_microusd == 0
+        assert ANSWER in json.loads(remembered[0].posterior_json or "{}")
         repeat_row = session.get(Event, repeat_id)
         assert repeat_row is not None
         assert repeat_row.status is EventStatus.posted
 
-    # And the dashboard can see it was free.
+    # And the dashboard can see both stages: what memory thought, and who answered.
     repeat = client.get(f"/api/events/{repeat_id}").json()
     methods = [row["method"] for row in repeat["identifications"]]
     assert IdentifyMethod.memory in methods
-    assert IdentifyMethod.stub not in methods
-    assert IdentifyMethod.cloud not in methods
+    assert IdentifyMethod.stub in methods
 
 
 def test_an_injected_toss_with_an_image_leaves_a_real_crop(stocked_app: Any) -> None:

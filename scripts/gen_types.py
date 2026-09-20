@@ -94,6 +94,8 @@ EXPORTED: tuple[str, ...] = (
     "CatalogListResponse",
     "TrialBalanceRow",
     "JournalResponse",
+    "RuleRead",
+    "RulesResponse",
     "RoundRead",
     "RoundListResponse",
     "SummaryResponse",
@@ -129,14 +131,34 @@ def exported_models() -> list[type[BaseModel]]:
     return models
 
 
+# Keys whose values are a map of name to schema, so their own keys are field names rather
+# than JSON Schema keywords. A field called `title` lives in one of these.
+_SCHEMA_MAPS = frozenset(
+    ("properties", "patternProperties", "$defs", "definitions", "dependentSchemas")
+)
+
+
 def _strip_property_titles(node: object) -> object:
     """Drop the title pydantic puts on every property.
 
     Without this the TypeScript generator emits a named alias for each property, so a file of
     sixty interfaces arrives with three hundred one-line types nobody asked for.
+
+    The walk has to know where it is. Under `properties` the keys are field names, so a field
+    called `title` is data and not the keyword. Dropping it there cost `CloseCheck.title` its
+    place in the contract while every drift check stayed green.
     """
     if isinstance(node, dict):
-        cleaned = {k: _strip_property_titles(v) for k, v in node.items() if k != "title"}
+        cleaned: dict[str, object] = {}
+        for key, value in node.items():
+            if key == "title":
+                continue
+            if key in _SCHEMA_MAPS and isinstance(value, dict):
+                cleaned[key] = {
+                    name: _strip_property_titles(body) for name, body in value.items()
+                }
+            else:
+                cleaned[key] = _strip_property_titles(value)
         return cleaned
     if isinstance(node, list):
         return [_strip_property_titles(v) for v in node]

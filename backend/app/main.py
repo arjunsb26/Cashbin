@@ -13,10 +13,22 @@ from contextlib import asynccontextmanager
 from fastapi import APIRouter, FastAPI, Request, WebSocket
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
+from starlette.exceptions import HTTPException as StarletteHTTPException
 
-from app.api import assets, close, corrections, events, journal, metrics, settings, setup, sim
+from app.api import (
+    assets,
+    close,
+    corrections,
+    events,
+    journal,
+    metrics,
+    rules,
+    settings,
+    setup,
+    sim,
+)
 from app.config import APP_VERSION, REPO_DIR, Settings, get_settings
 from app.db import dispose_db, init_db, session_scope, table_names
 from app.ingest import bin_socket, phone_socket, ui_socket
@@ -29,6 +41,11 @@ log = logging.getLogger(__name__)
 
 PHONE_DIR = REPO_DIR / "phone"
 BRAND_FILE = REPO_DIR / "brand.json"
+
+# Every way of naming this laptop or something on its hotspot, and nothing else. `localhost`
+# and `127.0.0.1` are the same machine by two names, and `[::1]` is the same machine again:
+# which one a browser picks is the browser's business, so all three are here.
+CORS_ORIGIN_PATTERN = r"https?://(localhost|127\.0\.0\.1|\[::1\]|[0-9.]+)(:\d+)?"
 
 
 def setup_logging() -> None:
@@ -132,6 +149,53 @@ def _brand_route(app: FastAPI, active: Settings) -> None:
         )
 
 
+# The two addresses a person can be at. The backend itself is neither of them.
+PHONE_PATH = "/phone/"
+LAPTOP_HOSTS = frozenset({"localhost", "127.0.0.1", "::1", "[::1]"})
+
+
+def _is_laptop(request: Request) -> bool:
+    """Is this the machine running the demo, or something on the hotspot?
+
+    Anything that is not the loopback name reached the backend over the network, which on
+    this build means a phone, because the phone is the only thing on the hotspot.
+    """
+    host = (request.headers.get("host") or "").rsplit(":", 1)[0].strip().lower()
+    return host in LAPTOP_HOSTS
+
+
+def _front_door(app: FastAPI, active: Settings) -> None:
+    """The backend's own address is not a page. Send whoever asked to the one they wanted."""
+
+    @app.get("/", include_in_schema=False)
+    def root(request: Request) -> RedirectResponse:
+        target = active.dashboard_url if _is_laptop(request) else PHONE_PATH
+        return RedirectResponse(url=target, status_code=307)
+
+    @app.exception_handler(StarletteHTTPException)
+    def http_error(request: Request, error: Exception) -> JSONResponse:
+        """Say where the two pages are rather than the framework's bare "Not Found".
+
+        Only for an address that matched no route. A route that answers 404 has already
+        said something better than this, such as which event does not exist, and replacing
+        that with a signpost would lose it.
+        """
+        assert isinstance(error, StarletteHTTPException)
+        detail = error.detail
+        code = "error"
+        if error.status_code == 404 and request.scope.get("route") is None:
+            detail = (
+                "Nothing lives at this address. The dashboard is at "
+                f"{active.dashboard_url} and the phone page is at /phone."
+            )
+            code = "not_found"
+        return JSONResponse(
+            status_code=error.status_code,
+            content={"detail": detail, "code": code},
+            headers=getattr(error, "headers", None),
+        )
+
+
 def _sockets(app: FastAPI) -> None:
     """The three sockets. Every body is one call into app.ingest, which owns the rest."""
 
@@ -182,7 +246,7 @@ def create_app(active: Settings | None = None) -> FastAPI:
     # The dashboard runs on its own port in development and on the same origin in the demo.
     app.add_middleware(
         CORSMiddleware,
-        allow_origin_regex=r"https?://(localhost|127\.0\.0\.1|\[::1\]|[0-9.]+)(:\d+)?",
+        allow_origin_regex=CORS_ORIGIN_PATTERN,
         allow_credentials=False,
         allow_methods=["*"],
         allow_headers=["*"],
@@ -193,6 +257,7 @@ def create_app(active: Settings | None = None) -> FastAPI:
     app.include_router(corrections.router)
     app.include_router(assets.router)
     app.include_router(journal.router)
+    app.include_router(rules.router)
     app.include_router(metrics.router)
     app.include_router(close.router)
     app.include_router(settings.router)
@@ -201,6 +266,7 @@ def create_app(active: Settings | None = None) -> FastAPI:
         app.include_router(sim.router)
 
     _brand_route(app, conf)
+    _front_door(app, conf)
     _sockets(app)
 
     conf.media_dir.mkdir(parents=True, exist_ok=True)

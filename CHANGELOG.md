@@ -75,6 +75,100 @@ Newest first. Each lane writes under its own heading.
   match two photographs of the same object at any threshold. Every change those point
   at is a proposal for the coordinator; none was made.
 
+## 2026-09-19, lane j: the backend follow-ups the first real run exposed
+
+- `GET /api/rules` serves every rule in `tax_rules.yaml` as `RuleRead(id, title,
+  plain_text, citation_url, needs_human_review)`. The evidence drawer was printing rule
+  codes because the text and the citation lived only in the engine's data file and no
+  route read them out. The words are still written once.
+- `GET /api/events/{id}` fills `account_name` on every journal line, from the same chart
+  of accounts `/api/journal` uses. The event page was borrowing the names from a second
+  request to the journal.
+- `scripts/gen_types.py` no longer eats a field whose name collides with a JSON Schema
+  keyword. The flattening step dropped every key called `title` wherever it appeared,
+  including inside `properties`, which cost `CloseCheck.title` and `PhoneResult.title`
+  their place in `contracts/api-types.ts` while every drift check stayed green.
+  `scripts/check_types.py` now compares fields and not only type names, so the whole
+  class of bug fails the suite.
+- `OptionScoreRead.kg_co2e_avoided` and the close's `kg_co2e_avoided` are positive
+  numbers: what this option avoids against the bin, never below zero. WARM's source
+  reduction factors are negative because they are avoided emissions, so the close read
+  "emissions if the best option had been followed: -6.04 kg". `kg_co2e` is untouched, so
+  the audit trail still carries the signed figure.
+- `EventSummary.posted_cents` is what the journal actually posted for the ticket, as an
+  income statement amount: negative for a loss, positive for a gain, null when no entry
+  was written. `net_book_cents` is a book value and is zero for everything that is not a
+  tagged asset, which is why the tape had to read one ticket per row to print an amount.
+- `EventSummary.flags` carries `possible_unrecorded_asset` on the ticket, off the same
+  rule the close uses (`ledger/journal.looks_unrecorded`). An untracked item whose
+  replacement cost is over the capitalization threshold also carries "Looks like
+  equipment. Confirm on the Assets page." on its bin option.
+- `POST /api/device/tare` writes a `last_tare` settings row with the time, the bin's new
+  zero and what was on the scale a moment before, but only when a bin was there to
+  receive the command. The close's mass check names the tare and its time instead of
+  falling back to the first weight sample of the period.
+- The estimator's data block carries the EPA WARM material names as its vocabulary, so a
+  model cannot name a material the carbon table has no factor for. Two tests hold the
+  data honest: every material in `catalog.csv` is in `warm_factors.csv`, and every
+  catalog item gets a carbon figure for every option.
+- `GET /` sends the laptop to the dashboard and anything else on the network to the
+  phone page, and an address with nothing at it says where both of them are instead of
+  answering "Not Found". A route that answers 404 with its own sentence keeps it.
+- Speed, in three parts. The vision call now starts when the step opens rather than when
+  the weight settles: `app/identify/early.py` holds the call, ingest claims it for the
+  event once the row exists, and identification awaits it instead of making its own. A
+  step that turns out to be a bag change or a removal cancels it. `identify_at_step_open`
+  switches it off in one place.
+- The request asks for the host's fast queue (`llm_service_tier`, default `fast`) and for
+  no reasoning on either call (`llm_vision_effort` and `llm_text_effort`, both `none`).
+  All three are runtime settings, validated against the installed SDK's own literals, so a
+  value the host would refuse with a 400 cannot be set.
+- The picture sent to the model is re-encoded to 384 px on its longest side at quality 80
+  (`vision_image_max_px`, `vision_image_quality`), which Lane K's bench found worth 57 ms
+  and 14 percent of the input tokens. The full size crop stays on disk for the evidence
+  drawer. The image part already asked for `detail: "low"`.
+- `scripts/run_backend.py` binds both address families, IPv6 first. On this laptop
+  `localhost` resolves to `::1` before 127.0.0.1, and a server listening on IPv4 alone made
+  every new connection wait for the IPv6 attempt to time out. Measured on spare ports: 0.21
+  s per connection bound to IPv4 only, 0.0017 s bound to both. A dashboard opens many
+  connections, which is why a backend that was answering perfectly looked dead.
+- PLAN.md 21a item 23. Memory no longer answers on its own. Lane K measured the embedder on
+  real photographs: two pictures of the same object are further apart than the two closest
+  pictures of different objects, so no threshold separates them, and in a thirty toss run
+  memory fired twice and was wrong both times, posting an HDMI cable to the books as a
+  USB-C charger in 84 ms for nothing. The model is now always asked, and exemplars that
+  agree with its answer halve the doubt left in it, once per neighbour, capped at 0.99.
+  Exemplars that disagree are a log line. The single vote rule and the `method = memory`
+  final path are gone, the identification row still records the neighbours and their
+  distances for the evidence drawer, and `local_share` now counts QR tags only, which is a
+  smaller number and an honest one.
+- PLAN.md 21a item 24. Every seeded row in `catalog.csv` carries `mass_prior_n = 3`, so the
+  scale counts from the first toss instead of never. `MassPrior.usable` needs three
+  weighings and every row shipped with one. Lane K re-decided 68 live calls with nothing
+  changed but this number: 83.8 percent to 92.6 at effort `none`. The means and the
+  variances are untouched. A round's cost is now summed across the event's stages rather
+  than read off the last identification row, because the fusion stage writes a row of its
+  own and it costs nothing.
+- PLAN.md 21a item 25. The value estimate is off the critical path. The ticket is priced,
+  posted and published as soon as identification is final, with "Working out value" where
+  the figure goes, and the estimator then runs and a second pass publishes the figure to
+  all three surfaces. A catalog item with a price is answered once, as before. An estimate
+  that lands after the label changed is dropped.
+- PLAN.md 21a item 26. A call on the fast or priority queue is billed at twice the standard
+  rate, so `cost_microusd` multiplies by two and the usage row records which queue served
+  it. Every fast call before this read at about half what it really cost.
+- PLAN.md 21a item 27. The vision request's `label` is an enum of the catalog plus
+  "unknown", built at request time, and so is every candidate's. The model cannot name
+  something the books have no row for, and it can say it does not know, which opens the
+  ask. The adapter checks the reply against the same list and asks once more before giving
+  up, because a wall that only exists in somebody else's process is not a wall.
+- PLAN.md 21a item 28. The decision reads what being wrong would cost. When the top two
+  candidates have the same class, the same regulatory flags and the same material mix, the
+  entry, the tax and the carbon come out identical either way, so the top one is taken on
+  confidence alone and nobody is asked to tell a cable from a cable. When they differ in
+  any of the three, the margin rule stands and it asks. The branch is logged and marked in
+  `posterior_json` under `same_treatment`, a key no validated label could ever be.
+
 ## 2026-09-19, lane i: the M1 to M5 acceptance pass and hardening
 
 - PLAN.md 21a item 17. Repair is offered when the condition is `broken`, or when it

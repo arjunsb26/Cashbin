@@ -273,9 +273,11 @@ def test_a_vocabulary_it_has_to_learn_improves_round_over_round(
 ) -> None:
     """The M4 check. A bin shown a vocabulary it does not know, and a person answering.
 
-    Every first sighting opens an ask, the answer becomes an exemplar, and the next time
-    that thing goes in the bin memory answers it for nothing. Accuracy climbs, the ask rate
-    falls, and the money per ticket falls with it, because the calls stop happening.
+    Every first sighting opens an ask and the answer becomes an exemplar. The next time
+    that thing goes in the bin the model is asked again, because PLAN.md 21a item 23 stops
+    memory answering on its own, and the exemplar backs the model's answer instead. So
+    accuracy climbs and the ask rate falls, and the money per ticket does not, because
+    every toss is still a call. The second one is no longer free; it is right.
     """
     run = run_the_soak(soak_settings, cold=True)
     rows = run["rows"]
@@ -287,24 +289,26 @@ def test_a_vocabulary_it_has_to_learn_improves_round_over_round(
     column = columns(rows)
     assert column["accuracy"][-1] > column["accuracy"][0], column["accuracy"]
     assert column["ask_rate"][-1] < column["ask_rate"][0], column["ask_rate"]
-    assert column["per_event"][-1] < column["per_event"][0], column["per_event"]
-    assert column["local"][-1] > column["local"][0], column["local"]
+    # Half the asks gone by the last round is the curve this check exists to show.
+    assert column["ask_rate"][-1] < column["ask_rate"][0] / 2, column["ask_rate"]
+    assert column["accuracy"][-1] > 0.6, column["accuracy"]
+    # And the honest half: it is not getting cheaper, because every toss is still a call.
+    assert run["vision_calls"] >= 55, "the model is asked about nearly every toss"
+    assert column["per_event"][-1] > 0.0, column["per_event"]
+    assert column["local"] == [0.0] * len(rows), "nothing here carries a QR tag"
     assert rows[0]["cloud_cost_microusd"] > 0, "a priced call has to cost something"
-    assert rows[-1]["cloud_cost_microusd"] < rows[0]["cloud_cost_microusd"]
 
 
 def test_the_soak_as_written_barely_learns_because_memory_is_only_human_fed(
     soak_settings: Settings,
 ) -> None:
-    """The same run against the shipped catalog, which is where the curve nearly flattens.
+    """The same run against the shipped catalog, which is where the curve is already flat.
 
-    Almost every label in `soak.yaml` is in `catalog.csv`, so the model is confident about
-    almost every toss, so almost nothing asks, so almost nothing becomes an exemplar. An
-    exemplar is written only when a person answers or overturns an answer
-    (`learn/corrections.py`), which means the local-first path never takes over the tosses
-    the model already gets right. What little it does learn here comes from the six unknown
-    objects that share one picture, which the model keeps naming wrongly and a person keeps
-    putting right.
+    Almost every label in `soak.yaml` is in `catalog.csv`, so the model is right about
+    almost every toss from the first one, so there is nothing to learn and almost nothing
+    asks. An exemplar is written only when a person answers or overturns an answer
+    (`learn/corrections.py`), so on this run the exemplar table stays nearly empty and
+    memory has nothing to back the model with.
 
     This is a measurement, not a wish. If somebody changes what writes an exemplar, this
     test fails, and the numbers in it are the ones to argue with.
@@ -315,10 +319,12 @@ def test_the_soak_as_written_barely_learns_because_memory_is_only_human_fed(
     played = run["played"]
 
     assert run["vision_calls"] >= 45, "the catalog path calls the model on most tosses"
-    assert played["answered"] <= 3, "a seeded catalog barely ever asks"
-    assert sum(row["n_asked"] for row in rows) <= 5
-    # The local share does climb, but only over the handful of pictures a person touched.
-    assert column["local"][-1] < 0.25, column["local"]
-    # And the money per ticket stays within a quarter of where it started, against the
-    # cold run above where it reaches zero.
+    assert played["answered"] <= 8, "a seeded catalog barely ever asks"
+    assert sum(row["n_asked"] for row in rows) <= 10
+    # Right from the first round and no better by the last: there is nothing here to learn.
+    assert column["accuracy"][0] > 0.75, column["accuracy"]
+    assert abs(column["accuracy"][-1] - column["accuracy"][0]) < 0.15, column["accuracy"]
+    # No QR tags in this run, so nothing is answered without a call.
+    assert column["local"] == [0.0] * len(rows), column["local"]
+    # And the money per ticket stays within a quarter of where it started.
     assert column["per_event"][-1] > column["per_event"][0] * 0.75, column["per_event"]

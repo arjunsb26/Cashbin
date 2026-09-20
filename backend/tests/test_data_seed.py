@@ -87,12 +87,23 @@ def test_no_food_row_is_flagged_as_electronics() -> None:
             assert "electronics" not in item.regulatory_flags
 
 
-def test_mass_priors_start_weak_so_real_weighings_win() -> None:
+def test_mass_priors_count_from_the_first_toss() -> None:
+    """PLAN.md 21a item 24. `MassPrior.usable` needs n >= 3, and every seeded row shipped
+    with n = 1, so on a fresh database the scale contributed nothing to the decision.
+    Lane K measured what that cost: 83.8 percent against 92.6 at effort none, on the same
+    68 calls, with nothing changed but this number."""
+    from app.identify.priors import MassPrior
+
     for item in load_catalog():
         assert item.mass_prior_mean_g is not None, item.label
         assert item.mass_prior_var is not None, item.label
-        assert item.mass_prior_n == 1, item.label
-        # A wide prior: one standard deviation is more than a third of the mean.
+        assert item.mass_prior_n == 3, item.label
+        prior = MassPrior(
+            mean_g=item.mass_prior_mean_g, var=item.mass_prior_var, n=item.mass_prior_n
+        )
+        assert prior.usable, item.label
+        # Still a wide prior: one standard deviation is more than a third of the mean, so
+        # a real weighing moves it rather than being overruled by the seed.
         assert item.mass_prior_var > (item.mass_prior_mean_g / 3) ** 2, item.label
 
 

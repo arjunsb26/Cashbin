@@ -103,6 +103,8 @@ export interface BinBooksContracts {
   PhoneResult?: PhoneResult;
   RoundListResponse?: RoundListResponse;
   RoundRead?: RoundRead;
+  RuleRead?: RuleRead;
+  RulesResponse?: RulesResponse;
   ScreenAsk?: ScreenAsk;
   ScreenIdle?: ScreenIdle;
   ScreenOffline?: ScreenOffline;
@@ -346,6 +348,7 @@ export interface CloseCheck {
     [k: string]: number;
   };
   result: "pass" | "warn" | "fail";
+  title: string;
 }
 /**
  * This interface was referenced by `BinBooksContracts`'s JSON-Schema
@@ -498,6 +501,7 @@ export interface EventSummary {
   created_at: string;
   crop_quality?: CropQuality | null;
   crop_url?: string | null;
+  flags?: string[];
   id: number;
   is_estimate?: boolean;
   kind: EventKind;
@@ -505,6 +509,7 @@ export interface EventSummary {
   mass_err_g?: number | null;
   mass_g?: number | null;
   net_book_cents?: number | null;
+  posted_cents?: number | null;
   round_id?: number | null;
   saved_if_followed_cents?: number | null;
   status: EventStatus;
@@ -580,6 +585,7 @@ export interface OptionScoreRead {
   event_id: number;
   id: number;
   kg_co2e?: number | null;
+  kg_co2e_avoided?: number | null;
   kg_landfill?: number;
   needs_human_review?: boolean;
   net_after_tax_cents: number;
@@ -694,6 +700,7 @@ export interface PhoneResult {
   big: string;
   event_id: number;
   line: string;
+  title: string;
   tone: "green" | "amber" | "red" | "neutral";
   type?: "result";
 }
@@ -726,6 +733,30 @@ export interface RoundRead {
   n_corrected_after_confident?: number;
   n_events?: number;
   started_at: string;
+}
+/**
+ * One tax rule as the evidence drawer shows it.
+ *
+ * The words and the link come from `tax_rules.yaml`, which is the only copy of either.
+ * DESIGN.md 4.2 asks the drawer for the rule in plain language with its citation as a link,
+ * so retyping the text into a client would be a second copy that drifts.
+ *
+ * This interface was referenced by `BinBooksContracts`'s JSON-Schema
+ * via the `definition` "RuleRead".
+ */
+export interface RuleRead {
+  citation_url?: string | null;
+  id: string;
+  needs_human_review?: boolean;
+  plain_text: string;
+  title: string;
+}
+/**
+ * This interface was referenced by `BinBooksContracts`'s JSON-Schema
+ * via the `definition` "RulesResponse".
+ */
+export interface RulesResponse {
+  rules?: RuleRead[];
 }
 /**
  * This interface was referenced by `BinBooksContracts`'s JSON-Schema
@@ -784,7 +815,10 @@ export interface SettingsRead {
   capitalization_threshold_cents: number;
   confident_p: number;
   disposal_fee_cents: number;
+  llm_service_tier?: "auto" | "default" | "flex" | "scale" | "priority" | "fast";
+  llm_text_effort?: "none" | "minimal" | "low" | "medium" | "high";
   llm_timeout_s: number;
+  llm_vision_effort?: "none" | "minimal" | "low" | "medium" | "high";
   memory_max_dist: number;
   min_margin: number;
   recycle_fee_cents: number;
@@ -803,7 +837,10 @@ export interface SettingsUpdate {
   capitalization_threshold_cents?: number | null;
   confident_p?: number | null;
   disposal_fee_cents?: number | null;
+  llm_service_tier?: ("auto" | "default" | "flex" | "scale" | "priority" | "fast") | null;
+  llm_text_effort?: ("none" | "minimal" | "low" | "medium" | "high") | null;
   llm_timeout_s?: number | null;
+  llm_vision_effort?: ("none" | "minimal" | "low" | "medium" | "high") | null;
   memory_max_dist?: number | null;
   min_margin?: number | null;
   recycle_fee_cents?: number | null;

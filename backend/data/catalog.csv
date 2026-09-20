@@ -1,31 +1,31 @@
 id,label,class,unit_cost_cents,unit_mass_g,price_per_kg_cents,fmv_per_kg_cents,material_mix_json,regulatory_flags_json,mass_prior_mean_g,mass_prior_var,mass_prior_n,price_source
-1,pizza slice,inventory,100,107.0,,1860,"{""food_waste"":1.0}","[""food""]",107.0,4121.6,1,estimate: 50 percent of retail https://thekrazycouponlady.com/tips/store-hacks/costco-food-court-menu-prices
-2,bagel,inventory,33,95.0,,695,"{""food_waste"":1.0}","[""food""]",95.0,3249.0,1,estimate: 50 percent of retail https://www.walmart.com/ip/THO-PLAIN-BAGELS/19587153842
-3,cookie,inventory,18,40.0,,875,"{""food_waste"":1.0}","[""food""]",40.0,576.0,1,estimate: 50 percent of retail https://www.walmart.com/ip/Freshness-Guaranteed-Chocolate-Chunk-Cookies-14-oz-10-Count/184184305
-4,banana,inventory,,118.0,72,143,"{""food_waste"":1.0}","[""food""]",118.0,5012.6,1,estimate: 50 percent of retail https://fred.stlouisfed.org/series/APU0000711211
-5,apple,inventory,,182.0,87,174,"{""food_waste"":1.0}","[""food""]",182.0,11924.6,1,estimate: 50 percent of retail https://www.walmart.com/ip/Fresh-Gala-Apples-3-lb-Bag/44390958
-6,chips bag,inventory,30,33.0,,1818,"{""food_waste"":0.85,""mixed_plastics"":0.15}","[""food""]",33.0,392.0,1,estimate: 50 percent of retail https://www.walmart.com/ip/Lay-s-Classic-Potato-Snack-Chips-1-oz-Bags-10-Count-Multipack/285394056
-7,soda can,inventory,38,368.0,,204,"{""food_waste"":0.959,""aluminum_cans"":0.041}","[""food""]",368.0,48752.6,1,estimate: 50 percent of retail https://www.walmart.com/ip/Coca-Cola-Classic-Soda-Pop-12-fl-oz-Cans-12-Pack/6260323532
-8,water bottle full,inventory,11,512.0,,41,"{""food_waste"":0.976,""pet"":0.024}","[""food""]",512.0,94371.8,1,estimate: 50 percent of retail https://www.walmart.com/ip/Dasani-Purified-Water-Bottles-16-9-fl-oz-24-Pack/14940709
-9,water bottle empty,untracked,,12.0,,,"{""pet"":1.0}",[],12.0,51.8,1,NEEDS_HUMAN
-10,pasta box,inventory,92,494.0,,372,"{""food_waste"":0.919,""mixed_paper"":0.081}","[""food""]",494.0,87853.0,1,estimate: 50 percent of retail https://www.walmart.com/ip/Barilla-Spaghetti-Pasta-1-Lb/10309153
-11,wrap,inventory,297,244.0,,2434,"{""food_waste"":0.93,""mixed_plastics"":0.07}","[""food""]",244.0,21433.0,1,estimate: 50 percent of retail https://www.walmart.com/ip/Marketside-Chicken-Caesar-Wrap/141265177
-12,sandwich,inventory,149,139.0,,2137,"{""food_waste"":0.86,""mixed_plastics"":0.14}","[""food""]",139.0,6955.6,1,estimate: 50 percent of retail https://www.walmart.com/ip/Deli-Express-Oven-Roasted-Turkey-Cheese-Sandwich-Wedge-4-2-oz-1-Count/120214135
-13,coffee cup with lid,inventory,8,16.0,,,"{""mixed_paper"":0.75,""mixed_plastics"":0.25}",[],16.0,92.2,1,https://www.webstaurantstore.com/choice-12-oz-white-poly-paper-hot-cup-case/50012W.html
-14,cardboard box small,inventory,38,150.0,,,"{""corrugated_containers"":1.0}",[],150.0,8100.0,1,https://www.packagingprice.com/8-x-6-x-4-corrugated-boxes-25-pack/
-15,cardboard box medium,inventory,83,330.0,,,"{""corrugated_containers"":1.0}",[],330.0,39204.0,1,https://www.packagingprice.com/12l-x-10w-x-8h-corrugated-box-25-pack/
-16,paper cup,inventory,11,10.0,,,"{""mixed_paper"":1.0}",[],10.0,36.0,1,https://www.webstaurantstore.com/dart-solo-r9n-j8000-symphony-9-oz-wax-treated-paper-cold-cup-case/760R9NSYM.html
-17,plastic cup,inventory,6,12.0,,,"{""pet"":1.0}",[],12.0,51.8,1,https://www.webstaurantstore.com/choice-16-oz-clear-pet-plastic-cold-cup-case/500CC16.html
-18,plastic clamshell,inventory,29,30.0,,,"{""pet"":1.0}",[],30.0,324.0,1,https://www.webstaurantstore.com/choice-9-x-9-x-3-clear-hinged-pet-plastic-3-compartment-clamshell-container-case/100CC904.html
-19,paper napkins,inventory,2,2.0,,,"{""mixed_paper"":1.0}",[],2.0,1.4,1,https://www.webstaurantstore.com/dixie-1-ply-1-4-fold-paper-dinner-napkin-case/500136202.html
-20,pizza box,inventory,49,300.0,,,"{""corrugated_containers"":1.0}",[],300.0,32400.0,1,https://www.webstaurantstore.com/choice-14-x-14-x-2-kraft-corrugated-pizza-box-50-case/245CPB14PRINT.html
-21,usb cable,untracked,1499,,,,"{""mixed_electronics"":1.0}","[""electronics""]",40.0,576.0,1,https://www.anker.com/products/a82g2
-22,usb-c charger,untracked,1199,31.0,,,"{""mixed_electronics"":1.0}","[""electronics""]",31.0,346.0,1,https://www.anker.com/products/a2637
-23,laptop charger,untracked,2999,112.0,,,"{""mixed_electronics"":1.0}","[""electronics""]",112.0,4515.8,1,https://www.anker.com/products/a2663
-24,mouse,untracked,1799,75.2,,,"{""electronic_peripherals"":1.0}","[""electronics""]",75.2,2035.8,1,https://www.logitech.com/en-us/shop/p/m185-wireless-mouse
-25,keyboard,untracked,1299,685.0,,,"{""electronic_peripherals"":1.0}","[""electronics""]",685.0,168921.0,1,https://www.logitech.com/en-us/shop/p/k120-usb-standard-computer
-26,earbuds,untracked,3999,,,,"{""portable_electronic_devices"":1.0}","[""electronics"",""battery""]",55.0,1089.0,1,https://www.soundcore.com/products/p20i
-27,phone,untracked,16999,200.0,,,"{""portable_electronic_devices"":1.0}","[""electronics"",""battery""]",200.0,14400.0,1,https://www.bestbuy.com/product/samsung-galaxy-a16-5g-128gb-unlocked-blue-black/J3ZYG2FPFL
-28,hdmi cable,untracked,779,,,,"{""mixed_electronics"":1.0}","[""electronics""]",130.0,6084.0,1,https://www.monoprice.com/product?p_id=13779
-29,power bank,untracked,2599,212.0,,,"{""portable_electronic_devices"":1.0}","[""electronics"",""battery""]",212.0,16179.8,1,https://www.anker.com/products/a1229
-30,webcam,untracked,5999,,,,"{""electronic_peripherals"":1.0}","[""electronics""]",160.0,9216.0,1,https://www.logitech.com/en-us/shop/p/c920s-pro-hd-webcam
+1,pizza slice,inventory,100,107.0,,1860,"{""food_waste"":1.0}","[""food""]",107.0,4121.6,3,estimate: 50 percent of retail https://thekrazycouponlady.com/tips/store-hacks/costco-food-court-menu-prices
+2,bagel,inventory,33,95.0,,695,"{""food_waste"":1.0}","[""food""]",95.0,3249.0,3,estimate: 50 percent of retail https://www.walmart.com/ip/THO-PLAIN-BAGELS/19587153842
+3,cookie,inventory,18,40.0,,875,"{""food_waste"":1.0}","[""food""]",40.0,576.0,3,estimate: 50 percent of retail https://www.walmart.com/ip/Freshness-Guaranteed-Chocolate-Chunk-Cookies-14-oz-10-Count/184184305
+4,banana,inventory,,118.0,72,143,"{""food_waste"":1.0}","[""food""]",118.0,5012.6,3,estimate: 50 percent of retail https://fred.stlouisfed.org/series/APU0000711211
+5,apple,inventory,,182.0,87,174,"{""food_waste"":1.0}","[""food""]",182.0,11924.6,3,estimate: 50 percent of retail https://www.walmart.com/ip/Fresh-Gala-Apples-3-lb-Bag/44390958
+6,chips bag,inventory,30,33.0,,1818,"{""food_waste"":0.85,""mixed_plastics"":0.15}","[""food""]",33.0,392.0,3,estimate: 50 percent of retail https://www.walmart.com/ip/Lay-s-Classic-Potato-Snack-Chips-1-oz-Bags-10-Count-Multipack/285394056
+7,soda can,inventory,38,368.0,,204,"{""food_waste"":0.959,""aluminum_cans"":0.041}","[""food""]",368.0,48752.6,3,estimate: 50 percent of retail https://www.walmart.com/ip/Coca-Cola-Classic-Soda-Pop-12-fl-oz-Cans-12-Pack/6260323532
+8,water bottle full,inventory,11,512.0,,41,"{""food_waste"":0.976,""pet"":0.024}","[""food""]",512.0,94371.8,3,estimate: 50 percent of retail https://www.walmart.com/ip/Dasani-Purified-Water-Bottles-16-9-fl-oz-24-Pack/14940709
+9,water bottle empty,untracked,,12.0,,,"{""pet"":1.0}",[],12.0,51.8,3,NEEDS_HUMAN
+10,pasta box,inventory,92,494.0,,372,"{""food_waste"":0.919,""mixed_paper"":0.081}","[""food""]",494.0,87853.0,3,estimate: 50 percent of retail https://www.walmart.com/ip/Barilla-Spaghetti-Pasta-1-Lb/10309153
+11,wrap,inventory,297,244.0,,2434,"{""food_waste"":0.93,""mixed_plastics"":0.07}","[""food""]",244.0,21433.0,3,estimate: 50 percent of retail https://www.walmart.com/ip/Marketside-Chicken-Caesar-Wrap/141265177
+12,sandwich,inventory,149,139.0,,2137,"{""food_waste"":0.86,""mixed_plastics"":0.14}","[""food""]",139.0,6955.6,3,estimate: 50 percent of retail https://www.walmart.com/ip/Deli-Express-Oven-Roasted-Turkey-Cheese-Sandwich-Wedge-4-2-oz-1-Count/120214135
+13,coffee cup with lid,inventory,8,16.0,,,"{""mixed_paper"":0.75,""mixed_plastics"":0.25}",[],16.0,92.2,3,https://www.webstaurantstore.com/choice-12-oz-white-poly-paper-hot-cup-case/50012W.html
+14,cardboard box small,inventory,38,150.0,,,"{""corrugated_containers"":1.0}",[],150.0,8100.0,3,https://www.packagingprice.com/8-x-6-x-4-corrugated-boxes-25-pack/
+15,cardboard box medium,inventory,83,330.0,,,"{""corrugated_containers"":1.0}",[],330.0,39204.0,3,https://www.packagingprice.com/12l-x-10w-x-8h-corrugated-box-25-pack/
+16,paper cup,inventory,11,10.0,,,"{""mixed_paper"":1.0}",[],10.0,36.0,3,https://www.webstaurantstore.com/dart-solo-r9n-j8000-symphony-9-oz-wax-treated-paper-cold-cup-case/760R9NSYM.html
+17,plastic cup,inventory,6,12.0,,,"{""pet"":1.0}",[],12.0,51.8,3,https://www.webstaurantstore.com/choice-16-oz-clear-pet-plastic-cold-cup-case/500CC16.html
+18,plastic clamshell,inventory,29,30.0,,,"{""pet"":1.0}",[],30.0,324.0,3,https://www.webstaurantstore.com/choice-9-x-9-x-3-clear-hinged-pet-plastic-3-compartment-clamshell-container-case/100CC904.html
+19,paper napkins,inventory,2,2.0,,,"{""mixed_paper"":1.0}",[],2.0,1.4,3,https://www.webstaurantstore.com/dixie-1-ply-1-4-fold-paper-dinner-napkin-case/500136202.html
+20,pizza box,inventory,49,300.0,,,"{""corrugated_containers"":1.0}",[],300.0,32400.0,3,https://www.webstaurantstore.com/choice-14-x-14-x-2-kraft-corrugated-pizza-box-50-case/245CPB14PRINT.html
+21,usb cable,untracked,1499,,,,"{""mixed_electronics"":1.0}","[""electronics""]",40.0,576.0,3,https://www.anker.com/products/a82g2
+22,usb-c charger,untracked,1199,31.0,,,"{""mixed_electronics"":1.0}","[""electronics""]",31.0,346.0,3,https://www.anker.com/products/a2637
+23,laptop charger,untracked,2999,112.0,,,"{""mixed_electronics"":1.0}","[""electronics""]",112.0,4515.8,3,https://www.anker.com/products/a2663
+24,mouse,untracked,1799,75.2,,,"{""electronic_peripherals"":1.0}","[""electronics""]",75.2,2035.8,3,https://www.logitech.com/en-us/shop/p/m185-wireless-mouse
+25,keyboard,untracked,1299,685.0,,,"{""electronic_peripherals"":1.0}","[""electronics""]",685.0,168921.0,3,https://www.logitech.com/en-us/shop/p/k120-usb-standard-computer
+26,earbuds,untracked,3999,,,,"{""portable_electronic_devices"":1.0}","[""electronics"",""battery""]",55.0,1089.0,3,https://www.soundcore.com/products/p20i
+27,phone,untracked,16999,200.0,,,"{""portable_electronic_devices"":1.0}","[""electronics"",""battery""]",200.0,14400.0,3,https://www.bestbuy.com/product/samsung-galaxy-a16-5g-128gb-unlocked-blue-black/J3ZYG2FPFL
+28,hdmi cable,untracked,779,,,,"{""mixed_electronics"":1.0}","[""electronics""]",130.0,6084.0,3,https://www.monoprice.com/product?p_id=13779
+29,power bank,untracked,2599,212.0,,,"{""portable_electronic_devices"":1.0}","[""electronics"",""battery""]",212.0,16179.8,3,https://www.anker.com/products/a1229
+30,webcam,untracked,5999,,,,"{""electronic_peripherals"":1.0}","[""electronics""]",160.0,9216.0,3,https://www.logitech.com/en-us/shop/p/c920s-pro-hd-webcam

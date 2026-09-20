@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from datetime import date
 
+import pytest
+
 from app.engine.options import (
     TONE_AMBER,
     TONE_GREEN,
@@ -318,3 +320,53 @@ def test_the_carbon_threshold_is_a_setting() -> None:
     assert SETTINGS.tone_co2e_kg == 0.02
     wide = EngineSettings(tone_co2e_kg=10.0)
     assert summarise(score_options(bagel_record(), wide), wide).tone == TONE_GREEN
+
+
+def test_something_worth_replacing_says_so_on_the_bin_option() -> None:
+    """The seam for the provisional asset: the ticket says what a person should do next."""
+    from app.engine.options import EQUIPMENT_NOTE
+
+    settings = EngineSettings(capitalization_threshold_cents=50_000)
+    record = ItemRecord.model_validate(
+        {
+            "event_id": 1,
+            "label": "laptop",
+            "class": "untracked",
+            "mass_g": 1400.0,
+            "event_date": date(2025, 9, 19),
+            "material_mix": {"mixed_electronics": 1.0},
+            "replacement_cents": 120_000,
+        }
+    )
+    scores = {s.option: s for s in score_options(record, settings)}
+    assert EQUIPMENT_NOTE in scores[Option.trash].notes
+    assert EQUIPMENT_NOTE not in scores[Option.recycle].notes
+
+
+def test_something_cheap_to_replace_says_nothing_about_equipment() -> None:
+    from app.engine.options import EQUIPMENT_NOTE
+
+    settings = EngineSettings(capitalization_threshold_cents=50_000)
+    record = ItemRecord.model_validate(
+        {
+            "event_id": 2,
+            "label": "usb cable",
+            "class": "untracked",
+            "mass_g": 40.0,
+            "event_date": date(2025, 9, 19),
+            "material_mix": {"mixed_electronics": 1.0},
+            "replacement_cents": 1_499,
+        }
+    )
+    for score in score_options(record, settings):
+        assert EQUIPMENT_NOTE not in score.notes
+
+
+def test_the_bin_and_the_best_option_report_what_was_avoided() -> None:
+    """A negative emissions figure is correct and unreadable. This is the same fact up."""
+    from app.engine.carbon import avoided_co2e
+
+    assert avoided_co2e(0.5, -6.04) == pytest.approx(6.54)
+    assert avoided_co2e(0.5, 0.9) == 0.0
+    assert avoided_co2e(None, -6.04) is None
+    assert avoided_co2e(0.5, None) is None

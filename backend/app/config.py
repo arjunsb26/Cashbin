@@ -15,6 +15,12 @@ BACKEND_DIR = Path(__file__).resolve().parent.parent
 REPO_DIR = BACKEND_DIR.parent
 BRAND_FILE = REPO_DIR / "brand.json"
 
+# What the host accepts on these two parameters, read off the installed SDK (openai 3.16.2):
+# openai.types.shared.reasoning_effort.ReasoningEffort and the service_tier hint on
+# chat.completions.create. A value outside these is a 400 on every call.
+REASONING_EFFORTS: tuple[str, ...] = ("none", "minimal", "low", "medium", "high")
+SERVICE_TIERS: tuple[str, ...] = ("auto", "default", "flex", "scale", "priority", "fast")
+
 _BRAND_FALLBACK = {
     "name": "BinBooks",
     "short_name": "BinBooks",
@@ -88,10 +94,24 @@ class Settings(BaseSettings):
     llm_vision_model: str = ""
     llm_text_model: str = ""
     llm_agent_model: str = ""
-    # Reasoning effort per call. The vision call has to land inside llm_timeout_s.
-    llm_vision_effort: str = "low"
-    llm_text_effort: str = "low"
+    # Reasoning effort per call. The vision call has to land inside llm_timeout_s, and it
+    # classifies a photograph rather than working anything out, so it thinks by default not
+    # at all. The estimator does arithmetic on a price, so it keeps a low effort.
+    llm_vision_effort: str = "none"
+    llm_text_effort: str = "none"
+    # How the host is asked to schedule the call. "fast" is the low latency queue; "default"
+    # turns the request back into an ordinary one.
+    llm_service_tier: str = "fast"
     llm_timeout_s: float = Field(default=8.0, gt=0.0)
+    # The longest side of the picture actually sent. The full size crop stays on disk for the
+    # evidence drawer; the model is classifying a thing, not reading fine print.
+    vision_image_max_px: int = Field(default=384, ge=64, le=4096)
+    vision_image_quality: int = Field(default=80, ge=1, le=100)
+
+    # Start the vision call when the step opens instead of when it settles. The settle alone
+    # costs most of a second, and the picture is already good 300 ms after the item lands.
+    identify_at_step_open: bool = True
+    identify_open_delay_ms: int = Field(default=300, ge=0, le=5000)
     # Read from .env at startup. Never logged, never returned by any endpoint.
     openai_api_key: str = ""
 
@@ -104,6 +124,9 @@ class Settings(BaseSettings):
     # Serving
     https_port: int = Field(default=8443, gt=0, le=65535)
     http_port: int = Field(default=8000, gt=0, le=65535)
+    # Where the dashboard is being served. The backend sends the laptop there when someone
+    # opens the backend's own address, and names it when an address has nothing at it.
+    dashboard_url: str = "http://localhost:3000"
 
     # Off in the demo build. Gates /api/sim/* and every other dev-only surface.
     dev_tools: bool = False
@@ -121,6 +144,8 @@ class Settings(BaseSettings):
         "llm_agent_model",
         "llm_vision_effort",
         "llm_text_effort",
+        "llm_service_tier",
+        "dashboard_url",
         "openai_api_key",
         "product_name",
         "product_short_name",
@@ -130,6 +155,21 @@ class Settings(BaseSettings):
     @classmethod
     def _clean_str(cls, value: Any) -> Any:
         return _clean(value) if isinstance(value, str) else value
+
+    @field_validator("llm_vision_effort", "llm_text_effort")
+    @classmethod
+    def _known_effort(cls, value: str) -> str:
+        """An effort the host does not know is a 400 on every call, so refuse it here."""
+        if value and value not in REASONING_EFFORTS:
+            raise ValueError(f"reasoning effort must be one of {', '.join(REASONING_EFFORTS)}")
+        return value
+
+    @field_validator("llm_service_tier")
+    @classmethod
+    def _known_tier(cls, value: str) -> str:
+        if value and value not in SERVICE_TIERS:
+            raise ValueError(f"service tier must be one of {', '.join(SERVICE_TIERS)}")
+        return value
 
     @field_validator("media_dir", "db_path", "cert_dir", "recordings_dir", mode="before")
     @classmethod
@@ -160,6 +200,9 @@ RUNTIME_SETTING_KEYS: tuple[str, ...] = (
     "memory_max_dist",
     "round_size",
     "llm_timeout_s",
+    "llm_service_tier",
+    "llm_vision_effort",
+    "llm_text_effort",
 )
 
 _settings: Settings | None = None

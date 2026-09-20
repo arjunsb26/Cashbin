@@ -182,3 +182,20 @@ def test_ranking_puts_the_largest_variance_first(settings: Settings) -> None:
     ]
     assert ranked[0]["variance_g2"] == pytest.approx(9.0)
     assert sum(row["variance_share"] for row in ranked) == pytest.approx(1.0, abs=1e-3)
+
+
+def test_a_recorded_tare_is_named_with_its_time(settings: Settings) -> None:
+    """Lane F concern 2: without a recorded tare the check guesses at the first sample."""
+    import json
+
+    with session_scope() as session:
+        build_clean_scenario(session)
+        row = session.get(models.Setting, "last_tare")
+        assert row is not None
+        row.value_json = json.dumps({"at": "2026-09-19T09:00:00+00:00", "weight_g": 0.0})
+
+    with session_scope() as session:
+        rows = close_module.load_period(session, PERIOD_START, PERIOD_END)
+    check = close_module.check_mass_conservation(rows, settings.step_min_g)
+    assert "tare recorded at 2026-09-19T09:00:00+00:00" in check.detail
+    assert "no tare was recorded" not in check.detail
