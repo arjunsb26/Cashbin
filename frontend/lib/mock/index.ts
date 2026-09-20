@@ -3,6 +3,8 @@
 // for review and for the screenshot run: ?state=empty, loading, error.
 import * as fx from "./fixtures";
 import { mockState } from "./state";
+import type { StatsRange, StatsResponse } from "../derive";
+import type { ReviewListResponse } from "../review";
 import type {
   AssetRead,
   CloseRead,
@@ -51,9 +53,14 @@ export const mockApi = {
   assets: (): Promise<AssetRead[]> => respond(fx.ASSETS, []),
   rounds: (): Promise<RoundListResponse> => respond(fx.ROUNDS, { rounds: [], learned: [] }),
   settings: (): Promise<SettingsRead> => respond(fx.SETTINGS, fx.SETTINGS),
-  close: (): Promise<CloseRead | null> => respond<CloseRead | null>(fx.CLOSE, null),
+  close: (): Promise<CloseRead | null> =>
+    respond<CloseRead | null>({ ...fx.CLOSE, ...fx.CLOSE_BLOCKS }, null),
   setup: (): Promise<string[]> => respond(fx.SETUP, []),
   rules: (): Promise<RuleRead[]> => respond(fx.RULES, []),
+  stats: (range: StatsRange): Promise<StatsResponse | null> =>
+    respond<StatsResponse | null>(range === "week" ? fx.STATS_WEEK : fx.STATS_DAY, fx.STATS_NONE),
+  review: (): Promise<ReviewListResponse | null> =>
+    respond<ReviewListResponse | null>(fx.REVIEW, { items: [], open_count: 0 }),
 };
 
 export { startMockLive, emptyLiveState, flatSamples } from "./live";

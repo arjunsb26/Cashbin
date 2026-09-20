@@ -3,6 +3,7 @@
 import { useMutation, useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
 import { emptyLiveState, fixtures, mockApi, startMockLive } from "./mock";
 import { mediaSrc } from "./derive";
+import type { StatsRange, StatsResponse } from "./derive";
 import type {
   AssetCreate,
   AssetListResponse,
@@ -24,6 +25,7 @@ import type {
   SummaryResponse,
   VoidResponse,
 } from "./types";
+import type { ReviewDecisionResponse, ReviewListResponse } from "./review";
 
 export const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "https://localhost:8443";
 export const MOCK = process.env.NEXT_PUBLIC_API_MOCK === "1";
@@ -105,6 +107,11 @@ const source = MOCK
       // A backend older than the rules route answers 404, and the drawer then
       // prints the rule's code on its own, as it did before the route existed.
       rules: () => getOrNull<RulesResponse>("/api/rules").then((body) => body?.rules ?? []),
+      // Two routes newer than this screen. A backend without them answers 404, and
+      // null is read as "not answering yet" rather than as an empty page, so
+      // nobody is told there is no waste when nobody was asked.
+      stats: (range: StatsRange) => getOrNull<StatsResponse>(`/api/stats?range=${range}`),
+      review: () => getOrNull<ReviewListResponse>("/api/review"),
     };
 
 /**
@@ -127,8 +134,61 @@ export const keys = {
   close: ["close"] as const,
   setup: ["setup"] as const,
   rules: ["rules"] as const,
+  stats: (range: StatsRange) => ["stats", range] as const,
+  review: ["review"] as const,
   devTools: ["dev-tools"] as const,
 };
+
+/** The trends read, by day or by week. Null when the route is not there yet. */
+export function useStats(range: StatsRange) {
+  return useQuery({ queryKey: keys.stats(range), queryFn: () => source.stats(range) });
+}
+
+/** Everything a person still has to settle. Null when the route is not there yet. */
+export function useReview() {
+  return useQuery({ queryKey: keys.review, queryFn: source.review });
+}
+
+/**
+ * A decision on one review item, applied on the screen before the backend has
+ * answered and reconciled when it does. A refusal puts the row back as it was and
+ * prints the backend's own sentence.
+ */
+export function useReviewDecision() {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: async (body: { id: number; decision: "approve" | "reject"; note: string }) => {
+      if (MOCK) return null;
+      return send<ReviewDecisionResponse>(`/api/review/${body.id}/${body.decision}`, "POST", {
+        by: "person",
+        note: body.note,
+      });
+    },
+    onSettled: () => {
+      void client.invalidateQueries({ queryKey: keys.review });
+      void client.invalidateQueries({ queryKey: keys.events });
+      void client.invalidateQueries({ queryKey: keys.journal });
+    },
+  });
+}
+
+/** An answer to an open question, given from the queue instead of at the bin. */
+export function useReviewAnswer() {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: async (body: { id: number; label: string }) => {
+      if (MOCK) return null;
+      return send<CorrectionResponse>(`/api/review/${body.id}/answer`, "POST", {
+        label: body.label,
+        by: "person",
+      });
+    },
+    onSettled: () => {
+      void client.invalidateQueries({ queryKey: keys.review });
+      void client.invalidateQueries({ queryKey: keys.events });
+    },
+  });
+}
 
 export function useSummary() {
   return useQuery({ queryKey: keys.summary, queryFn: source.summary });
