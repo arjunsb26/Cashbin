@@ -16,13 +16,14 @@ from __future__ import annotations
 import argparse
 import asyncio
 import contextlib
+import sys
 import time
 from pathlib import Path
 from typing import Any, Literal
 
 import yaml
 from bin_sim import BinSim
-from phone_sim import PhoneSim
+from phone_sim import MissingAsset, PhoneSim
 from pydantic import BaseModel, Field, model_validator
 
 SCENARIOS = Path(__file__).resolve().parent / "scenarios"
@@ -197,6 +198,15 @@ async def amain(argv: list[str] | None = None) -> int:
         insecure=args.insecure,
         speed=args.speed,
     )
+    # Every picture the scenario names, checked before a single frame goes out. Finding
+    # this at the end of a thirty second run, or not finding it at all, is how an
+    # afternoon goes.
+    try:
+        phone_sim.check_assets(step.image for step in scenario.steps if step.image)
+    except MissingAsset as missing:
+        print(str(missing), file=sys.stderr)
+        return 2
+
     stop = asyncio.Event()
     runners = [
         asyncio.create_task(bin_sim.run(stop)),

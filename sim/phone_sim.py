@@ -14,7 +14,7 @@ import argparse
 import asyncio
 import contextlib
 import json
-from collections.abc import Callable, Sequence
+from collections.abc import Callable, Iterable, Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -57,6 +57,23 @@ def _paste(frame: np.ndarray, sprite: np.ndarray, fx: float, fy: float) -> None:
         frame[y : y + h, x : x + w] = sprite
 
 
+class MissingAsset(FileNotFoundError):
+    """A scenario names a picture that is not on disk."""
+
+    def __init__(self, path: Path, assets_dir: Path) -> None:
+        self.path = path
+        self.assets_dir = assets_dir
+        super().__init__(str(path))
+
+    def __str__(self) -> str:
+        return (
+            f"MISSING IMAGE: {self.path}\n"
+            "The phone would stream an empty bin, so every ticket would open an ask.\n"
+            f"Pictures are being read from {self.assets_dir}. A scenario built on "
+            "photographs needs --assets sim/assets/real."
+        )
+
+
 @dataclass
 class PhoneSim:
     """The phone side of the wire. Drive it with `show` and `clear`."""
@@ -84,15 +101,30 @@ class PhoneSim:
     def connected(self) -> asyncio.Event:
         return self._connected
 
-    def show(self, image: str | Path) -> None:
-        """Put an item in frame and leave it there."""
+    def resolve(self, image: str | Path) -> Path:
+        """Where a scenario's picture lives, or a refusal saying why it does not."""
         path = Path(image)
         if not path.is_absolute():
             path = self.assets_dir / path
         if not path.exists():
-            self.log(f"phone sim has no image at {path}, showing the bin only")
-            return
-        self.items.append(path)
+            raise MissingAsset(path, self.assets_dir)
+        return path
+
+    def check_assets(self, images: Iterable[str | Path]) -> None:
+        """Every picture a scenario names, before a single frame goes out."""
+        for image in images:
+            self.resolve(image)
+
+    def show(self, image: str | Path) -> None:
+        """Put an item in frame and leave it there.
+
+        A missing file used to be a log line and an empty bin, which is the worst possible
+        failure: every frame is then a photograph of nothing, the model correctly says it
+        cannot name what is not there, every ticket opens an ask, and the whole run reads
+        as a backend bug. It stops the run now, and names the flag that is usually the
+        reason.
+        """
+        self.items.append(self.resolve(image))
 
     def clear(self) -> None:
         """Empty the bin, which is what a bag change looks like through the camera."""

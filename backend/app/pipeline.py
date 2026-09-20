@@ -53,7 +53,7 @@ from app.engine.records import (
     OptionScore,
 )
 from app.engine.tax import money, tax_effect_for
-from app.identify import early, estimate_cache
+from app.identify import early, estimate_cache, qr
 from app.identify.embed import Embedder, get_embedder
 from app.identify.memory import MemoryIndex, get_memory
 from app.identify.pipeline import (
@@ -237,6 +237,16 @@ class _Pricing:
     condition: Condition
 
 
+def _early_frames(frames: Sequence[Frame], opened_ms: float) -> list[bytes]:
+    """The frames a tag could be read off at this point: the newest ones since the open.
+
+    `frame_bytes` reads the after and the peak frame of a settled step. There is no settled
+    step yet, so this takes the newest frames instead, which is where the item just landed.
+    """
+    recent = sorted((f for f in frames if f.t_ms >= opened_ms), key=lambda f: -f.t_ms)
+    return [frame.jpeg for frame in recent[:2] if frame.jpeg]
+
+
 def _early_crop(frames: Sequence[Frame], opened_ms: float, at_ms: float) -> bytes | None:
     """Cut the new thing out of the picture taken a moment after the step opened.
 
@@ -401,6 +411,13 @@ class PipelineDeps:
         ingest = self._ingest
         if ingest is None or not self.settings.identify_at_step_open:
             return
+        if ingest.latest_g < baseline_g:
+            # The scale is going down, so this is a bag going out or something coming back
+            # and nothing will be identified. In the first real run this alone cost two
+            # live calls, because a request already on the wire cannot be unsent when the
+            # step settles the wrong way.
+            log.debug("the step at %.0f ms is a removal, so nothing is asked", opened_ms)
+            return
         if not len(ingest.frames):
             # No camera has sent anything, so there is no early picture to take and the
             # toss is a weight and nothing else. PLAN.md rule 6: that is a real event.
@@ -427,6 +444,13 @@ class PipelineDeps:
             return None, None
         session = self.session_factory()
         try:
+            # A tagged asset is identified off the tag, for nothing, in about 75 ms. Asking
+            # the model about it as well is money spent on an answer that loses. The tag is
+            # read again on the settled frames, which is where it decides; this only asks
+            # whether there is any point making the call.
+            if qr.match_asset(qr.read_tags(_early_frames(frames, opened_ms)), session):
+                log.info("a tag is already in shot, so no early call was made")
+                return None, None
             context = build_context(
                 session,
                 event_id=0,

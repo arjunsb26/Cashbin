@@ -747,17 +747,32 @@ async def _vision_answer(
     crop: bytes | None,
     context: IdentifyContext,
 ) -> VisionResult | None:
-    """The model's answer: the call that is already running, or a fresh one."""
+    """The model's answer: the call that is already running, or a fresh one.
+
+    The early call looks at a picture taken about 300 ms after the item landed, and the
+    settled one looks at a later, better picture of the same thing. So an early answer is
+    taken when it names something, and an early "unknown" is not an answer at all: it gets
+    the settled crop its own call rather than opening an ask on the first frame anyone
+    managed to grab. A tag has already been read off the settled frames before this runs,
+    and beats both.
+    """
     if pending is not None:
         answer, _looked_at = await pending.result(deps.settings.llm_timeout_s)
-        if answer is not None:
+        if answer is not None and str(answer.label) != UNKNOWN_CHOICE:
             remember_vision(deps.providers.vision, event_id, answer)
             log.info(
                 "event %s was answered by the call that started when the step opened",
                 event_id,
             )
             return answer
-        log.info("the early call for event %s gave nothing, asking now", event_id)
+        if answer is not None:
+            log.info(
+                "the early call for event %s could not name it, so the settled crop is "
+                "asked about",
+                event_id,
+            )
+        else:
+            log.info("the early call for event %s gave nothing, asking now", event_id)
     return await _call_vision(deps, crop or b"", context)
 
 
