@@ -1,6 +1,8 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
+  formatDate,
+  formatProvider,
   formatMoney,
   formatSignedMoney,
   isNegativeCents,
@@ -180,4 +182,23 @@ test("a terse device line is set as a sentence", () => {
 test("the mass check stays in grams so a gram of difference still shows", () => {
   assert.equal(formatGrams(2412), `2,412${THIN}g`);
   assert.equal(formatGrams(0.7), `1${THIN}g`);
+});
+
+test("a day with no clock on it is the day it says, wherever the reader is", () => {
+  // "2026-09-20" is a day, not an instant. Handing it to Date parses it as UTC
+  // midnight, and anywhere west of Greenwich that prints as the day before. A
+  // close period, a rollforward and a Form 4797 line are all days, and a
+  // statement that is off by one is a statement nobody can reconcile.
+  assert.equal(formatDate("2026-09-20"), "Sep 20, 2026");
+  assert.equal(formatDate("2026-01-01"), "Jan 1, 2026");
+  // A full timestamp still reads in the reader's own clock, as it always did.
+  assert.equal(formatDate("2026-09-20T14:31:00Z").startsWith("Sep"), true);
+});
+
+test("who served a call reads in words, and the fallback names nothing internal", () => {
+  assert.equal(formatProvider("openai", "gpt-5-mini"), "openai gpt-5-mini");
+  assert.equal(formatProvider("openai", ""), "openai");
+  assert.equal(formatProvider("stub", ""), "Written without a model");
+  assert.equal(formatProvider("stub", "anything"), "Written without a model");
+  assert.equal(formatProvider(null, null), "");
 });

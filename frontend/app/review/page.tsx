@@ -4,7 +4,14 @@ import { useState } from "react";
 import Link from "next/link";
 import * as Dialog from "@radix-ui/react-dialog";
 import { useReview, useReviewAnswer, useReviewDecision, useReviewRun } from "@/lib/api";
-import { formatMoney, formatProbability, formatTag, formatTime, readLabel } from "@/lib/format";
+import {
+  formatMoney,
+  formatProbability,
+  formatProvider,
+  formatTag,
+  formatTime,
+  readLabel,
+} from "@/lib/format";
 import { PROPOSAL_WORDS, REVIEW_GROUPS, REVIEW_KIND_WORDS } from "@/lib/review";
 import type { ReviewItemRead, ReviewKind, ReviewStatus } from "@/lib/types";
 import {
@@ -304,7 +311,7 @@ function Proposal({ item }: { item: ReviewItemRead }) {
   const proposal = item.proposal;
   if (!proposal) return null;
   const steps = proposal.steps ?? [];
-  const served = [proposal.provider, proposal.model].filter(Boolean).join(" ");
+  const served = formatProvider(proposal.provider, proposal.model);
 
   return (
     <div className="mt-2 border-l-2 border-rule pl-3">

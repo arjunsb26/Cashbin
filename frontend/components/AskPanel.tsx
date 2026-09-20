@@ -136,14 +136,17 @@ export function AskPanel({ ask, onDismiss }: { ask: AskView; onDismiss: () => vo
               <button
                 type="button"
                 onClick={() => send(candidate.label)}
-                className="flex h-11 w-full items-center justify-between rounded-control border border-control-border bg-surface px-3 text-body transition-colors duration-fast ease-standard hover:bg-bar"
+                // The height is a floor, not a ceiling. A real candidate list at
+                // 390 px carries labels like "laptop charger", which wrapped
+                // inside a fixed 44 px box and collided with the percentage.
+                className="flex min-h-11 w-full items-center justify-between gap-3 rounded-control border border-control-border bg-surface px-3 py-2 text-left text-body transition-colors duration-fast ease-standard hover:bg-bar"
               >
                 <span>
                   <span className="pr-2 text-ink-soft">{i + 1}</span>
                   {candidate.label}
                 </span>
                 {candidate.p === null ? null : (
-                  <span className="text-caption text-ink-soft">
+                  <span className="shrink-0 text-caption text-ink-soft">
                     {formatProbability(candidate.p)}
                   </span>
                 )}
