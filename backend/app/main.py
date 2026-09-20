@@ -42,6 +42,11 @@ log = logging.getLogger(__name__)
 PHONE_DIR = REPO_DIR / "phone"
 BRAND_FILE = REPO_DIR / "brand.json"
 
+# Every way of naming this laptop or something on its hotspot, and nothing else. `localhost`
+# and `127.0.0.1` are the same machine by two names, and `[::1]` is the same machine again:
+# which one a browser picks is the browser's business, so all three are here.
+CORS_ORIGIN_PATTERN = r"https?://(localhost|127\.0\.0\.1|\[::1\]|[0-9.]+)(:\d+)?"
+
 
 def setup_logging() -> None:
     """Give the structured lines somewhere to go.
@@ -241,7 +246,7 @@ def create_app(active: Settings | None = None) -> FastAPI:
     # The dashboard runs on its own port in development and on the same origin in the demo.
     app.add_middleware(
         CORSMiddleware,
-        allow_origin_regex=r"https?://(localhost|127\.0\.0\.1|\[::1\]|[0-9.]+)(:\d+)?",
+        allow_origin_regex=CORS_ORIGIN_PATTERN,
         allow_credentials=False,
         allow_methods=["*"],
         allow_headers=["*"],
