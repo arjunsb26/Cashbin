@@ -13,7 +13,7 @@ steps:
   - kind: toss
     label: keyboard
     mass_g: 780
-    image: sprites/keyboard_1.jpg
+    image: sprites/keyboard_1_tagged.jpg
     tag: BB-0002
   - kind: toss
     label: usb-c charger
