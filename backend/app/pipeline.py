@@ -24,7 +24,9 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
-from collections.abc import Callable
+import time
+from collections.abc import Callable, Sequence
+from dataclasses import dataclass
 from datetime import UTC, date, datetime
 
 from sqlalchemy import delete, select
@@ -34,7 +36,8 @@ from app import models
 from app.api.assets import to_asset_info
 from app.api.events import _summary as event_summary
 from app.config import Settings
-from app.detect.crop import FramePick
+from app.detect.crop import CropParams, Frame, FramePick, crop_item, pick_frames
+from app.detect.steps import Step
 from app.engine import options as engine_options
 from app.engine import records as engine_records
 from app.engine.records import (
@@ -50,12 +53,13 @@ from app.engine.records import (
     OptionScore,
 )
 from app.engine.tax import money, tax_effect_for
-from app.identify import estimate_cache
+from app.identify import early, estimate_cache
 from app.identify.embed import Embedder, get_embedder
 from app.identify.memory import MemoryIndex, get_memory
 from app.identify.pipeline import (
     IdentifyDeps,
     Providers,
+    build_context,
     build_providers,
     identify_event,
     set_on_final,
@@ -100,6 +104,10 @@ BLOCKED_ADVICE: dict[Option, str] = {
     Option.resell: "Resell it",
     Option.repair: "Repair it",
 }
+# User copy, for the moment between knowing what a thing is and knowing what it is worth.
+VALUING_BIG = "..."
+VALUING_LINE = "Working out value"
+
 BINNED: dict[ItemClass, str] = {
     ItemClass.fixed_asset: "Removed from books",
     ItemClass.inventory: "Written off as waste",
@@ -214,6 +222,50 @@ def to_catalog_item(row: models.CatalogItem) -> CatalogItem:
     )
 
 
+@dataclass(frozen=True)
+class _Pricing:
+    """Everything a pricing pass needs that does not change between the two passes."""
+
+    event_id: int
+    label: str
+    cls: ItemClass
+    mass_g: float
+    when: date
+    catalog: CatalogItem | None
+    asset: AssetInfo | None
+    asset_row: models.Asset | None
+    condition: Condition
+
+
+def _early_crop(frames: Sequence[Frame], opened_ms: float, at_ms: float) -> bytes | None:
+    """Cut the new thing out of the picture taken a moment after the step opened.
+
+    `pick_frames` works off a step, and at this point there is no step: the detector will
+    not know whether this was a toss for another second. A stand-in carrying the two stamps
+    it reads is enough, and keeps one frame picking rule for the early call and the real one.
+    """
+    if not frames:
+        return None
+    stand_in = Step(
+        kind="toss",
+        t_open_ms=opened_ms,
+        t_settle_ms=at_ms,
+        mass_g=0.0,
+        mass_err_g=0.0,
+        baseline_before_g=0.0,
+        baseline_after_g=0.0,
+    )
+    params = CropParams()
+    picked = pick_frames(frames, stand_in, params)
+    if picked.before is None or picked.after is None:
+        return None
+    try:
+        return crop_item(picked.before.jpeg, picked.after.jpeg, params).jpeg
+    except (ValueError, RuntimeError):
+        log.warning("the early crop did not come out, this toss waits for its settle")
+        return None
+
+
 def frame_bytes(frames: FramePick) -> list[bytes]:
     """The frames the QR reader gets: the after frame, then the peak frame.
 
@@ -262,6 +314,12 @@ class VisionRecorder:
             self.seen.pop(next(iter(self.seen)))
         return result
 
+    def remember(self, event_id: int, result: VisionResult) -> None:
+        """File an answer that was produced before the event had an id."""
+        self.seen[event_id] = result
+        while len(self.seen) > self.keep:
+            self.seen.pop(next(iter(self.seen)))
+
     def of(self, event_id: int) -> VisionResult | None:
         """What the model said about this event, if a model was asked at all."""
         return self.seen.get(event_id)
@@ -290,6 +348,7 @@ class PipelineDeps:
         self.embedder = embedder
         self.memory = memory
         self.vision = vision
+        self._ingest: IngestState | None = None
         self.identify = IdentifyDeps(
             session_factory=session_factory,
             providers=providers,
@@ -310,7 +369,9 @@ class PipelineDeps:
         knowing anything about the engine.
         """
         ingest.on_event = self.on_event
+        ingest.on_step_open = self.on_step_open
         ingest.current_round_id = self.current_round_id
+        self._ingest = ingest
         set_on_final(self.finalise_event)
 
     def current_round_id(self) -> int | None:
@@ -325,6 +386,68 @@ class PipelineDeps:
             return int(current.id) if current is not None else None
         finally:
             session.close()
+
+    # Stage zero: the model starts while the scale is still settling ---------
+
+    def on_step_open(self, opened_ms: float, baseline_g: float) -> None:
+        """Start the vision call the moment the weight moves, not when it stops moving.
+
+        PLAN.md section 7 waits `settle_ms` before it will call a step a step, and the
+        model takes seconds more after that. The two do not have to be in a row: the item
+        is in the picture as soon as it lands. This starts the call and `app.identify.early`
+        holds it until identification asks. Nothing is written anywhere until the event row
+        exists, so an aborted step leaves no trace but a log line.
+        """
+        ingest = self._ingest
+        if ingest is None or not self.settings.identify_at_step_open:
+            return
+        if not len(ingest.frames):
+            # No camera has sent anything, so there is no early picture to take and the
+            # toss is a weight and nothing else. PLAN.md rule 6: that is a real event.
+            log.debug("no frames in the ring, the step at %.0f ms waits for its settle",
+                      opened_ms)
+            return
+        early.start(opened_ms, self._early_vision(ingest, opened_ms, baseline_g))
+
+    async def _early_vision(
+        self, ingest: IngestState, opened_ms: float, baseline_g: float
+    ) -> early.EarlyResult:
+        """Wait for the item to be in shot, cut it out, and ask the model about it."""
+        delay_ms = float(self.settings.identify_open_delay_ms)
+        if delay_ms > 0:
+            await asyncio.sleep(delay_ms / 1000.0)
+        frames = ingest.frames.snapshot()
+        mass_g = max(0.0, ingest.latest_g - baseline_g)
+        crop = await asyncio.to_thread(_early_crop, frames, opened_ms, opened_ms + delay_ms)
+        if crop is None:
+            log.info(
+                "no usable frame %.0f ms after the step opened, this toss waits for its settle",
+                delay_ms,
+            )
+            return None, None
+        session = self.session_factory()
+        try:
+            context = build_context(
+                session,
+                event_id=0,
+                mass_g=mass_g,
+                mass_err_g=0.0,
+                settings=self.settings,
+                # The scale has not settled, so the mass in the data block is what the
+                # scale read a moment after the item landed. Say so rather than let the
+                # model read a settled figure into it.
+                hints={"mass": "measured before the scale settled"},
+            )
+        finally:
+            session.close()
+        started = time.perf_counter()
+        answer = await asyncio.to_thread(self.providers.vision.identify, crop, context)
+        log.info(
+            "the early vision call answered in %d ms about %.0f g",
+            int((time.perf_counter() - started) * 1000),
+            mass_g,
+        )
+        return answer, crop
 
     # Stage one: a step becomes an identification ---------------------------
 
@@ -392,10 +515,16 @@ class PipelineDeps:
             stage = "estimate"
             seen = self.vision.of(event_id)
             condition = _condition_of(seen)
-            estimate = await self._estimate(cls, display, mass_g, seen)
+            # PLAN.md 21a item 25. The value estimate is a second model call, and Lane K
+            # measured it slower than the vision call every single time, which is what put
+            # an unpriced ticket at six seconds. It comes off the critical path: the label
+            # and the mass reach all three surfaces now, and the figure follows.
+            cached = (
+                estimate_cache.read_estimate(display) if cls is ItemClass.untracked else None
+            )
+            valuing = cls is ItemClass.untracked and cached is None
 
-            stage = "record"
-            record = _build_record(
+            parts = _Pricing(
                 event_id=event_id,
                 label=display,
                 cls=cls,
@@ -403,44 +532,30 @@ class PipelineDeps:
                 when=when,
                 catalog=catalog,
                 asset=asset,
+                asset_row=asset_row,
                 condition=condition,
-                estimate=estimate,
             )
+            stage = self._post_pass(session, event, parts, cached, valuing=valuing)
+            if not valuing:
+                log.info("event %d is posted", event_id)
+                return
 
-            stage = "score"
-            engine_settings = EngineSettings.from_settings(self.settings)
-            scores = engine_options.score_options(record, engine_settings, asset)
-            ranking = engine_options.summarise(scores, engine_settings)
-            log.info(
-                "event %d scored: best=%s greenest=%s saved=%d tone=%s",
-                event_id,
-                ranking.best_option.value if ranking.best_option is not None else None,
-                ranking.greenest_option.value if ranking.greenest_option is not None else None,
-                ranking.saved_if_followed_cents,
-                ranking.tone,
-            )
-
-            stage = "write"
-            _write_item_record(session, record)
-            _write_option_scores(session, event_id, scores)
-
-            stage = "post"
-            posted = _post_entries(session, record, asset, engine_settings)
-            log.info("event %d posted %d journal entries", event_id, posted)
-
-            stage = "register"
-            if asset_row is not None:
-                asset_row.status = models.AssetStatus.disposed
-                asset_row.disposed_event_id = event_id
-                log.info("asset %s is off the register on event %d", asset_row.tag, event_id)
-
-            event.status = models.EventStatus.posted
-            session.commit()
-
-            stage = "publish"
-            self._publish(session, event, record, ranking, scores)
-            metrics.publish_metrics(session, self.bus)
-            log.info("event %d is posted", event_id)
+            stage = "estimate"
+            estimate = await self._estimate(cls, display, mass_g, seen)
+            if estimate is None:
+                log.info("event %d has no estimate, the ticket stands as it is", event_id)
+                return
+            written = session.get(models.ItemRecord, event_id)
+            if written is None or written.label != display[:40]:
+                # A person answered again while the estimate was out. The figure belongs to
+                # the label that was asked about, not to whatever the ticket says now.
+                log.info(
+                    "event %d was relabelled while it was valued, so the estimate is dropped",
+                    event_id,
+                )
+                return
+            stage = self._post_pass(session, event, parts, estimate, valuing=False)
+            log.info("event %d is posted with its value", event_id)
         except Exception:
             session.rollback()
             log.exception(
@@ -451,6 +566,66 @@ class PipelineDeps:
             )
         finally:
             session.close()
+
+    def _post_pass(
+        self,
+        session: Session,
+        event: models.Event,
+        parts: _Pricing,
+        estimate: ValueEstimate | None,
+        *,
+        valuing: bool,
+    ) -> str:
+        """Price the ticket, write it, post it and say so. Returns the stage it reached.
+
+        Runs once for a ticket the catalog prices, and twice for one it does not: first
+        with no figure, so the bin and the phone answer at once, then again with it.
+        Re-posting reverses the first pass's entries, which is `_post_entries` doing what
+        PLAN.md section 11 asks, and an untracked item posts nothing to reverse.
+        """
+        event_id = parts.event_id
+        record = _build_record(
+            event_id=event_id,
+            label=parts.label,
+            cls=parts.cls,
+            mass_g=parts.mass_g,
+            when=parts.when,
+            catalog=parts.catalog,
+            asset=parts.asset,
+            condition=parts.condition,
+            estimate=estimate,
+        )
+
+        engine_settings = EngineSettings.from_settings(self.settings)
+        scores = engine_options.score_options(record, engine_settings, parts.asset)
+        ranking = engine_options.summarise(scores, engine_settings)
+        log.info(
+            "event %d scored: best=%s greenest=%s saved=%d tone=%s%s",
+            event_id,
+            ranking.best_option.value if ranking.best_option is not None else None,
+            ranking.greenest_option.value if ranking.greenest_option is not None else None,
+            ranking.saved_if_followed_cents,
+            ranking.tone,
+            " (still being valued)" if valuing else "",
+        )
+
+        _write_item_record(session, record)
+        _write_option_scores(session, event_id, scores)
+
+        posted = _post_entries(session, record, parts.asset, engine_settings)
+        log.info("event %d posted %d journal entries", event_id, posted)
+
+        if parts.asset_row is not None:
+            parts.asset_row.status = models.AssetStatus.disposed
+            parts.asset_row.disposed_event_id = event_id
+            log.info("asset %s is off the register on event %d", parts.asset_row.tag, event_id)
+
+        event.status = models.EventStatus.posted
+        session.commit()
+
+        self._publish(session, event, record, ranking, scores, valuing=valuing)
+        metrics.publish_metrics(session, self.bus)
+        return "publish"
 
     # The pieces ------------------------------------------------------------
 
@@ -494,6 +669,7 @@ class PipelineDeps:
         record: ItemRecord,
         ranking: engine_options.Ranking,
         scores: list[OptionScore],
+        valuing: bool = False,
     ) -> None:
         """Tell the dashboard, the phone and the bin, in that order."""
         event_id = int(event.id)
@@ -508,13 +684,21 @@ class PipelineDeps:
         title = title_for(record.label)
         line = advice_line(record, ranking, blocked)
         cents = headline_cents(record)
+        big_money = signed_money(cents)[:16]
+        lcd_money = lcd_big(cents)
+        if valuing:
+            # No figure yet, so none is drawn. DESIGN.md section 8: say what is happening.
+            big_money = VALUING_BIG
+            lcd_money = VALUING_BIG
+            line = VALUING_LINE
+            tone = "neutral"
 
         if ranking.best_option is not None:
             self.bus.publish(
                 PhoneResult(
                     event_id=event_id,
                     title=title[:60],
-                    big=signed_money(cents)[:16],
+                    big=big_money,
                     line=line,
                     tone=tone,
                     best_option=models.OptionKind(ranking.best_option.value),
@@ -523,7 +707,7 @@ class PipelineDeps:
             )
         else:
             log.warning("event %d has no allowed option, so the phone gets no result", event_id)
-        self.bus.publish(lcd.result(title, lcd_big(cents), line, tone), CHANNEL_BIN)
+        self.bus.publish(lcd.result(title, lcd_money, line, tone), CHANNEL_BIN)
 
 
 # Lookups --------------------------------------------------------------------

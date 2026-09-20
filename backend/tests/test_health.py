@@ -151,3 +151,40 @@ def test_a_bad_label_is_refused_before_the_handler(client: TestClient) -> None:
     """Validation runs at the boundary, so a hostile label never reaches a lane's code."""
     response = client.post("/api/corrections", json={"event_id": 1, "label": "<script>x</script>"})
     assert response.status_code == 422
+
+
+# The root of the backend, and anything that is not a route -------------------
+
+
+def test_the_laptop_is_sent_to_the_dashboard(client: TestClient) -> None:
+    response = client.get("/", follow_redirects=False, headers={"host": "localhost:8443"})
+    assert response.status_code == 307
+    assert response.headers["location"] == "http://localhost:3000"
+
+
+def test_the_loopback_address_is_the_laptop_too(client: TestClient) -> None:
+    response = client.get("/", follow_redirects=False, headers={"host": "127.0.0.1:8443"})
+    assert response.status_code == 307
+    assert response.headers["location"] == "http://localhost:3000"
+
+
+def test_anything_else_on_the_network_is_a_phone(client: TestClient) -> None:
+    response = client.get("/", follow_redirects=False, headers={"host": "192.168.137.1:8443"})
+    assert response.status_code == 307
+    assert response.headers["location"] == "/phone/"
+
+
+def test_an_address_with_nothing_at_it_says_where_to_go(client: TestClient) -> None:
+    response = client.get("/nothing-here")
+    assert response.status_code == 404
+    detail = response.json()["detail"]
+    assert "Nothing lives at this address" in detail
+    assert "http://localhost:3000" in detail
+    assert "/phone" in detail
+
+
+def test_a_route_that_answers_404_keeps_its_own_words(client: TestClient) -> None:
+    """A signpost must not replace a sentence that already said what was wrong."""
+    response = client.get("/api/events/9999")
+    assert response.status_code == 404
+    assert response.json()["detail"] == "No such event."

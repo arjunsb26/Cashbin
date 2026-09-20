@@ -808,6 +808,9 @@ export const CLOSE: CloseRead = {
   checks: [
     {
       id: "mass_conservation",
+
+      title: "Mass conservation",
+
       result: "fail",
       detail:
         "Scale reads            2,412 g\nTickets sum to         2,398 g\nDifference                14 g    within +/- 21 g    Fail\n\nThe tare is the last bag change.\n5 tickets, 1 bag change, 0 removals, 0 g taken back out.",
@@ -821,24 +824,36 @@ export const CLOSE: CloseRead = {
     },
     {
       id: "ledger_balance",
+
+      title: "Ledger balance",
+
       result: "pass",
       detail: "Every entry balances and the trial balance agrees.",
       numbers: { entries: 3, unbalanced_entries: 0, debit_cents: 12033, credit_cents: 12033 },
     },
     {
       id: "register_consistency",
+
+      title: "Register consistency",
+
       result: "pass",
       detail: "Every asset the bin disposed of has exactly one disposal entry.",
       numbers: { disposed_assets: 1, missing_entries: 0, duplicate_entries: 0 },
     },
     {
       id: "unresolved_asks",
+
+      title: "Unresolved asks",
+
       result: "warn",
       detail: "1 ticket is still waiting on an answer: 105.",
       numbers: { asking: 1, tosses: 5 },
     },
     {
       id: "low_confidence_share",
+
+      title: "Settled by a person",
+
       result: "pass",
       detail: "A person settled 1 of 4 tickets, 25 percent.",
       numbers: { settled_by_person: 1, tickets: 4 },

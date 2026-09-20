@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import time
 from typing import Any
 
@@ -169,9 +170,12 @@ async def test_a_confident_stub_answer_is_final(settings: Settings) -> None:
     assert outcome.label == "bagel"
     assert outcome.method is IdentifyMethod.stub
     rows = rows_for(event_id)
-    assert rows[-1].provider == "stub"
-    assert rows[-1].model == "stub"
+    # The call's own row says which provider served it. The mass prior then writes a row of
+    # its own on top, which is the fusion stage and is served locally.
+    served = next(row for row in rows if row.provider == "stub")
+    assert served.model == "stub"
     assert rows[-1].is_final is True
+    assert rows[-1].label == "bagel"
     assert listener.types()[0] == "screen"
 
 
@@ -217,7 +221,11 @@ async def test_the_ask_carries_at_most_four_candidates(settings: Settings) -> No
 # Memory ---------------------------------------------------------------------
 
 
-async def test_the_second_toss_of_the_same_thing_comes_from_memory(settings: Settings) -> None:
+async def test_the_second_toss_of_the_same_thing_is_surer_but_still_asks_the_model(
+    settings: Settings,
+) -> None:
+    """PLAN.md 21a item 23. Memory used to answer here and skip the call. It now backs the
+    call's answer instead, which is what turns an ask into a posted ticket."""
     setup_db(settings)
     name = write_crop(settings, "crop-1.jpg", CROP)
     with session_scope() as session:
@@ -235,17 +243,41 @@ async def test_the_second_toss_of_the_same_thing_comes_from_memory(settings: Set
 
     with session_scope() as session:
         second = make_event(session, mass_g=182.0, crop=name).id
-    get_expect_queue().push("bagel")  # the cloud would have said something else
+    get_expect_queue().push("cracked phone")
     outcome = await identify_event(second, CROP, [], 182.0, 2.0, deps)
 
     assert outcome.final is True
     assert outcome.label == "cracked phone"
-    assert outcome.method is IdentifyMethod.memory
-    row = rows_for(second)[-1]
-    assert row.cost_microusd == 0
-    assert (row.provider, row.model) == ("local", "baseline-hsv-thumb")
-    assert row.confidence == 1.0
-    assert get_expect_queue().pending() == 1  # nothing asked the stub anything
+    # The model was asked, and it is the model's row that is final.
+    assert outcome.method is IdentifyMethod.stub
+    assert get_expect_queue().pending() == 0
+    rows = rows_for(second)
+    remembered = [row for row in rows if row.method is IdentifyMethod.memory]
+    assert len(remembered) == 1
+    assert remembered[0].is_final is False
+    assert (remembered[0].provider, remembered[0].model) == ("local", "baseline-hsv-thumb")
+    # The drawer gets the neighbours and how far away they were.
+    assert "cracked phone" in json.loads(remembered[0].posterior_json or "{}")
+
+
+async def test_a_remembered_example_that_agrees_turns_an_ask_into_an_answer(
+    settings: Settings,
+) -> None:
+    setup_db(settings)
+    name = write_crop(settings, "crop-2.jpg", CROP)
+    with session_scope() as session:
+        first = make_event(session, mass_g=180.0, crop=name).id
+    get_expect_queue().push("cracked phone")
+    deps = make_deps(settings)
+    assert (await identify_event(first, CROP, [], 180.0, 2.0, deps)).final is False
+    await apply_correction(CorrectionCreate(event_id=first, label="cracked phone"), deps)
+
+    # The same unsure answer the stub gave the first time, now with one example behind it.
+    with session_scope() as session:
+        second = make_event(session, mass_g=180.0, crop=name).id
+    get_expect_queue().push("cracked phone")
+    outcome = await identify_event(second, CROP, [], 180.0, 2.0, deps)
+    assert outcome.final is True, "an agreeing example is what stops the second ask"
 
 
 async def test_a_different_object_does_not_match_the_exemplar(settings: Settings) -> None:

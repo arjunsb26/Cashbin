@@ -120,3 +120,66 @@ def test_binning_food_warms_the_planet_and_composting_it_does_not() -> None:
     compost = carbon.kg_co2e(item, Option.recycle)
     assert trash is not None and compost is not None
     assert trash > 0 > compost
+
+
+# Every catalog item has a carbon answer for every option -----------------------
+
+
+def test_every_catalog_material_is_in_the_warm_table() -> None:
+    """A key the table does not have is a ticket with no carbon on it."""
+    from app.engine.records import load_catalog
+
+    used = {material for item in load_catalog() for material in item.material_mix}
+    missing = sorted(used - carbon.known_materials())
+    assert not missing, f"not in warm_factors.csv: {missing}"
+
+
+def test_every_catalog_item_gets_a_number_for_every_option() -> None:
+    """The real run showed "unknown" on two tickets. This is the invariant that catches it."""
+    from datetime import date
+
+    from app.engine.records import ItemRecord, load_catalog
+
+    blank: list[str] = []
+    for item in load_catalog():
+        if not item.material_mix:
+            blank.append(item.label)
+            continue
+        record = ItemRecord.model_validate(
+            {
+                "event_id": 1,
+                "label": item.label,
+                "class": str(item.item_class),
+                "mass_g": item.unit_mass_g or item.mass_prior_mean_g or 100.0,
+                "event_date": date(2026, 9, 19),
+                "material_mix": dict(item.material_mix),
+            }
+        )
+        for option in Option:
+            result = carbon.carbon_for(record, option)
+            assert result.kg_co2e is not None, (
+                f"{item.label} has no carbon for {option.value}: {result.missing_materials}"
+            )
+    assert not blank, f"catalog rows with no material mix: {blank}"
+
+
+def test_the_estimator_may_only_name_materials_warm_publishes() -> None:
+    """A model that invents a material key produces a ticket with no carbon on it."""
+    from app.identify.openai_request import MATERIAL_VOCABULARY
+
+    assert set(MATERIAL_VOCABULARY) == carbon.known_materials()
+    assert tuple(sorted(MATERIAL_VOCABULARY)) == MATERIAL_VOCABULARY
+
+
+def test_the_estimate_request_carries_the_vocabulary_as_data() -> None:
+    import json
+
+    from app.identify.openai_request import MATERIAL_VOCABULARY, build_estimate_request
+    from app.schemas import VisionResult
+
+    vision = VisionResult.model_validate(
+        {"label": "keyboard", "class": "untracked", "confidence": 0.9}
+    )
+    request = build_estimate_request("keyboard", vision, 685.0, "test-text-model")
+    data = json.loads(request["messages"][1]["content"][1]["text"])
+    assert data["materials"] == list(MATERIAL_VOCABULARY)

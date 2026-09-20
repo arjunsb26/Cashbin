@@ -13,6 +13,7 @@ import pytest
 
 from app.identify.openai_request import (
     ESTIMATE_TASK,
+    MATERIAL_VOCABULARY,
     SYSTEM_TEXT,
     VISION_TASK,
     build_estimate_request,
@@ -115,13 +116,17 @@ def test_the_estimate_request_sends_the_object_as_data() -> None:
     request = build_estimate_request("cracked phone", VISION, 180.0, "test-text-model")
     task, data = request["messages"][1]["content"]
     assert task["text"] == ESTIMATE_TASK
-    assert json.loads(data["text"]) == {
+    sent = json.loads(data["text"])
+    vocabulary = sent.pop("materials")
+    assert sent == {
         "label": "cracked phone",
         "class": "inventory",
         "condition": "unknown",
         "material": "food_waste",
         "mass_g": 180.0,
     }
+    # The vocabulary is data too: the only material names the engine can price carbon for.
+    assert vocabulary == list(MATERIAL_VOCABULARY)
     assert request["response_format"]["json_schema"]["name"] == "value_estimate"
 
 

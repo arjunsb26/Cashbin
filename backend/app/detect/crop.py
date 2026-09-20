@@ -207,3 +207,45 @@ def _encode(img: np.ndarray, p: CropParams) -> bytes:
     if not ok:
         raise ValueError("could not encode the crop as JPEG")
     return bytes(buf.tobytes())
+
+
+def jpeg_size(data: bytes) -> tuple[int, int] | None:
+    """The width and height of a JPEG, or None when the bytes are not a picture."""
+    img = cv2.imdecode(np.frombuffer(data, dtype=np.uint8), cv2.IMREAD_COLOR)
+    if img is None:
+        return None
+    height, width = img.shape[:2]
+    return width, height
+
+
+def downscale_jpeg(data: bytes, max_px: int, quality: int = 80) -> bytes:
+    """Re-encode a JPEG so its longest side is at most `max_px`.
+
+    A model that classifies an object does not need a two megapixel photograph, and the
+    upload is a real part of the wait: the picture travels as base64 inside the request.
+    The full size crop stays on disk for the evidence drawer, so this shrinks a copy and
+    never the file anyone looks at.
+
+    Bytes that are already small enough come back as they are, and bytes that are not a
+    picture come back untouched, because refusing to send anything would be worse than
+    sending what we have.
+    """
+    if max_px <= 0:
+        return data
+    img = cv2.imdecode(np.frombuffer(data, dtype=np.uint8), cv2.IMREAD_COLOR)
+    if img is None:
+        return data
+    height, width = img.shape[:2]
+    longest = max(height, width)
+    if longest <= max_px:
+        return data
+    scale = max_px / float(longest)
+    small = cv2.resize(
+        img,
+        (max(1, round(width * scale)), max(1, round(height * scale))),
+        interpolation=cv2.INTER_AREA,
+    )
+    ok, buffer = cv2.imencode(".jpg", small, [int(cv2.IMWRITE_JPEG_QUALITY), int(quality)])
+    if not ok:
+        return data
+    return bytes(buffer.tobytes())

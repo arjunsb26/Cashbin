@@ -12,13 +12,16 @@ from __future__ import annotations
 
 import json
 import logging
+from datetime import UTC, datetime
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Request
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.config import RUNTIME_SETTING_KEYS, Settings, get_settings
 from app.db import get_db
+from app.ingest.state import get_ingest
+from app.ledger.close import TARE_SETTING_KEY
 from app.models import Setting
 from app.notify.bus import CHANNEL_BIN, get_bus
 from app.schemas import BinTare, DeviceTareResponse, SettingsRead, SettingsUpdate
@@ -83,12 +86,41 @@ def update_settings(body: SettingsUpdate, session: Session = Depends(get_db)) ->
 
 
 @router.post("/device/tare", response_model=DeviceTareResponse)
-def tare_device() -> DeviceTareResponse:
-    """Send the scale back to zero.
+def tare_device(request: Request, session: Session = Depends(get_db)) -> DeviceTareResponse:
+    """Send the scale back to zero, and write down that it happened.
 
     The command goes on the `bin` channel and the bin socket forwards it. `sent` says
     whether a bin was there to receive it, so the dashboard can say "no bin connected"
     instead of pretending the button did something.
+
+    The close's mass check needs to know where the bin's zero is. Without this row it
+    falls back to the first weight sample of the period, which is whatever the scale
+    happened to be reading when the first ticket was cut. A tare nobody received is not
+    written down, because the scale was not zeroed.
     """
     delivered = get_bus().publish(BinTare(), CHANNEL_BIN)
+    if delivered > 0:
+        _record_tare(session, request)
     return DeviceTareResponse(sent=delivered > 0)
+
+
+def _record_tare(session: Session, request: Request) -> None:
+    """Store the new zero and the moment it was set.
+
+    `weight_g` is what the scale reads from now on, which is zero: that is what a tare
+    does. What was sitting on it a moment before is kept beside it as `weight_before_g`,
+    because a tare with several hundred grams on the scale is worth seeing in a close.
+    """
+    before = float(getattr(get_ingest(request.app), "latest_g", 0.0))
+    value = {
+        "at": datetime.now(UTC).isoformat(),
+        "weight_g": 0.0,
+        "weight_before_g": round(before, 3),
+    }
+    row = session.get(Setting, TARE_SETTING_KEY)
+    if row is None:
+        session.add(Setting(key=TARE_SETTING_KEY, value_json=json.dumps(value)))
+    else:
+        row.value_json = json.dumps(value)
+    session.commit()
+    log.info("the bin was tared with %.1f g on the scale", before)

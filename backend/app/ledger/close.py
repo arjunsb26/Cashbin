@@ -24,6 +24,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app import models
+from app.engine import carbon
 from app.engine.options import summarise
 from app.engine.records import AssetInfo, EngineSettings, Option
 from app.engine.records import AssetStatus as EngineAssetStatus
@@ -427,6 +428,7 @@ def sustainability(rows: PeriodRows, settings: EngineSettings) -> dict[str, Any]
     kg_diverted = 0.0
     kg_co2e_actual = 0.0
     kg_co2e_best = 0.0
+    kg_co2e_avoided = 0.0
     kg_ewaste = 0.0
     unknown_carbon = 0
     cheapest_is_greenest = 0
@@ -461,6 +463,11 @@ def sustainability(rows: PeriodRows, settings: EngineSettings) -> dict[str, Any]
             unknown_carbon += 1
         if best is not None and best.kg_co2e is not None:
             kg_co2e_best += best.kg_co2e
+        if trash is not None and best is not None:
+            # Added per event and never below zero, so the total reads as emissions this
+            # period could have avoided rather than as a difference of two signed figures.
+            avoided = carbon.avoided_co2e(trash.kg_co2e, best.kg_co2e)
+            kg_co2e_avoided += avoided or 0.0
 
         if (
             ranking.best_option is not None
@@ -476,7 +483,7 @@ def sustainability(rows: PeriodRows, settings: EngineSettings) -> dict[str, Any]
         "kg_diverted_if_followed": round(kg_diverted, 4),
         "kg_co2e_actual": round(kg_co2e_actual, 4),
         "kg_co2e_best": round(kg_co2e_best, 4),
-        "kg_co2e_avoided": round(kg_co2e_actual - kg_co2e_best, 4),
+        "kg_co2e_avoided": round(kg_co2e_avoided, 4),
         "cheapest_equals_greenest_pct": round(share, 1),
         "kg_ewaste": round(kg_ewaste, 4),
         "events_scored": scored,
@@ -577,15 +584,24 @@ def check_mass_conservation(rows: PeriodRows, floor_g: float) -> CloseCheck:
             samples.append((t_s, grams))
     samples.sort(key=lambda point: point[0])
 
-    tare_source = "the last tare recorded by the bin"
+    tare_line = "The tare is the last tare recorded by the bin."
     tare_g = 0.0
     if rows.tare and isinstance(rows.tare.get("weight_g"), int | float):
         tare_g = float(rows.tare["weight_g"])
+        when = str(rows.tare.get("at") or "").strip()
+        tare_line = (
+            f"The tare recorded at {when} set the bin's zero to {_grams(tare_g)}."
+            if when
+            else f"The last tare recorded by the bin set its zero to {_grams(tare_g)}."
+        )
     elif samples:
         tare_g = samples[0][1]
-        tare_source = "the first weight sample of the period, because no tare was recorded"
+        tare_line = (
+            "The tare is the first weight sample of the period, "
+            "because no tare was recorded."
+        )
     else:
-        tare_source = "nothing, because the bin recorded no weight at all"
+        tare_line = "The tare is nothing, because the bin recorded no weight at all."
 
     scale_now_g = samples[-1][1] if samples else tare_g
     removed_g = sum(-(event.mass_g or 0.0) for event in rows.bag_changes + rows.removals)
@@ -605,7 +621,7 @@ def check_mass_conservation(rows: PeriodRows, floor_g: float) -> CloseCheck:
                 f"within +/- {_grams(tolerance_g)}    {'Pass' if within else 'Fail'}",
             ),
             "",
-            f"The tare is {tare_source}.",
+            tare_line,
             f"{_plural(len(tosses), 'ticket', 'tickets')}, "
             f"{_plural(len(rows.bag_changes), 'bag change', 'bag changes')}, "
             f"{_plural(len(rows.removals), 'removal', 'removals')}, "

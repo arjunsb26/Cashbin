@@ -143,6 +143,20 @@ def carbon_for(record: ItemRecord, option: Option) -> CarbonResult:
     )
 
 
+def avoided_co2e(trash_kg: float | None, option_kg: float | None) -> float | None:
+    """What this option avoids against the bin, as a positive number.
+
+    WARM's source reduction column is negative on purpose: reselling or donating displaces
+    a new item being made, so the figure is emissions avoided. Printed as it stands it
+    reads "emissions of -6.04 kg", which nobody can act on. This is the same fact the
+    right way up, and never below zero: an option that is worse than the bin avoids
+    nothing rather than avoiding a negative amount.
+    """
+    if trash_kg is None or option_kg is None:
+        return None
+    return max(0.0, trash_kg - option_kg)
+
+
 def kg_co2e(record: ItemRecord, option: Option) -> float | None:
     return carbon_for(record, option).kg_co2e
 

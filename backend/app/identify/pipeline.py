@@ -16,17 +16,19 @@ import asyncio
 import json
 import logging
 import time
-from collections.abc import Awaitable, Callable, Sequence
-from dataclasses import dataclass
+from collections.abc import Awaitable, Callable, Iterable, Mapping, Sequence
+from dataclasses import dataclass, field
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.config import Settings, get_settings
 from app.db import get_session_factory
-from app.identify import qr
+from app.identify import early, qr
+from app.identify import memory as memory_module
 from app.identify.embed import Embedder, get_embedder, to_bytes
 from app.identify.memory import DEFAULT_K, MemoryIndex, Neighbour, get_memory
+from app.identify.openai_request import UNKNOWN_CHOICE
 from app.identify.priors import MassPrior, fuse
 from app.identify.providers import (
     CallUsage,
@@ -67,11 +69,43 @@ async def _no_op(_event_id: int, _label: str, _cls: ItemClass, _method: Identify
 # What the catalog says, wherever it lives -----------------------------------
 
 
+# The key on `posterior_json` that says which branch decided. It carries an underscore, and
+# a validated label cannot, so it can never collide with a real label in that map.
+SAME_TREATMENT_KEY = "same_treatment"
+
+
+@dataclass(frozen=True)
+class Treatment:
+    """Everything about a label that changes what the books do with it.
+
+    PLAN.md 21a item 28. Two labels the model cannot tell apart are only a problem when
+    they lead somewhere different. A usb cable against an hdmi cable is the same class, the
+    same flag and the same material, so the entry, the tax and the carbon come out
+    identical and the margin rule is asking a question with no consequence. A power bank
+    against a portable speaker is not: one carries a battery flag and one does not.
+    """
+
+    item_class: ItemClass
+    flags: frozenset[str]
+    materials: tuple[tuple[str, float], ...]
+
+
 @dataclass(frozen=True)
 class CatalogFacts:
     labels: tuple[str, ...]
     classes: dict[str, ItemClass]
     priors: dict[str, MassPrior]
+    treatments: dict[str, Treatment] = field(default_factory=dict)
+
+    def same_treatment(self, one: str, other: str) -> bool:
+        """True when the books cannot tell these two labels apart.
+
+        A label the catalog does not carry has no known treatment, and an unknown is never
+        the same as anything, including another unknown.
+        """
+        first = self.treatments.get(one)
+        second = self.treatments.get(other)
+        return first is not None and second is not None and first == second
 
 
 def catalog_facts(session: Session) -> CatalogFacts:
@@ -83,6 +117,7 @@ def catalog_facts(session: Session) -> CatalogFacts:
     """
     classes: dict[str, ItemClass] = {}
     priors: dict[str, MassPrior] = {}
+    treatments: dict[str, Treatment] = {}
     try:
         from app.engine.records import load_catalog
 
@@ -92,6 +127,9 @@ def catalog_facts(session: Session) -> CatalogFacts:
         seed = ()
     for item in seed:
         classes[item.label] = ItemClass(str(item.item_class))
+        treatments[item.label] = _treatment(
+            ItemClass(str(item.item_class)), item.regulatory_flags, item.material_mix
+        )
         if item.mass_prior_mean_g is not None:
             priors[item.label] = MassPrior(
                 mean_g=item.mass_prior_mean_g,
@@ -100,6 +138,11 @@ def catalog_facts(session: Session) -> CatalogFacts:
             )
     for row in session.execute(select(CatalogItem).order_by(CatalogItem.label)).scalars():
         classes[row.label] = row.item_class
+        treatments[row.label] = _treatment(
+            row.item_class,
+            _json_list(row.regulatory_flags_json),
+            _json_map(row.material_mix_json),
+        )
         if row.mass_prior_mean_g is not None:
             priors[row.label] = MassPrior(
                 mean_g=row.mass_prior_mean_g,
@@ -108,7 +151,35 @@ def catalog_facts(session: Session) -> CatalogFacts:
             )
         else:
             priors.pop(row.label, None)
-    return CatalogFacts(tuple(sorted(classes)), classes, priors)
+    return CatalogFacts(tuple(sorted(classes)), classes, priors, treatments)
+
+
+def _treatment(
+    item_class: ItemClass, flags: Iterable[str], materials: Mapping[str, float]
+) -> Treatment:
+    return Treatment(
+        item_class=item_class,
+        flags=frozenset(str(flag) for flag in flags),
+        materials=tuple(sorted((str(k), round(float(v), 4)) for k, v in materials.items())),
+    )
+
+
+def _json_list(raw: str | None) -> list[str]:
+    try:
+        loaded = json.loads(raw) if raw else []
+    except json.JSONDecodeError:
+        return []
+    return [str(item) for item in loaded] if isinstance(loaded, list) else []
+
+
+def _json_map(raw: str | None) -> dict[str, float]:
+    try:
+        loaded = json.loads(raw) if raw else {}
+    except json.JSONDecodeError:
+        return {}
+    if not isinstance(loaded, dict):
+        return {}
+    return {str(k): float(v) for k, v in loaded.items()}
 
 
 # Providers ------------------------------------------------------------------
@@ -315,6 +386,16 @@ def _mass_fit(facts: CatalogFacts, mass_g: float | None, mass_err_g: float | Non
     return fuse(flat, mass_g, err, usable)
 
 
+def _neighbour_distances(neighbours: Sequence[Neighbour]) -> dict[str, float]:
+    """The nearest distance per label, for the evidence drawer."""
+    out: dict[str, float] = {}
+    for neighbour in neighbours:
+        best = out.get(neighbour.label)
+        if best is None or neighbour.distance < best:
+            out[neighbour.label] = round(neighbour.distance, 4)
+    return out
+
+
 def _neighbour_votes(neighbours: Sequence[Neighbour]) -> dict[str, float]:
     if not neighbours:
         return {}
@@ -362,6 +443,10 @@ async def identify_event(
     active.bus.publish(lcd.thinking(), CHANNEL_BIN)
     started = time.perf_counter()
 
+    # Whatever the step-open hook started for this toss. Taking it here rather than at the
+    # cloud stage means a QR tag or a remembered exemplar cancels it on the way out.
+    pending = early.take(event_id)
+
     session = active.session_factory()
     try:
         event = session.get(Event, event_id)
@@ -388,7 +473,9 @@ async def identify_event(
             )
             return await _finalise(session, event, row, active, started)
 
-        # 2. Memory. A crop that will not decode simply skips this stage.
+        # 2. Memory. It no longer answers: it writes down who the neighbours are, and the
+        # model is asked anyway. PLAN.md 21a item 23 and Lane K section 6. A crop that will
+        # not decode simply skips this stage.
         neighbours: list[Neighbour] = []
         vector = None
         if crop:
@@ -399,34 +486,35 @@ async def identify_event(
         if vector is not None:
             active.memory.ensure_loaded(session)
             neighbours = active.memory.query(vector, DEFAULT_K)
-            hit = active.memory.decide(neighbours, settings)
-            if hit is not None:
-                votes = _neighbour_votes(hit.neighbours)
-                row = write_identification(
-                    session,
-                    event_id=event_id,
-                    method=IdentifyMethod.memory,
-                    label=hit.label,
-                    item_class=facts.classes.get(hit.label, ItemClass.untracked),
-                    confidence=hit.confidence,
-                    candidates=sorted(votes.items(), key=lambda kv: -kv[1]),
-                    posterior=votes,
-                    latency_ms=_elapsed(started),
-                    usage=_local_usage(active.embedder.name),
-                    is_final=True,
-                )
-                return await _finalise(session, event, row, active, started)
+        if neighbours:
+            write_identification(
+                session,
+                event_id=event_id,
+                method=IdentifyMethod.memory,
+                label=neighbours[0].label,
+                item_class=facts.classes.get(neighbours[0].label, ItemClass.untracked),
+                confidence=None,
+                # A candidate's score is a probability, so the neighbours are listed by how
+                # alike they are rather than how far away. The distances themselves are in
+                # the posterior below, exactly as measured.
+                candidates=[(n.label, max(0.0, min(1.0, 1.0 - n.distance))) for n in neighbours],
+                # The drawer shows what memory had to say. These are cosine distances, not
+                # probabilities: nearer is more like the crop, and nothing here decides.
+                posterior=_neighbour_distances(neighbours),
+                latency_ms=_elapsed(started),
+                usage=_local_usage(active.embedder.name),
+                is_final=False,
+            )
 
         # 3. The cloud call, in a thread, under the timeout. Any failure goes to the ask.
-        context = IdentifyContext(
+        context = build_context(
+            session,
             event_id=event_id,
-            mass_g=float(mass_g or 0.0),
-            mass_err_g=float(mass_err_g or 0.0),
-            timeout_s=settings.llm_timeout_s,
-            catalog_labels=facts.labels[:MAX_CONTEXT_LABELS],
-            asset_tags=_asset_tags(session),
+            mass_g=mass_g,
+            mass_err_g=mass_err_g,
+            settings=settings,
         )
-        vision = await _call_vision(active, crop or b"", context)
+        vision = await _vision_answer(active, pending, event_id, crop, context)
         method = IdentifyMethod.stub if active.providers.name == "stub" else IdentifyMethod.cloud
         usage = getattr(active.providers.vision, "last_call", None)
         if vision is None:
@@ -446,6 +534,26 @@ async def identify_event(
             return await _ask(session, event, fallback, active, started, row)
 
         vision_dist = _distribution(vision)
+        if str(vision.label) == UNKNOWN_CHOICE:
+            # PLAN.md 21a item 27. The model is allowed to say it does not know, and that
+            # is a question for a person rather than a label for the books.
+            log.info("event %s: the model answered unknown, so a person is asked", event_id)
+            fallback = _neighbour_votes(neighbours) or _mass_fit(facts, mass_g, mass_err_g)
+            row = write_identification(
+                session,
+                event_id=event_id,
+                method=method,
+                label=None,
+                item_class=None,
+                confidence=None,
+                posterior=fallback or None,
+                used_mass_prior=bool(fallback and not neighbours),
+                latency_ms=_elapsed(started),
+                usage=usage,
+            )
+            return await _ask(session, event, fallback, active, started, row)
+
+        raw_dist = dict(vision_dist)
         row = write_identification(
             session,
             event_id=event_id,
@@ -454,10 +562,34 @@ async def identify_event(
             item_class=vision.item_class,
             confidence=vision.confidence,
             candidates=[(c.label, c.p) for c in vision.candidates],
-            posterior=vision_dist,
+            posterior=raw_dist,
             latency_ms=_elapsed(started),
             usage=usage,
         )
+
+        # 3b. Memory as a second opinion. Exemplars that back the model's answer raise its
+        # confidence, so an ask stops being asked once a person has confirmed the same thing
+        # a couple of times. Exemplars that disagree are a log line and nothing more.
+        agreement = active.memory.agreement(neighbours, str(vision.label), settings)
+        if agreement.agrees:
+            vision_dist = memory_module.boost_label(
+                vision_dist, agreement.label, len(agreement.agreeing)
+            )
+            log.info(
+                "event %s: %d remembered example(s) agree with %s, nearest %.4f",
+                event_id,
+                len(agreement.agreeing),
+                agreement.label,
+                agreement.nearest or 0.0,
+            )
+        elif agreement.disagreeing:
+            log.info(
+                "event %s: memory's nearest example says %s and the model says %s, "
+                "so memory is ignored",
+                event_id,
+                agreement.disagreeing[0].label,
+                vision.label,
+            )
 
         # 4. Mass prior fusion, when a prior has enough weighings behind it to count.
         final_dist = vision_dist
@@ -482,23 +614,64 @@ async def identify_event(
                 usage=_local_usage("mass-prior-fusion"),
             )
 
-        # 5. Decide.
+        # 5. Decide. PLAN.md 21a item 28: by what it costs to be wrong, not by the margin
+        # alone. Two labels that lead to the same entry, the same tax and the same carbon
+        # are one answer as far as the books are concerned, and asking a person to pick
+        # between them teaches the room that the bin cannot tell a cable from a cable.
         best, second = top_two(final_dist)
         margin = best[1] - (second[1] if second else 0.0)
-        if best[1] >= settings.confident_p and margin >= settings.min_margin:
+        sure = best[1] >= settings.confident_p
+        clear = margin >= settings.min_margin
+        same_books = second is not None and facts.same_treatment(best[0], second[0])
+        if sure and not clear and same_books:
+            log.info(
+                "event %s: %s and %s are too close to call and come out the same on the "
+                "books, so %s is taken",
+                event_id,
+                best[0],
+                second[0] if second else None,
+                best[0],
+            )
+        if sure and (clear or same_books):
             row.is_final = True
             row.label = best[0]
             row.item_class = facts.classes.get(best[0], vision.item_class)
             row.confidence = best[1]
+            if not clear:
+                # The drawer says "two candidates, same treatment" off this.
+                row.posterior_json = json.dumps({**final_dist, SAME_TREATMENT_KEY: 1.0})
             session.flush()
             return await _finalise(session, event, row, active, started)
+        log.info(
+            "event %s: asking, p=%.2f margin=%.2f same treatment=%s",
+            event_id,
+            best[1],
+            margin,
+            same_books,
+        )
         return await _ask(session, event, final_dist, active, started, row)
     finally:
         session.commit()
         session.close()
+        if pending is not None:
+            pending.cancel("the answer came from somewhere else")
 
 
 _NO_PRIOR = MassPrior(mean_g=0.0, var=0.0, n=0)
+
+
+def spend_on(session: Session, event_id: int) -> int:
+    """Every microdollar this event's stages cost, added up.
+
+    The round's cost used to be read off the last identification row, which was the row of
+    the call that served the toss. Since the mass prior fusion writes a row of its own on
+    top, and that stage runs here and costs nothing, reading the last row would report every
+    cloud call as free. Adding the rows up is right whatever stages exist.
+    """
+    rows = session.execute(
+        select(Identification.cost_microusd).where(Identification.event_id == event_id)
+    ).scalars()
+    return sum(int(value) for value in rows if value)
 
 
 def _local_usage(model: str) -> CallUsage:
@@ -531,6 +704,61 @@ def _distribution(vision: VisionResult) -> dict[str, float]:
         dist[name] = max(dist.get(name, 0.0), float(candidate.p))
     total = sum(dist.values())
     return {label: p / total for label, p in dist.items()} if total > 1.0 else dist
+
+
+def build_context(
+    session: Session,
+    *,
+    event_id: int,
+    mass_g: float | None,
+    mass_err_g: float | None,
+    settings: Settings,
+    hints: dict[str, str] | None = None,
+) -> IdentifyContext:
+    """What a provider is allowed to know about one toss. Every field is code built."""
+    facts = catalog_facts(session)
+    return IdentifyContext(
+        event_id=event_id,
+        mass_g=float(mass_g or 0.0),
+        mass_err_g=float(mass_err_g or 0.0),
+        timeout_s=settings.llm_timeout_s,
+        catalog_labels=facts.labels[:MAX_CONTEXT_LABELS],
+        asset_tags=_asset_tags(session),
+        hints=dict(hints or {}),
+    )
+
+
+def remember_vision(provider: object, event_id: int, vision: VisionResult) -> None:
+    """Tell the glue's recorder what the model said, when the call had no event id yet.
+
+    The early call runs before the event row exists, so it cannot key the answer by event.
+    The second half of the pipeline reads the condition and the material off that record,
+    so the answer is filed here instead. A provider with no recorder simply has no method.
+    """
+    keep = getattr(provider, "remember", None)
+    if callable(keep):
+        keep(event_id, vision)
+
+
+async def _vision_answer(
+    deps: IdentifyDeps,
+    pending: early.Pending | None,
+    event_id: int,
+    crop: bytes | None,
+    context: IdentifyContext,
+) -> VisionResult | None:
+    """The model's answer: the call that is already running, or a fresh one."""
+    if pending is not None:
+        answer, _looked_at = await pending.result(deps.settings.llm_timeout_s)
+        if answer is not None:
+            remember_vision(deps.providers.vision, event_id, answer)
+            log.info(
+                "event %s was answered by the call that started when the step opened",
+                event_id,
+            )
+            return answer
+        log.info("the early call for event %s gave nothing, asking now", event_id)
+    return await _call_vision(deps, crop or b"", context)
 
 
 async def _call_vision(
@@ -568,7 +796,7 @@ async def _finalise(
         asked=False,
         confident=True,
         latency_ms=_elapsed(started),
-        cost_microusd=row.cost_microusd,
+        cost_microusd=spend_on(session, event.id),
     )
     session.commit()
     metrics.publish_metrics(session, deps.bus)
@@ -601,7 +829,7 @@ async def _ask(
         asked=True,
         confident=False,
         latency_ms=_elapsed(started),
-        cost_microusd=row.cost_microusd,
+        cost_microusd=spend_on(session, event.id),
     )
     session.commit()
     metrics.publish_metrics(session, deps.bus)
@@ -652,11 +880,14 @@ def mass_fit_scores(
 
 
 __all__ = [
+    "SAME_TREATMENT_KEY",
     "CatalogFacts",
     "IdentifyDeps",
     "Outcome",
     "Providers",
+    "Treatment",
     "ask_candidates",
+    "build_context",
     "build_providers",
     "catalog_facts",
     "get_deps",
@@ -664,9 +895,11 @@ __all__ = [
     "identify_event",
     "mass_fit_scores",
     "open_ask",
+    "remember_vision",
     "reset_identify",
     "reset_providers",
     "set_on_final",
+    "spend_on",
     "store_exemplar",
     "top_two",
     "write_identification",
