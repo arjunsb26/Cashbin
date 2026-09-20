@@ -11,6 +11,13 @@ phone simulator looks for; it is the same photograph, not a new one. `sprites/` 
 photograph resized to 220 px on the long side, which is the size the item is composited at
 inside a 640 px frame, so the bench and the scenario feed the model the same picture.
 
+`keyboard_1_tagged.jpg`, and its sprite, are `keyboard_1.jpg` with a printed BB-0002 QR label
+pasted on, built the way `sim/make_assets.py` builds the drawn keyboard's: a 104 px code on a
+10 px white quiet zone, on the right hand side, at the same module size. `demo_real.yaml` uses
+the tagged one so the register write the demo turns on actually happens. It is a derived file,
+not a new photograph, so it has no row of its own; the row for `keyboard_1.jpg` covers it and
+that file is untouched.
+
 One row per photograph, 42 rows.
 
 | File | Item | Title | Author | Licence | Page |

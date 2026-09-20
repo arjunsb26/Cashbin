@@ -22,6 +22,14 @@ Newest first. Each lane writes under its own heading.
   `sim/scenarios/bench.yaml` is thirty tosses in five blocks, built so that one run
   measures the cold case, the same photograph again, and a different photograph of the
   same object.
+- `sim/assets/real/keyboard_1_tagged.jpg` and its sprite are `keyboard_1.jpg` with the
+  BB-0002 QR label pasted on, built the way `sim/make_assets.py` builds the drawn
+  keyboard's: a 104 px code on a 10 px white quiet zone, at the same module size, on a
+  380 px sprite. `demo_real.yaml` uses it, so the keyboard resolves by QR in 87 ms with
+  the asset disposal behind it instead of costing a model call and coming back as an
+  untracked object. The tag decodes through `identify.qr.read_tags` off a frame
+  composited at 640 px and encoded at the phone's JPEG quality, on all three bin
+  backgrounds. `keyboard_1.jpg` is untouched and `SOURCES.md` still describes it.
 - Findings, with the numbers behind them, are in
   `briefs/reports/lane-k-realistic-vision-test.md`. In short: 86.8 percent accuracy at
   effort `low` over 68 live calls, a 2.9 to 6.1 second wait from scale to LCD with the
