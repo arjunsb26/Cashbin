@@ -30,6 +30,14 @@ Newest first. Each lane writes under its own heading.
 - Every child's full output is teed to `runs/<timestamp>/`, gitignored, so a crash leaves
   evidence. The console shows only what a person needs: the camera's results, the bin's
   LCD boxes, and anything from the backend or the dashboard that reads like trouble.
+- Two things found while proving it, both fixed in the launcher. `localhost` costs two
+  seconds a connection on this laptop, every time: the backend binds IPv4 only, the name
+  resolves to `::1` first, and that attempt sits there until it times out. Every check and
+  every local socket the launcher opens now dials `127.0.0.1`, which costs forty
+  milliseconds. The URLs printed for people keep the word, because a browser tries both at
+  once. And `pnpm start` is a shell that starts Next in a second process, so terminating
+  the shell left Next holding port 3000 and the next launch could not bind it; stopping a
+  child now kills its whole tree.
 
 ## 2026-09-19, lane k: realistic testing with real photographs
 
