@@ -91,7 +91,7 @@ if ($Port -eq "") {
   Write-Host "     Linux side to finish booting. Then run this script again."
   Write-Host "  2. Pass the port by hand once you know it:"
   Write-Host "       -Port COM7"
-  Write-Host "     `arduino-cli board list` shows every port this laptop has."
+  Write-Host "     Run arduino-cli board list to see every port this laptop has."
   Write-Host "  3. On the UNO Q the Linux side owns the USB port, so the documented way in"
   Write-Host "     is the board itself. See hardware/uno_q/board_linux_setup.md, which has"
   Write-Host "     the shell, the wifi and the bridge."

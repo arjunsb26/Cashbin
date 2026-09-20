@@ -103,6 +103,11 @@
 
 // Which port the JSON lines go out of when USE_APP_LAB_RPC is 0.
 //
+// Confirmed on this laptop, by reading the core's own zephyrSerial.h: the UNO Q's device
+// tree has an arduino,router-serial node, so the core makes Serial the App Lab console
+// and pushes the first hardware UART, the one on D0 and D1, to Serial1. So Serial1 below
+// is right and Serial would be wrong.
+//
 // NEEDS_HARDWARE_CHECK: on the UNO Q, D0 and D1 are Serial1, and Arduino's manual says
 // the router service owns the link to the Linux side and that nothing else may open
 // /dev/ttyHS1. So the serial fallback on a UNO Q means a USB to serial adapter on D0

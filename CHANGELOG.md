@@ -2,6 +2,36 @@
 
 Newest first. Each lane writes under its own heading.
 
+## 2026-09-20, lane s: build the bin firmware from the laptop
+
+- The laptop can now compile and flash the bin sketch with no Arduino IDE anywhere.
+  `arduino-cli` 1.5.2-rc.1 sits in `D:\codering\tools\arduino-cli\`, the board core is
+  `arduino:zephyr` 1.0.0 and the board is `arduino:zephyr:unoq`. The winget package has no
+  installer for this machine, so the toolchain came from Arduino's own Windows zip.
+- The sketch compiles. All four builds are green on the real core: ILI9341 and ST7789,
+  each over the serial link and over the App Lab router bridge. The largest of the four
+  uses 15% of program storage and 19% of memory, so there is a lot of room left.
+- The five argument `show_screen` handler was the open question from the hardware lane and
+  the answer is yes. `Bridge.provide_safe` takes it, against Arduino_RouterBridge 0.4.3.
+  The one string JSON fallback stays written down but is not needed.
+- `Serial` on this board is not a wire. The core's own header shows the UNO Q's device tree
+  giving `Serial` to the App Lab console and pushing D0 and D1 to `Serial1`, which is what
+  `bin_config.h` already assumed. Confirmed rather than guessed now.
+- The main sketch file is `sketch.ino` instead of `binbooks_bin.ino`. Arduino requires the
+  file to be named after its folder, and Arduino's own App layout is a folder called
+  `sketch` holding `sketch.ino`, so the file now drops into an App with no renaming.
+- The Adafruit ST7735 and ST7789 library is pinned to 1.10.4. Version 1.11.0 added a file
+  for a panel we do not use whose constructor names an argument `MOSI`, and the UNO Q
+  variant header defines `MOSI` as a number, so that file cannot compile on this board.
+- `hardware/uno_q/flash.ps1` and `flash.sh` compile, find the board, upload, then watch the
+  port for ten seconds and print the first JSON lines. They say which driver and which
+  host link they built for, and when no board is attached they say what to try instead of
+  failing silently. `-CompileOnly` checks the sketch with no board at all.
+- `hardware/uno_q/board_linux_setup.md` is the Linux side start to finish: the shell over
+  SSH and over the bundled `adb`, joining the hotspot, installing `websockets` past
+  Debian's externally managed refusal, copying the bridge, a systemd unit, and the App Lab
+  app layout to fall back to. Every command is cited.
+
 ## 2026-09-20, lane n: add a toss from the phone
 
 - The phone page can make a toss by itself now, so a ticket can be raised without the
