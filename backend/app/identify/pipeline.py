@@ -18,6 +18,7 @@ import logging
 import time
 from collections.abc import Awaitable, Callable, Iterable, Mapping, Sequence
 from dataclasses import dataclass, field
+from typing import Any
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -53,6 +54,8 @@ from app.schemas import AskCandidate, PhoneAsk, UiAskOpened, VisionResult
 log = logging.getLogger(__name__)
 
 MAX_ASK_CANDIDATES = 4
+# A guess the model itself puts below this is not worth a button. PLAN.md 21a item 32.
+ASK_CANDIDATE_FLOOR = 0.3
 MAX_CONTEXT_LABELS = 60
 MAX_CONTEXT_TAGS = 40
 UNKNOWN_LABEL = "unknown object"
@@ -324,15 +327,25 @@ def write_identification(
     latency_ms: int | None = None,
     usage: CallUsage | None = None,
     is_final: bool = False,
+    description: str = "",
 ) -> Identification:
-    """One row per stage. This is the audit trail PLAN.md rule 4 asks for."""
+    """One row per stage. This is the audit trail PLAN.md rule 4 asks for.
+
+    `candidates_json` holds `{"candidates": [...], "description": "..."}` when the model
+    said what it was looking at, and the bare list otherwise, which is what every row
+    written before this change holds. `read_candidates` and `read_description` are the one
+    place that difference is known about.
+    """
+    stored: Any = [{"label": name, "p": p} for name, p in candidates]
+    if description:
+        stored = {"candidates": stored, "description": description}
     row = Identification(
         event_id=event_id,
         method=method,
         label=label,
         item_class=item_class,
         confidence=confidence,
-        candidates_json=json.dumps([{"label": name, "p": p} for name, p in candidates]),
+        candidates_json=json.dumps(stored),
         posterior_json=json.dumps(posterior) if posterior else None,
         used_mass_prior=used_mass_prior,
         latency_ms=latency_ms,
@@ -346,6 +359,34 @@ def write_identification(
     session.add(row)
     session.flush()
     return row
+
+
+def read_candidates(raw: object) -> list[dict[str, Any]]:
+    """The candidate list out of a `candidates_json` value of either shape."""
+    if isinstance(raw, dict):
+        raw = raw.get("candidates")
+    if not isinstance(raw, list):
+        return []
+    return [item for item in raw if isinstance(item, dict) and "label" in item]
+
+
+def read_description(raw: object) -> str | None:
+    """What the model said it was looking at, when the row has it."""
+    if isinstance(raw, dict):
+        text = raw.get("description")
+        if isinstance(text, str) and text:
+            return text
+    return None
+
+
+def _confident_candidates(vision: VisionResult, floor: float = ASK_CANDIDATE_FLOOR
+                          ) -> dict[str, float]:
+    """The model's own guesses, and only the ones it meant.
+
+    A candidate the model gave a one in ten chance is not a button worth drawing: it puts
+    a wrong answer in front of a person as though the bin believed it.
+    """
+    return {str(c.label): float(c.p) for c in vision.candidates if c.p >= floor}
 
 
 def top_two(distribution: dict[str, float]) -> tuple[tuple[str, float], tuple[str, float] | None]:
@@ -410,17 +451,23 @@ def open_ask(
     event: Event,
     distribution: dict[str, float],
     deps: IdentifyDeps,
+    looks_like: str = "",
 ) -> list[AskCandidate]:
     """Set the event to asking and put the question on all three surfaces."""
     candidates = ask_candidates(distribution)
     event.status = EventStatus.asking
     session.flush()
     url = crop_url(event, deps.media_prefix)
+    seen = looks_like or None
     deps.bus.publish(
-        UiAskOpened(event_id=event.id, candidates=candidates, crop_url=url), CHANNEL_UI
+        UiAskOpened(
+            event_id=event.id, candidates=candidates, crop_url=url, looks_like=seen
+        ),
+        CHANNEL_UI,
     )
     deps.bus.publish(
-        PhoneAsk(event_id=event.id, candidates=candidates, crop_url=url), CHANNEL_PHONE
+        PhoneAsk(event_id=event.id, candidates=candidates, crop_url=url, looks_like=seen),
+        CHANNEL_PHONE,
     )
     deps.bus.publish(lcd.ask(), CHANNEL_BIN)
     return candidates
@@ -518,7 +565,10 @@ async def identify_event(
         method = IdentifyMethod.stub if active.providers.name == "stub" else IdentifyMethod.cloud
         usage = getattr(active.providers.vision, "last_call", None)
         if vision is None:
-            fallback = _neighbour_votes(neighbours) or _mass_fit(facts, mass_g, mass_err_g)
+            # Only what a remembered example says. The scale's own guesses used to fill
+            # this in, which is how a battery came back offering "laptop charger, pencil,
+            # power bank": three catalog rows that weigh about the same and nothing else.
+            fallback = _neighbour_votes(neighbours)
             row = write_identification(
                 session,
                 event_id=event_id,
@@ -527,7 +577,6 @@ async def identify_event(
                 item_class=None,
                 confidence=None,
                 posterior=fallback or None,
-                used_mass_prior=bool(fallback and not neighbours),
                 latency_ms=_elapsed(started),
                 usage=usage,
             )
@@ -535,10 +584,15 @@ async def identify_event(
 
         vision_dist = _distribution(vision)
         if str(vision.label) == UNKNOWN_CHOICE:
-            # PLAN.md 21a item 27. The model is allowed to say it does not know, and that
-            # is a question for a person rather than a label for the books.
-            log.info("event %s: the model answered unknown, so a person is asked", event_id)
-            fallback = _neighbour_votes(neighbours) or _mass_fit(facts, mass_g, mass_err_g)
+            # The model is allowed to say it cannot tell, and that is a question for a
+            # person rather than a label for the books. A label the catalog has never heard
+            # of is not this: that is an untracked item and it goes through as one.
+            log.info(
+                "event %s: the model could not tell what it is (%s), so a person is asked",
+                event_id,
+                vision.description or "no description",
+            )
+            fallback = _neighbour_votes(neighbours) or _confident_candidates(vision)
             row = write_identification(
                 session,
                 event_id=event_id,
@@ -546,12 +600,15 @@ async def identify_event(
                 label=None,
                 item_class=None,
                 confidence=None,
+                candidates=[(c.label, c.p) for c in vision.candidates],
                 posterior=fallback or None,
-                used_mass_prior=bool(fallback and not neighbours),
                 latency_ms=_elapsed(started),
                 usage=usage,
+                description=vision.description,
             )
-            return await _ask(session, event, fallback, active, started, row)
+            return await _ask(
+                session, event, fallback, active, started, row, vision.description
+            )
 
         raw_dist = dict(vision_dist)
         row = write_identification(
@@ -565,6 +622,7 @@ async def identify_event(
             posterior=raw_dist,
             latency_ms=_elapsed(started),
             usage=usage,
+            description=vision.description,
         )
 
         # 3b. Memory as a second opinion. Exemplars that back the model's answer raise its
@@ -649,7 +707,9 @@ async def identify_event(
             margin,
             same_books,
         )
-        return await _ask(session, event, final_dist, active, started, row)
+        return await _ask(
+            session, event, final_dist, active, started, row, vision.description
+        )
     finally:
         session.commit()
         session.close()
@@ -833,10 +893,11 @@ async def _ask(
     deps: IdentifyDeps,
     started: float,
     row: Identification,
+    looks_like: str = "",
 ) -> Outcome:
     from app.learn import metrics, rounds
 
-    candidates = open_ask(session, event, distribution, deps)
+    candidates = open_ask(session, event, distribution, deps, looks_like)
     rounds.record_event(
         session,
         deps.settings,
@@ -910,6 +971,8 @@ __all__ = [
     "identify_event",
     "mass_fit_scores",
     "open_ask",
+    "read_candidates",
+    "read_description",
     "remember_vision",
     "reset_identify",
     "reset_providers",

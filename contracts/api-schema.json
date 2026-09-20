@@ -1347,6 +1347,17 @@
           ],
           "default": null
         },
+        "description": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
         "event_id": {
           "type": "integer"
         },
@@ -1868,6 +1879,18 @@
         },
         "event_id": {
           "type": "integer"
+        },
+        "looks_like": {
+          "anyOf": [
+            {
+              "maxLength": 80,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
         },
         "type": {
           "const": "ask",
@@ -2755,6 +2778,18 @@
         "event_id": {
           "type": "integer"
         },
+        "looks_like": {
+          "anyOf": [
+            {
+              "maxLength": 80,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
         "type": {
           "const": "ask.opened",
           "default": "ask.opened",
@@ -3058,6 +3093,11 @@
           "maximum": 1.0,
           "minimum": 0.0,
           "type": "number"
+        },
+        "description": {
+          "default": "",
+          "maxLength": 80,
+          "type": "string"
         },
         "label": {
           "description": "Lowercase label. Letters, digits, spaces and hyphens only.",

@@ -523,6 +523,7 @@ export interface IdentificationRead {
   class?: ItemClass | null;
   confidence?: number | null;
   cost_microusd?: number | null;
+  description?: string | null;
   event_id: number;
   id: number;
   is_final?: boolean;
@@ -660,6 +661,7 @@ export interface PhoneAsk {
     | [AskCandidate, AskCandidate, AskCandidate, AskCandidate];
   crop_url?: string | null;
   event_id: number;
+  looks_like?: string | null;
   type?: "ask";
 }
 /**
@@ -933,6 +935,7 @@ export interface UiAskOpened {
     | [AskCandidate, AskCandidate, AskCandidate, AskCandidate];
   crop_url?: string | null;
   event_id: number;
+  looks_like?: string | null;
   type?: "ask.opened";
 }
 /**
@@ -1062,6 +1065,7 @@ export interface VisionResult {
   class: ItemClass;
   condition?: "working" | "broken" | "unknown";
   confidence: number;
+  description?: string;
   /**
    * Lowercase label. Letters, digits, spaces and hyphens only.
    */
