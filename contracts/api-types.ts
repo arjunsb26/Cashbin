@@ -66,6 +66,8 @@ export type ReviewStatus = "open" | "approved" | "rejected";
  */
 export interface BinBooksContracts {
   AskCandidate?: AskCandidate;
+  AskRequest?: AskRequest;
+  AskResponse?: AskResponse;
   AssetCreate?: AssetCreate;
   AssetListResponse?: AssetListResponse;
   AssetRead?: AssetRead;
@@ -175,6 +177,43 @@ export interface AskCandidate {
    */
   label: string;
   p: number;
+}
+/**
+ * One question about the books, typed by a person. It is data, never instruction.
+ *
+ * This interface was referenced by `BinBooksContracts`'s JSON-Schema
+ * via the `definition` "AskRequest".
+ */
+export interface AskRequest {
+  question: string;
+}
+/**
+ * The answer, and every lookup the agent made to get to it.
+ *
+ * `grounded` is false when nothing the model wrote survived the figure check, so a
+ * reader can tell an answer off the books from an answer off nothing.
+ *
+ * This interface was referenced by `BinBooksContracts`'s JSON-Schema
+ * via the `definition` "AskResponse".
+ */
+export interface AskResponse {
+  answer?: string;
+  grounded?: boolean;
+  latency_ms?: number | null;
+  model?: string;
+  provider?: string;
+  steps?: ToolStep[];
+}
+/**
+ * One lookup an agent made, and what it found. This is the working, shown.
+ *
+ * This interface was referenced by `BinBooksContracts`'s JSON-Schema
+ * via the `definition` "ToolStep".
+ */
+export interface ToolStep {
+  args_summary?: string;
+  finding?: string;
+  tool?: string;
 }
 /**
  * This interface was referenced by `BinBooksContracts`'s JSON-Schema
@@ -444,17 +483,6 @@ export interface Form4797Row {
   part?: "II" | "III";
   recapture_note?: string;
   rule_ids?: string[];
-}
-/**
- * One lookup an agent made, and what it found. This is the working, shown.
- *
- * This interface was referenced by `BinBooksContracts`'s JSON-Schema
- * via the `definition` "ToolStep".
- */
-export interface ToolStep {
-  args_summary?: string;
-  finding?: string;
-  tool?: string;
 }
 /**
  * The M-1 shape: book loss, less the differences, equals the tax loss.

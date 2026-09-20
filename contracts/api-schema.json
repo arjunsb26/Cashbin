@@ -20,6 +20,59 @@
       ],
       "type": "object"
     },
+    "AskRequest": {
+      "description": "One question about the books, typed by a person. It is data, never instruction.",
+      "properties": {
+        "question": {
+          "maxLength": 200,
+          "type": "string"
+        }
+      },
+      "required": [
+        "question"
+      ],
+      "type": "object"
+    },
+    "AskResponse": {
+      "description": "The answer, and every lookup the agent made to get to it.\n\n`grounded` is false when nothing the model wrote survived the figure check, so a\nreader can tell an answer off the books from an answer off nothing.",
+      "properties": {
+        "answer": {
+          "default": "",
+          "maxLength": 600,
+          "type": "string"
+        },
+        "grounded": {
+          "default": false,
+          "type": "boolean"
+        },
+        "latency_ms": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "model": {
+          "default": "",
+          "type": "string"
+        },
+        "provider": {
+          "default": "",
+          "type": "string"
+        },
+        "steps": {
+          "items": {
+            "$ref": "#/$defs/ToolStep"
+          },
+          "type": "array"
+        }
+      },
+      "type": "object"
+    },
     "AssetCreate": {
       "properties": {
         "book_life_months": {
@@ -4089,6 +4142,12 @@
   "properties": {
     "AskCandidate": {
       "$ref": "#/$defs/AskCandidate"
+    },
+    "AskRequest": {
+      "$ref": "#/$defs/AskRequest"
+    },
+    "AskResponse": {
+      "$ref": "#/$defs/AskResponse"
     },
     "AssetCreate": {
       "$ref": "#/$defs/AssetCreate"

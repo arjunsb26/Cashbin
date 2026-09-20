@@ -1208,3 +1208,62 @@ class StatsResponse(ApiModel):
 
 # CloseRead points forward at the three blocks above, so it is resolved here.
 CloseRead.model_rebuild()
+
+
+# Lane Z, the agent you can ask about the books (PLAN.md 21a item 49) ---------------------
+# Appended at the end of the file on purpose, so two lanes editing this file at once do
+# not land on the same lines.
+
+QUESTION_TEXT_MAX = 200
+ANSWER_MAX = 600
+
+# What a typed question may be made of. CLAUDE.md "Prompts and free text into models": a
+# whitelist is a wall, a guard sentence in a prompt is a request. Letters, digits, spaces
+# and the punctuation a question actually needs.
+_QUESTION_ALLOWED = re.compile(r"^[A-Za-z0-9 .,?$%-]+$")
+
+
+def normalise_question(raw: Any) -> str:
+    """Turn a typed question into the small object the ask route accepts, or refuse it.
+
+    Trim, fold to plain characters, cap at 200, then allow only letters, digits, spaces
+    and plain punctuation. Anything else is refused rather than patched, because the text
+    travels to a model and a patched string is a string nobody checked.
+    """
+    if not isinstance(raw, str):
+        raise ValueError("a question must be text")
+    text = _clean_free_text(raw, QUESTION_TEXT_MAX)
+    if not isinstance(text, str) or not text.strip():
+        raise ValueError("a question cannot be empty")
+    text = text.strip()
+    if not _QUESTION_ALLOWED.match(text):
+        raise ValueError(
+            "a question may use only letters, digits, spaces and the punctuation . , ? $ % -"
+        )
+    return text
+
+
+class AskRequest(ApiModel):
+    """One question about the books, typed by a person. It is data, never instruction."""
+
+    question: str = Field(max_length=QUESTION_TEXT_MAX)
+
+    @field_validator("question", mode="before")
+    @classmethod
+    def _clean_question(cls, value: Any) -> Any:
+        return normalise_question(value)
+
+
+class AskResponse(ApiModel):
+    """The answer, and every lookup the agent made to get to it.
+
+    `grounded` is false when nothing the model wrote survived the figure check, so a
+    reader can tell an answer off the books from an answer off nothing.
+    """
+
+    answer: str = Field(default="", max_length=ANSWER_MAX)
+    steps: list[ToolStep] = Field(default_factory=list)
+    grounded: bool = False
+    provider: str = ""
+    model: str = ""
+    latency_ms: int | None = None
