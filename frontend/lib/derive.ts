@@ -78,6 +78,155 @@ export function ticketFigure(
 }
 
 /**
+ * What a toss means, in the words that fit its class. PLAN.md 21a item 41.
+ *
+ * "Wasted $3.00" for something that was bought to be used up, "Written off,
+ * $65.00 book loss" for a tagged asset leaving the register, "Worth about
+ * $12.00" for anything that was never on the books, and the carbon for
+ * packaging, where a cardboard box's forty cents is noise and the emissions are
+ * the story. The figure is printed positive, because the words carry the sign.
+ */
+export type HeadlineKind = "wasted" | "written off" | "worth" | "carbon" | "unknown";
+
+export type Headline = {
+  kind: HeadlineKind;
+  /** The words before the figure. */
+  lead: string;
+  /** The words after it, a finance term where the class has one. */
+  trail: string;
+  /** The money figure, positive as printed. Null when the figure is carbon. */
+  cents: number | null;
+  /** The carbon figure in kg, when the figure is carbon. */
+  kg: number | null;
+  /** True when this is a loss, so the figure prints in red ink. */
+  loss: boolean;
+  /** False when nothing has been valued for the ticket yet. */
+  known: boolean;
+  estimate: boolean;
+};
+
+/**
+ * Materials that are packaging rather than the thing inside it. A row whose whole
+ * mix is on this list was bought to be thrown away, so the money is pennies and
+ * the carbon is what a person can act on.
+ */
+const PACKAGING_MATERIALS = new Set([
+  "corrugated_containers",
+  "mixed_paper",
+  "office_paper",
+  "magazines",
+  "newspaper",
+  "mixed_plastics",
+  "pet",
+  "hdpe",
+  "ldpe",
+  "glass",
+  "aluminum_cans",
+  "steel_cans",
+]);
+
+/** True when every material on the item record is packaging and none of it is food. */
+export function isPackaging(record: ItemRecordRead | null | undefined): boolean {
+  if (!record || record.class !== "inventory") return false;
+  if ((record.regulatory_flags ?? []).includes("food")) return false;
+  const mix = Object.entries(record.material_mix ?? {}).filter(([, share]) => share > 0);
+  if (mix.length === 0) return false;
+  return mix.every(([material]) => PACKAGING_MATERIALS.has(material));
+}
+
+export function ticketHeadline(
+  event: EventSummary,
+  record: ItemRecordRead | null | undefined,
+  options?: OptionScoreRead[] | null,
+): Headline {
+  const figure = ticketFigure(event, record);
+  const base = { estimate: figure.estimate, known: figure.known };
+  const itemClass = record?.class ?? event.class ?? null;
+
+  if (itemClass === "fixed_asset") {
+    return {
+      ...base,
+      kind: "written off",
+      lead: "Written off,",
+      trail: "book loss",
+      cents: Math.abs(figure.cents),
+      kg: null,
+      loss: true,
+    };
+  }
+  if (itemClass === "inventory") {
+    if (isPackaging(record)) {
+      const best = bestOption(options);
+      const kg = best ? co2eAvoided(best) : null;
+      if (kg != null) {
+        return {
+          ...base,
+          kind: "carbon",
+          lead: `${formatBestWord(best?.option)} it and you keep`,
+          trail: "kg CO2e out of the air",
+          cents: null,
+          kg,
+          loss: false,
+          known: true,
+        };
+      }
+    }
+    return {
+      ...base,
+      kind: "wasted",
+      lead: "Wasted",
+      trail: "",
+      cents: Math.abs(figure.cents),
+      kg: null,
+      loss: true,
+    };
+  }
+  if (itemClass === "untracked") {
+    return {
+      ...base,
+      kind: "worth",
+      lead: "Worth about",
+      trail: "",
+      cents: Math.abs(figure.cents),
+      kg: null,
+      loss: false,
+    };
+  }
+  return {
+    ...base,
+    kind: "unknown",
+    lead: "",
+    trail: "nothing on the books",
+    cents: null,
+    kg: null,
+    loss: false,
+    known: false,
+  };
+}
+
+/** The verb for an option, at the head of a sentence. */
+function formatBestWord(option: OptionKind | null | undefined): string {
+  if (option === "recycle") return "Recycle";
+  if (option === "resell") return "Resell";
+  if (option === "donate") return "Donate";
+  if (option === "repair") return "Repair";
+  return "Bin";
+}
+
+/**
+ * True when the bin was already the right answer, so the option table has nothing
+ * to argue about and collapses to the one row. PLAN.md 21a item 37: advice is
+ * spoken only when it matters. This is the engine's own tone rule, so the ticket,
+ * the LCD and the phone agree on when to stay quiet.
+ */
+export function fineToBin(
+  options: OptionScoreRead[] | null | undefined,
+  thresholds?: { tone_co2e_kg?: number | null; tie_break_cents?: number | null } | null,
+): boolean {
+  return (options ?? []).length > 0 && ticketTone(options, thresholds) === "kept";
+}
+
+/**
  * What the tape prints for a row.
  *
  * `posted_cents` is what the journal actually posted against the ticket, which is
@@ -263,13 +412,16 @@ export function askFromDetail(detail: EventDetail | null | undefined): AskView |
     0,
     4,
   );
-  if (candidates.length === 0) return null;
+  const detailQuestion = askQuestion(identification);
+  if (candidates.length === 0 && detailQuestion === null) return null;
   return {
     type: "ask.opened",
     event_id: detail.event.id,
     crop_url: detail.event.crop_url ?? null,
     candidates,
     description: askDescription(identification),
+    question: detailQuestion?.question ?? null,
+    choices: detailQuestion?.choices ?? null,
   };
 }
 
@@ -296,7 +448,38 @@ export type AskView = {
   candidates: { label: string; p: number }[];
   /** The model's sentence about the photo, when the payload carries one. */
   description?: string | null;
+  /**
+   * The one question that matters, PLAN.md 21a item 40: how many gigabytes, what
+   * wattage, dead or still works. When the payload carries one, it is the heading
+   * and the choices are the buttons, in place of a list of labels.
+   */
+  question?: string | null;
+  choices?: string[] | null;
 };
+
+/**
+ * The detail question the model asked, read out of whatever payload carries it.
+ *
+ * Model text, so it is treated as data at every step: the question is collapsed to
+ * single spaces and capped at 120 characters, each choice at 40, and at most four
+ * are kept, which is what the panel can show. A backend that sends neither field
+ * leaves both null and the ask reads as a list of labels, exactly as before.
+ */
+export function askQuestion(source: unknown): { question: string; choices: string[] } | null {
+  if (!source || typeof source !== "object") return null;
+  const raw = (source as { question?: unknown }).question;
+  if (typeof raw !== "string") return null;
+  const question = raw.replace(/\s+/g, " ").trim().slice(0, 120);
+  if (question.length === 0) return null;
+  const list = (source as { choices?: unknown }).choices;
+  if (!Array.isArray(list)) return null;
+  const choices = list
+    .filter((c): c is string => typeof c === "string")
+    .map((c) => c.replace(/\s+/g, " ").trim().slice(0, 40))
+    .filter((c) => c.length > 0)
+    .slice(0, 4);
+  return choices.length >= 2 ? { question, choices } : null;
+}
 
 // The weight trace ---------------------------------------------------------
 

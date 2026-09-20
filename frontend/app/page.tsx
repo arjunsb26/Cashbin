@@ -3,7 +3,7 @@
 import { useState } from "react";
 
 import { API_URL, useEventDetails, useRounds, useSummary } from "@/lib/api";
-import { askDescription, askFromDetail, type AskView } from "@/lib/derive";
+import { askDescription, askFromDetail, askQuestion, type AskView } from "@/lib/derive";
 import { useLive, useReach } from "@/lib/live";
 import { formatCount, formatMoney, formatPercent, massParts } from "@/lib/format";
 import { AddToss } from "@/components/AddToss";
@@ -47,6 +47,8 @@ export default function LivePage() {
           type: "ask.opened",
           crop_url: open.crop_url ?? null,
           description: askDescription(open),
+          question: askQuestion(open)?.question ?? null,
+          choices: askQuestion(open)?.choices ?? null,
         }
       : askFromDetail(waiting ? details.get(waiting.id) : null);
   const asked = ask ? (tape.find((e) => e.id === ask.event_id) ?? null) : null;
@@ -58,13 +60,6 @@ export default function LivePage() {
   const reach = useReach(live.status, summary.isError, totals != null);
   const rounds = useRounds();
   const round = (rounds.data?.rounds ?? []).at(-1) ?? null;
-  // The three tosses before the one on the sheet, printed small, so the space
-  // under a short tape is tickets rather than paper.
-  const recent = tape
-    .filter(
-      (e) => e.kind === "toss" && e.status !== "void" && e.id !== ticket?.event.id,
-    )
-    .slice(0, 3);
 
   return (
     <div className="flex flex-col gap-4">
@@ -151,22 +146,6 @@ export default function LivePage() {
             <FirstRun />
           )}
 
-          {reach === "live" && ticket && recent.length > 0 ? (
-            <div className="hidden pt-8 lg:block">
-              <SectionTitle>Before that</SectionTitle>
-              <div className="flex flex-col gap-3 pt-3">
-                {recent.map((event) => (
-                  <Ticket
-                    key={event.id}
-                    event={event}
-                    detail={details.get(event.id) ?? null}
-                    size="compact"
-                    showMenu={false}
-                  />
-                ))}
-              </div>
-            </div>
-          ) : null}
         </section>
 
         <section aria-label="Tape" className="min-w-0">

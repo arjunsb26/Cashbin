@@ -6,17 +6,24 @@ import * as Dialog from "@radix-ui/react-dialog";
 import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
 import { MoreHorizontal } from "lucide-react";
 import type { EventDetail, EventSummary, OptionScoreRead } from "@/lib/types";
-import { bestOption, co2eAvoided, ticketFigure, ticketTone } from "@/lib/derive";
+import {
+  bestOption,
+  co2eAvoided,
+  fineToBin,
+  ticketFigure,
+  ticketHeadline,
+  ticketTone,
+} from "@/lib/derive";
 import { imageSrc, useAnswerAsk, useAssetTag, useSettings, useVoidEvent } from "@/lib/api";
 import { classLine } from "@/lib/copy";
 import {
   ESTIMATE_MARKER,
+  co2eParts,
   formatMass,
   formatMassError,
   formatMoney,
   formatOption,
   formatTag,
-  isNegativeCents,
   readLabel,
 } from "@/lib/format";
 import { Co2, Mass, Money } from "./Figure";
@@ -88,6 +95,7 @@ export function Ticket({
 }) {
   const record = detail?.item_record ?? null;
   const figure = ticketFigure(event, record);
+  const headline = ticketHeadline(event, record, detail?.options ?? null);
   const tag = useAssetTag(record?.asset_id);
   const settings = useSettings();
   const sort = classLine(record?.class ?? event.class, tag ? formatTag(tag) : null);
@@ -95,7 +103,7 @@ export function Ticket({
   const identified = phase === "identified" && event.label !== null;
   // The money leaves the critical path, so a ticket can be labelled seconds
   // before it is valued. Until it is, the sheet prints the mass, not a false zero.
-  const priced = identified && figure.known;
+  const shown = identified && headline.known;
   const options = detail?.options ?? [];
   const mass = event.mass_g ?? 0;
   // An open question is amber whatever the options say, because the answer is
@@ -104,6 +112,9 @@ export function Ticket({
   const tone = asking ? "caution" : ticketTone(options, settings.data);
   const compact = size === "compact";
   const best = bestOption(options);
+  // When the bin was already the right answer there is nothing to argue about, so
+  // the option table folds to the one row and says so.
+  const settled = fineToBin(options, settings.data);
 
   return (
     <article
@@ -159,25 +170,38 @@ export function Ticket({
         <div className="pt-4">{children}</div>
       ) : (
         <>
-          <div className={cx("flex items-end gap-3", compact ? "pt-3" : "pt-5")}>
+          {/* What the toss means, in the words its class earns: wasted, written
+              off, worth about, or the carbon for packaging. PLAN.md 21a item 41. */}
+          <div
+            className={cx("flex flex-wrap items-end gap-x-3 gap-y-1", compact ? "pt-3" : "pt-5")}
+          >
+            {shown && headline.lead ? (
+              <span className="pb-2 text-body">{headline.lead}</span>
+            ) : null}
             <span
               className={cx(
                 "font-condensed leading-none",
                 compact ? "text-total" : "text-figure",
-                priced && isNegativeCents(figure.cents) && "text-red-ink",
+                shown && headline.loss && "text-red-ink",
               )}
             >
-              {priced ? formatMoney(counted, { symbol: true }) : formatMass(mass)}
+              {shown
+                ? headline.kind === "carbon"
+                  ? co2eParts(headline.kg).value
+                  : formatMoney(Math.abs(counted), { symbol: true })
+                : formatMass(mass)}
             </span>
             <span className="pb-2 text-body text-ink-soft">
-              {priced ? (
-                <Term>{figure.caption}</Term>
+              {shown ? (
+                headline.trail ? (
+                  <Term>{headline.trail}</Term>
+                ) : null
               ) : identified ? (
                 "on the scale, being valued"
               ) : (
                 "on the scale"
               )}
-              {priced && figure.estimate ? (
+              {shown && headline.estimate ? (
                 <span className="pl-1">{ESTIMATE_MARKER}</span>
               ) : null}
             </span>
@@ -191,12 +215,12 @@ export function Ticket({
               </p>
             ) : null
           ) : identified && options.length > 0 ? (
-            <OptionTable eventId={event.id} options={options} />
+            <OptionTable eventId={event.id} options={options} settled={settled} />
           ) : (
             <p className="pt-4 text-caption text-ink-soft">
               {!identified
                 ? "The mass is in. The label and the options land next."
-                : !priced
+                : !shown
                   ? "The label is in. The money and the options land next."
                   : "No options were scored for this one."}
             </p>
@@ -346,26 +370,54 @@ function CorrectLabelDialog({
 export function OptionTable({
   eventId,
   options,
+  settled = false,
 }: {
   eventId: number;
   options: OptionScoreRead[];
+  /**
+   * True when the bin was already the right answer. The table then prints the one
+   * row that settled it and says "Fine to bin", with the rest a click away, so a
+   * ticket nobody has to act on does not read like four choices to weigh up.
+   */
+  settled?: boolean;
 }) {
   const best = bestOption(options);
+  const [expanded, setExpanded] = useState(false);
+  const collapsed = settled && !expanded;
+  const shown = collapsed && best ? [best] : options;
   return (
     <section className="pt-5">
-      <h3 className="text-section">What you could have done</h3>
+      <div className="flex flex-wrap items-baseline justify-between gap-x-4">
+        <h3 className="text-section">{settled ? "Fine to bin" : "What you could have done"}</h3>
+        {settled ? (
+          <button
+            type="button"
+            onClick={() => setExpanded((on) => !on)}
+            className="text-caption text-ink-soft underline underline-offset-2"
+          >
+            {expanded ? "Hide the other options" : `Show all ${options.length} options`}
+          </button>
+        ) : null}
+      </div>
+      {collapsed ? (
+        <p className="pt-1 text-caption text-ink-soft">
+          Nothing else was worth the trouble, so the bin was the right answer.
+        </p>
+      ) : null}
       <div className="mt-2 overflow-x-auto">
-        <table className="ledger w-full min-w-[320px] border-collapse text-body">
+        <table className="ledger w-full min-w-[240px] border-collapse text-body sm:min-w-[320px]">
           <thead>
             <tr className="border-b border-rule bg-bar text-caption text-ink-soft">
               <th className="py-1 font-normal">Option</th>
               <th className="py-1 text-right font-normal">After tax ($)</th>
               <th className="py-1 text-right font-normal">CO2e avoided (kg)</th>
-              <th className="py-1 text-right font-normal">Landfill (g)</th>
+              {/* Four columns do not fit beside the rail on a phone, and the
+                  landfill grams are the one a person acts on least. */}
+              <th className="hidden py-1 text-right font-normal sm:table-cell">Landfill (g)</th>
             </tr>
           </thead>
           <tbody className="animate-fade-in">
-            {options.map((option) => {
+            {shown.map((option) => {
               const isBest = best?.option === option.option;
               return (
                 <tr
@@ -404,7 +456,7 @@ export function OptionTable({
                       unit={false}
                     />
                   </td>
-                  <td className="text-right">
+                  <td className="hidden text-right sm:table-cell">
                     <Mass
                       grams={(option.kg_landfill ?? 0) * 1000}
                       eventId={eventId}
