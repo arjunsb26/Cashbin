@@ -6,7 +6,12 @@ import type { AskResponse } from "@/lib/api";
 import { Button, Field, Input, SectionTitle, Skeleton, cx } from "./ui";
 
 /** Questions a judge would ask, offered as text that copies into the box for editing. */
-const EXAMPLES: Record<"books" | "trends", string[]> = {
+const EXAMPLES: Record<"books" | "trends" | "review", string[]> = {
+  review: [
+    "What is waiting on me and how much money is in it?",
+    "Which estimates look high against the catalog?",
+    "What did the agent propose and why?",
+  ],
   books: [
     "What did we write off this week and why?",
     "Which entries have a tax treatment different from the book one?",
@@ -24,7 +29,13 @@ const EXAMPLES: Record<"books" | "trends", string[]> = {
  * things up and shows what it looked at. The question is sent as data; the
  * answer comes back only from what the lookups returned.
  */
-export function AskBooks({ where, className }: { where: "books" | "trends"; className?: string }) {
+export function AskBooks({
+  where,
+  className,
+}: {
+  where: "books" | "trends" | "review";
+  className?: string;
+}) {
   const [typed, setTyped] = useState("");
   const [asked, setAsked] = useState("");
   const ask = useAsk();

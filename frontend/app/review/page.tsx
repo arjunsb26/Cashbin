@@ -13,6 +13,7 @@ import {
   readLabel,
 } from "@/lib/format";
 import { PROPOSAL_WORDS, REVIEW_GROUPS, REVIEW_KIND_WORDS } from "@/lib/review";
+import { AskBooks } from "@/components/AskBooks";
 import type { ReviewItemRead, ReviewKind, ReviewStatus } from "@/lib/types";
 import {
   Badge,
@@ -99,7 +100,7 @@ export default function ReviewPage() {
     pending[item.id]?.status ?? item.status;
 
   return (
-    <div className="flex max-w-[860px] flex-col gap-8">
+    <div className="flex flex-col gap-8">
       <PageHeader
         title="Review"
         description="Everything the bin could not settle on its own, and everything a person should stand behind before it leaves the books."
@@ -123,6 +124,8 @@ export default function ReviewPage() {
         <p className="-mt-6 text-caption text-red-ink">{(run.error as Error).message}</p>
       ) : null}
 
+      <div className="grid grid-cols-1 gap-8 lg:grid-cols-[minmax(0,1fr)_minmax(300px,340px)]">
+      <div className="flex min-w-0 flex-col gap-8">
       {review.isPending ? <QueueSkeleton /> : null}
 
       {review.isError ? (
@@ -199,9 +202,63 @@ export default function ReviewPage() {
             );
           })
         : null}
+      </div>
+      <ReviewAside items={items} />
+      </div>
 
       <FinanceFooter />
     </div>
+  );
+}
+
+/**
+ * The right hand column: what the queue is, in three steps a judge can follow,
+ * with the live count in each group, and the box for asking the books.
+ */
+function ReviewAside({ items }: { items: ReviewItemRead[] }) {
+  const steps = [
+    {
+      title: "The bin flags what it should not decide alone",
+      text: "A value that came out of a model, a donation that needs a signature, a question it could not answer, a thing that was never on the register.",
+    },
+    {
+      title: "The agent reads and proposes",
+      text: "It looks the item up in the journal, the register and the catalog, then says what it would do and shows every lookup. It cannot post, reverse or settle anything.",
+    },
+    {
+      title: "A person decides",
+      text: "Approve, reject or answer. The decision is kept with a name and a reason, and the books move only then. Whether the person agreed with the agent is recorded too.",
+    },
+  ];
+  return (
+    <aside className="flex flex-col gap-6 self-start lg:sticky lg:top-6">
+      <section className="border-l-2 border-l-ink bg-bar px-4 py-3">
+        <p className="text-body font-semibold">How review works</p>
+        <ol className="m-0 list-decimal pl-5 pt-2">
+          {steps.map((step) => (
+            <li key={step.title} className="py-1.5">
+              <p className="text-body">{step.title}</p>
+              <p className="text-caption text-ink-soft">{step.text}</p>
+            </li>
+          ))}
+        </ol>
+        <ul className="m-0 list-none border-t border-rule p-0 pt-2">
+          {REVIEW_GROUPS.map((group) => {
+            const open = items.filter(
+              (item) =>
+                (group.kinds as ReviewKind[]).includes(item.kind) && item.status === "open",
+            ).length;
+            return (
+              <li key={group.id} className="flex items-baseline justify-between gap-3 py-1">
+                <span className="text-caption text-ink-soft">{group.title}</span>
+                <span className="font-condensed text-body">{open}</span>
+              </li>
+            );
+          })}
+        </ul>
+      </section>
+      <AskBooks where="review" />
+    </aside>
   );
 }
 

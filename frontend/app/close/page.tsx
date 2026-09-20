@@ -62,7 +62,7 @@ export default function ClosePage() {
   const report = close.data ? closeReport(close.data) : null;
 
   return (
-    <div className="max-w-[860px]">
+    <div>
       <PageHeader
         title="Close"
         right={
@@ -119,8 +119,8 @@ function Statement({ report, read }: { report: CloseReport; read: CloseRead }) {
   const firstProblem = report.checks.find((c) => c.result !== "pass")?.id ?? null;
 
   return (
-    <article className="flex flex-col gap-8">
-      <header className="border-b border-ink pb-3">
+    <article className="flex flex-col gap-8 xl:grid xl:grid-cols-[minmax(0,1fr)_minmax(380px,0.8fr)] xl:gap-x-10">
+      <header className="border-b border-ink pb-3 xl:col-span-2">
         <h2 className="font-condensed text-total">Period close</h2>
         <p className="text-caption text-ink-soft">
           {formatDate(report.period_start)} to {formatDate(report.period_end)}, prepared{" "}
@@ -130,8 +130,15 @@ function Statement({ report, read }: { report: CloseReport; read: CloseRead }) {
 
       {/* The memo sits under the title, where a reader meets the period in words
           before they meet it in columns. */}
-      {blocks.memo ? <CloseMemo memo={blocks.memo} /> : null}
+      {blocks.memo ? (
+        <div className="xl:col-span-2">
+          <CloseMemo memo={blocks.memo} />
+        </div>
+      ) : null}
 
+      {/* Two columns on a wide screen: the money on the left, the waste, the
+          missed chances and the checks on the right. One column below that. */}
+      <div className="flex min-w-0 flex-col gap-8">
       <section>
         <SectionTitle right={<Total cents={report.write_off_total_cents} />}>
           Write-offs
@@ -238,7 +245,9 @@ function Statement({ report, read }: { report: CloseReport; read: CloseRead }) {
       {blocks.reconciliation ? <Reconciliation block={blocks.reconciliation} /> : null}
 
       {blocks.form4797 ? <Form4797 block={blocks.form4797} /> : null}
+      </div>
 
+      <div className="flex min-w-0 flex-col gap-8">
       <section>
         <SectionTitle>Waste and emissions</SectionTitle>
         <p className="pb-2 text-caption text-ink-soft">
@@ -342,6 +351,7 @@ function Statement({ report, read }: { report: CloseReport; read: CloseRead }) {
           ))}
         </ul>
       </section>
+      </div>
     </article>
   );
 }

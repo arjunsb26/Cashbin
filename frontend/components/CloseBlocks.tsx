@@ -21,7 +21,7 @@ import { Badge, SectionTitle, cx } from "./ui";
 export function CloseMemo({ memo }: { memo: string }) {
   const blocks = noteBlocks(memo);
   return (
-    <section aria-label="Memo" className="max-w-[68ch] border-b border-rule pb-6">
+    <section aria-label="Memo" className="max-w-[100ch] border-b border-rule pb-6">
       {blocks.map((block, i) => (
         <p
           key={i}
