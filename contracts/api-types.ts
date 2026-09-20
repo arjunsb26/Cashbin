@@ -346,6 +346,7 @@ export interface CloseCheck {
     [k: string]: number;
   };
   result: "pass" | "warn" | "fail";
+  title: string;
 }
 /**
  * This interface was referenced by `BinBooksContracts`'s JSON-Schema
@@ -694,6 +695,7 @@ export interface PhoneResult {
   big: string;
   event_id: number;
   line: string;
+  title: string;
   tone: "green" | "amber" | "red" | "neutral";
   type?: "result";
 }
