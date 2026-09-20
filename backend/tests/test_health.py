@@ -8,7 +8,7 @@ import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import inspect
 
-from app.config import load_brand, APP_VERSION, Settings
+from app.config import APP_VERSION, Settings, load_brand
 from app.db import get_engine, init_db
 from app.models import ALL_TABLES, CHART_OF_ACCOUNTS
 
