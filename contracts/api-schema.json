@@ -1903,6 +1903,18 @@
           ],
           "default": null
         },
+        "question": {
+          "anyOf": [
+            {
+              "maxLength": 60,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
         "type": {
           "const": "ask",
           "default": "ask",
@@ -2843,6 +2855,18 @@
           "anyOf": [
             {
               "maxLength": 80,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "question": {
+          "anyOf": [
+            {
+              "maxLength": 60,
               "type": "string"
             },
             {

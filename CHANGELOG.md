@@ -2,6 +2,24 @@
 
 Newest first. Each lane writes under its own heading.
 
+## 2026-09-20, lane u: a slow camera answer is not a missing one
+
+- The OpenAI client is built with `max_retries=0`. The SDK defaults to two silent retries,
+  which sat inside our own five second budget and turned one slow call into three. Retrying
+  is the pipeline's decision now, because only the pipeline knows what a person is looking
+  at while it waits.
+- A vision call that does not land in `LLM_TIMEOUT_S` gets one more go on the settled crop,
+  thinking a little, with `VISION_RETRY_TIMEOUT_S` of ten seconds. The ticket stays in
+  Identifying while that runs. The question only opens when the second go fails too.
+- When the question does open because no model ever answered, it says so: "The camera
+  answer did not arrive. What is it?", beside the model's own description if any attempt
+  produced one. A bare "Which is it?" with nothing to pick is gone.
+- A second call that lands after the question went out still settles the ticket, as long
+  as nobody has answered. Both surfaces close the question, with `by` reading "camera".
+  A person who has already answered beats the camera every time.
+- `PhoneAsk` and `UiAskOpened` carry an optional `question`. Null keeps the wording the
+  phone already has, so an ordinary ask is unchanged.
+
 ## 2026-09-20, lane u: the bin reads what it is about to say
 
 - A sense gate sits between a finished ticket and the three surfaces. Once per finalised

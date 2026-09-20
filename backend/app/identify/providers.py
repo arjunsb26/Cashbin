@@ -49,6 +49,9 @@ class IdentifyContext:
     catalog_labels: tuple[str, ...] = ()
     asset_tags: tuple[str, ...] = ()
     hints: dict[str, str] = field(default_factory=dict)
+    # How hard to think about this one call, when the pipeline wants something other than
+    # the configured default. Empty means the setting decides, which is every first call.
+    effort: str = ""
 
 
 @runtime_checkable

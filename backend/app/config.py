@@ -126,6 +126,12 @@ class Settings(BaseSettings):
     # R measured p90 at 3.1 s and 5 of 68 calls over 4 s on the hotspot, so four cut off
     # answers that were coming.
     llm_timeout_s: float = Field(default=5.0, gt=0.0)
+    # A camera answer that does not arrive in five seconds gets one more go, thinking a
+    # little, on the settled crop, with a longer budget. A live HP flash drive timed out at
+    # five seconds and the person was shown a question with no answers in it, which is the
+    # nonsense this exists to stop. The ask only opens when this one fails too.
+    vision_retry_timeout_s: float = Field(default=10.0, gt=0.0)
+    vision_retry_effort: str = "low"
     # The longest side of the picture actually sent. The full size crop stays on disk for the
     # evidence drawer; the model is classifying a thing, not reading fine print.
     vision_image_max_px: int = Field(default=384, ge=64, le=4096)
@@ -168,6 +174,7 @@ class Settings(BaseSettings):
         "llm_vision_effort",
         "llm_text_effort",
         "llm_estimate_effort",
+        "vision_retry_effort",
         "llm_sense_effort",
         "llm_question_effort",
         "llm_service_tier",
@@ -188,6 +195,7 @@ class Settings(BaseSettings):
         "llm_estimate_effort",
         "llm_sense_effort",
         "llm_question_effort",
+        "vision_retry_effort",
     )
     @classmethod
     def _known_effort(cls, value: str) -> str:

@@ -36,6 +36,7 @@ from app.models import (
 LCD_LINE_MAX = 20
 LCD_BIG_MAX = 7
 VISIBLE_TEXT_MAX = 120
+QUESTION_MAX = 60
 DESCRIPTION_MAX = 80
 LABEL_MAX = 40
 
@@ -325,6 +326,9 @@ class PhoneAsk(WireModel):
     candidates: list[AskCandidate] = Field(default_factory=list, max_length=4)
     crop_url: str | None = None
     looks_like: str | None = Field(default=None, max_length=DESCRIPTION_MAX)
+    # What is actually being asked, when it is not the plain "which is it". Null keeps the
+    # wording the phone already has, so nothing changes for an ordinary ask.
+    question: str | None = Field(default=None, max_length=QUESTION_MAX)
 
 
 class PhoneIdle(WireModel):
@@ -388,6 +392,8 @@ class UiAskOpened(WireModel):
     # The model's plain words about what it is looking at, when it had any. Shown beside
     # the buttons so a person knows what the camera saw before they answer.
     looks_like: str | None = Field(default=None, max_length=DESCRIPTION_MAX)
+    # What is actually being asked, when it is not the plain "which is it".
+    question: str | None = Field(default=None, max_length=QUESTION_MAX)
 
 
 class UiAskResolved(WireModel):
