@@ -8,7 +8,7 @@ import pytest
 
 from app.config import Settings
 from app.db import session_scope
-from app.identify.estimate_cache import cache_key, read_estimate, write_estimate
+from app.identify.estimate_cache import cache_key, estimate_key, read_estimate, write_estimate
 from app.identify.openai_provider import OpenAIEstimatorProvider
 from app.models import Setting
 from app.schemas import ValueEstimate, VisionResult
@@ -91,7 +91,9 @@ def test_an_object_is_never_priced_twice(settings: Settings) -> None:
     assert first == second
     assert first.provider == "openai"
 
-    stored = read_estimate("cracked phone")
+    # The key carries what was read off the thing, so two different phones are two
+    # entries. PLAN.md 21a item 29.
+    stored = read_estimate(estimate_key("cracked phone", vision))
     assert stored is not None and stored.fmv.mid == 2000
 
     # A fresh provider, with no memory of its own, still finds the stored estimate.

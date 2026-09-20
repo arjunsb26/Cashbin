@@ -878,6 +878,7 @@ class SettingsRead(ApiModel):
     llm_service_tier: ServiceTier = "fast"
     llm_vision_effort: ReasoningEffort = "none"
     llm_text_effort: ReasoningEffort = "none"
+    llm_estimate_effort: ReasoningEffort = "low"
 
 
 class SettingsUpdate(ApiModel):
@@ -897,6 +898,7 @@ class SettingsUpdate(ApiModel):
     llm_service_tier: ServiceTier | None = None
     llm_vision_effort: ReasoningEffort | None = None
     llm_text_effort: ReasoningEffort | None = None
+    llm_estimate_effort: ReasoningEffort | None = None
 
 
 class DeviceTareResponse(ApiModel):

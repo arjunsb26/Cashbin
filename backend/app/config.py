@@ -99,6 +99,9 @@ class Settings(BaseSettings):
     # at all. The estimator does arithmetic on a price, so it keeps a low effort.
     llm_vision_effort: str = "none"
     llm_text_effort: str = "none"
+    # The value estimate is off the critical path, and pricing a particular product off a
+    # photograph is the one call here that is worth thinking about.
+    llm_estimate_effort: str = "low"
     # How the host is asked to schedule the call. "fast" is the low latency queue; "default"
     # turns the request back into an ordinary one.
     llm_service_tier: str = "fast"
@@ -147,6 +150,7 @@ class Settings(BaseSettings):
         "llm_agent_model",
         "llm_vision_effort",
         "llm_text_effort",
+        "llm_estimate_effort",
         "llm_service_tier",
         "dashboard_url",
         "openai_api_key",
@@ -159,7 +163,7 @@ class Settings(BaseSettings):
     def _clean_str(cls, value: Any) -> Any:
         return _clean(value) if isinstance(value, str) else value
 
-    @field_validator("llm_vision_effort", "llm_text_effort")
+    @field_validator("llm_vision_effort", "llm_text_effort", "llm_estimate_effort")
     @classmethod
     def _known_effort(cls, value: str) -> str:
         """An effort the host does not know is a 400 on every call, so refuse it here."""
@@ -206,6 +210,7 @@ RUNTIME_SETTING_KEYS: tuple[str, ...] = (
     "llm_service_tier",
     "llm_vision_effort",
     "llm_text_effort",
+    "llm_estimate_effort",
 )
 
 _settings: Settings | None = None

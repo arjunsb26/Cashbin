@@ -45,9 +45,12 @@ VISION_TASK = (
 )
 ESTIMATE_TASK = (
     "Estimate fair market value, repair cost, replacement cost and scrap value for the "
-    "object described in the data block, each as whole US cents low, mid and high, with a "
-    "one line rationale. Material mix fractions must sum to 1, and every material key must "
-    "be one of the strings in the materials list in the data block."
+    "object in the image, each as whole US cents low, mid and high. The data block says "
+    "what it was identified as, what condition it is in, and any text read off it. When a "
+    "brand or model is legible, price that product and say so in the rationale. When it is "
+    "not, price a typical example of this kind of thing and say that instead. Material mix "
+    "fractions must sum to 1, and every material key must be one of the strings in the "
+    "materials list in the data block."
 )
 
 # The only material names that mean anything downstream. Anything else comes back from the
@@ -179,12 +182,22 @@ def build_vision_request(crop: bytes, context: IdentifyContext, model: str,
 
 
 def build_estimate_request(label: str, vision: VisionResult, mass_g: float, model: str,
-                           effort: str = "low", service_tier: str = "") -> dict[str, Any]:
-    """The exact body sent for a value estimate. The object travels as data, same as above."""
+                           effort: str = "low", service_tier: str = "",
+                           crop: bytes | None = None) -> dict[str, Any]:
+    """The exact body sent for a value estimate.
+
+    PLAN.md 21a item 29. The estimator used to see the word and nothing else, so a hundred
+    and fifty dollar mouse was priced as "a mouse" at twelve dollars. It gets the same
+    picture the vision call got, and what was read off the thing, as data. Every string in
+    here is still data the model is told to describe, never an instruction: `visible_text`
+    is whatever the camera read, and someone will hold up a sign one day.
+    """
     payload = {
         "label": normalise_label(label),
         "class": vision.item_class.value,
         "condition": vision.condition,
+        "description": vision.description,
+        "visible_text": vision.visible_text,
         "material": str(vision.material) if vision.material else None,
         "mass_g": round(mass_g, 2),
         "materials": list(MATERIAL_VOCABULARY),
@@ -193,6 +206,6 @@ def build_estimate_request(label: str, vision: VisionResult, mass_g: float, mode
     # asks for the schema without the strict flag and lets pydantic be the wall.
     schema = strict_schema(ValueEstimate, drop=("provider", "model"))
     return _request(
-        model, effort, ESTIMATE_TASK, payload, "value_estimate", schema, False,
+        model, effort, ESTIMATE_TASK, payload, "value_estimate", schema, False, crop,
         service_tier=service_tier,
     )

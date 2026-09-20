@@ -817,6 +817,7 @@ export interface SettingsRead {
   capitalization_threshold_cents: number;
   confident_p: number;
   disposal_fee_cents: number;
+  llm_estimate_effort?: "none" | "minimal" | "low" | "medium" | "high";
   llm_service_tier?: "auto" | "default" | "flex" | "scale" | "priority" | "fast";
   llm_text_effort?: "none" | "minimal" | "low" | "medium" | "high";
   llm_timeout_s: number;
@@ -839,6 +840,7 @@ export interface SettingsUpdate {
   capitalization_threshold_cents?: number | null;
   confident_p?: number | null;
   disposal_fee_cents?: number | null;
+  llm_estimate_effort?: ("none" | "minimal" | "low" | "medium" | "high") | null;
   llm_service_tier?: ("auto" | "default" | "flex" | "scale" | "priority" | "fast") | null;
   llm_text_effort?: ("none" | "minimal" | "low" | "medium" | "high") | null;
   llm_timeout_s?: number | null;

@@ -11,11 +11,12 @@ rather than stored, because a cache key is a key like any other.
 
 from __future__ import annotations
 
+import hashlib
 import logging
 
 from pydantic import ValidationError
 
-from app.schemas import ValueEstimate, normalise_label
+from app.schemas import ValueEstimate, VisionResult, normalise_label
 
 log = logging.getLogger(__name__)
 
@@ -25,6 +26,21 @@ KEY_PREFIX = "estimate:"
 def cache_key(label: str) -> str:
     """The settings key for one label. Raises if the label is not a label."""
     return f"{KEY_PREFIX}{normalise_label(label)}"
+
+
+def estimate_key(label: str, vision: VisionResult | None = None) -> str:
+    """What makes two estimates the same estimate.
+
+    The label alone made every mouse one entry, so the first one priced set the price for
+    every mouse after it. Anything legible on the thing goes in the key as well, which is
+    what tells a fifteen dollar mouse from a hundred and fifty dollar one. It is hashed
+    rather than stored, because it is outside text and a key is not the place for prose.
+    """
+    text = (vision.visible_text if vision else "") or ""
+    if not text.strip():
+        return normalise_label(label)
+    digest = hashlib.sha256(text.strip().lower().encode("utf-8")).hexdigest()[:12]
+    return f"{normalise_label(label)} {digest}"
 
 
 def read_estimate(label: str) -> ValueEstimate | None:

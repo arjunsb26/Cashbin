@@ -65,6 +65,7 @@ from app.identify.pipeline import (
     set_on_final,
 )
 from app.identify.providers import CallUsage, IdentifyContext, VisionProvider
+from app.ingest.media import read_jpeg
 from app.ingest.state import IngestState
 from app.learn import metrics, rounds
 from app.ledger import journal as ledger_journal
@@ -546,7 +547,11 @@ class PipelineDeps:
             # an unpriced ticket at six seconds. It comes off the critical path: the label
             # and the mass reach all three surfaces now, and the figure follows.
             cached = (
-                estimate_cache.read_estimate(display) if cls is ItemClass.untracked else None
+                estimate_cache.read_estimate(
+                    estimate_cache.estimate_key(display, seen or _vision_stand_in(display, cls))
+                )
+                if cls is ItemClass.untracked
+                else None
             )
             valuing = cls is ItemClass.untracked and cached is None
 
@@ -567,7 +572,12 @@ class PipelineDeps:
                 return
 
             stage = "estimate"
-            estimate = await self._estimate(cls, display, mass_g, seen)
+            # The same picture the vision call looked at. The estimator used to see the
+            # word alone, which is how a hundred and fifty dollar mouse came back at
+            # twelve dollars. PLAN.md 21a item 29.
+            estimate = await self._estimate(
+                cls, display, mass_g, seen, read_jpeg(event_id, "crop", self.settings)
+            )
             if estimate is None:
                 log.info("event %d has no estimate, the ticket stands as it is", event_id)
                 return
@@ -661,6 +671,7 @@ class PipelineDeps:
         label: str,
         mass_g: float,
         seen: VisionResult | None,
+        crop: bytes | None = None,
     ) -> ValueEstimate | None:
         """What an untracked object is worth, from the cache when it was priced before.
 
@@ -670,13 +681,15 @@ class PipelineDeps:
         """
         if cls is not ItemClass.untracked:
             return None
-        cached = estimate_cache.read_estimate(label)
+        vision = seen or _vision_stand_in(label, cls)
+        cached = estimate_cache.read_estimate(estimate_cache.estimate_key(label, vision))
         if cached is not None:
             return cached
-        vision = seen or _vision_stand_in(label, cls)
         try:
             estimate = await asyncio.wait_for(
-                asyncio.to_thread(self.providers.estimator.estimate, label, vision, mass_g),
+                asyncio.to_thread(
+                    self.providers.estimator.estimate, label, vision, mass_g, crop
+                ),
                 timeout=self.settings.llm_timeout_s,
             )
         except TimeoutError:
@@ -685,7 +698,7 @@ class PipelineDeps:
         except Exception:
             log.exception("the estimate for %s failed", label)
             return None
-        estimate_cache.write_estimate(label, estimate)
+        estimate_cache.write_estimate(estimate_cache.estimate_key(label, vision), estimate)
         return estimate
 
     def _publish(

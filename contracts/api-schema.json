@@ -2288,6 +2288,17 @@
         "disposal_fee_cents": {
           "type": "integer"
         },
+        "llm_estimate_effort": {
+          "default": "low",
+          "enum": [
+            "none",
+            "minimal",
+            "low",
+            "medium",
+            "high"
+          ],
+          "type": "string"
+        },
         "llm_service_tier": {
           "default": "fast",
           "enum": [
@@ -2411,6 +2422,24 @@
             {
               "minimum": 0,
               "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "llm_estimate_effort": {
+          "anyOf": [
+            {
+              "enum": [
+                "none",
+                "minimal",
+                "low",
+                "medium",
+                "high"
+              ],
+              "type": "string"
             },
             {
               "type": "null"
