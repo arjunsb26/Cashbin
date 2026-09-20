@@ -1229,7 +1229,7 @@ ANSWER_MAX = 600
 # What a typed question may be made of. CLAUDE.md "Prompts and free text into models": a
 # whitelist is a wall, a guard sentence in a prompt is a request. Letters, digits, spaces
 # and the punctuation a question actually needs.
-_QUESTION_ALLOWED = re.compile(r"^[A-Za-z0-9 .,?$%-]+$")
+_QUESTION_ALLOWED = re.compile(r"^[A-Za-z0-9 .,?$%'-]+$")
 
 
 def normalise_question(raw: Any) -> str:
@@ -1247,7 +1247,7 @@ def normalise_question(raw: Any) -> str:
     text = text.strip()
     if not _QUESTION_ALLOWED.match(text):
         raise ValueError(
-            "a question may use only letters, digits, spaces and the punctuation . , ? $ % -"
+            "a question may use only letters, digits, spaces, apostrophes and the punctuation . , ? $ % -"
         )
     return text
 

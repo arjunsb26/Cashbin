@@ -30,6 +30,7 @@ from sqlalchemy.orm import Session
 
 from app import models
 from app.agent import prose, review_tools, writer
+from app.agent.ask import call_with_effort
 from app.config import Settings
 from app.engine.tax import money
 from app.schemas import ReviewProposal, ToolStep
@@ -363,12 +364,16 @@ def propose_with_model(
         if time.monotonic() > deadline:
             log.warning("the review agent ran out of time after %d calls", used_calls)
             break
-        reply = client.chat.completions.create(
+        # The host refuses a thinking budget beside function tools, and until this
+        # call learned to ask again without one, every live proposal fell back to
+        # the stub path and the queue said "Written without a model" on each row.
+        reply, _effort = call_with_effort(
+            client,
+            writer.DEFAULT_EFFORT,
             model=model,
             messages=messages,
             tools=review_tools.TOOL_SCHEMAS,
             response_format=writer.response_format(SCHEMA_NAME, ProposalReply),
-            reasoning_effort=writer.DEFAULT_EFFORT,
             timeout=settings.llm_timeout_s,
         )
         message = reply.choices[0].message

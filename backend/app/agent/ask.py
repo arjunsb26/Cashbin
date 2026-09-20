@@ -169,6 +169,10 @@ def _call(client: Any, effort: str, **request: Any) -> tuple[Any, str]:
         return client.chat.completions.create(reasoning_effort=NO_EFFORT, **request), NO_EFFORT
 
 
+# The same fallback for every agent that carries tools. The review agent uses it.
+call_with_effort = _call
+
+
 def answer_with_model(
     session: Session, question: str, settings: Settings, client: Any
 ) -> AskResponse:
