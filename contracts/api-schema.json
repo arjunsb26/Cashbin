@@ -1274,6 +1274,18 @@
           },
           "type": "array"
         },
+        "headline": {
+          "anyOf": [
+            {
+              "maxLength": 120,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
         "id": {
           "type": "integer"
         },

@@ -124,13 +124,24 @@ def test_a_broken_thing_is_not_offered_for_sale() -> None:
     assert effect.blocked_reason == tax.BROKEN_NOT_SELLABLE
 
 
-def test_a_bagel_out_of_a_bin_is_not_offered_to_a_charity() -> None:
-    """PLAN.md 21a item 48. Nobody donates food somebody already opened.
+def test_food_nobody_opened_is_offered_with_the_flag_that_asks_a_person() -> None:
+    """PLAN.md 21a item 53. Nobody said this bagel was opened, so nobody may say it was.
 
-    The arithmetic underneath is unchanged and still right, which is what the next test
-    reads. What changed is that the bin no longer says it out loud about an opened bagel.
+    Refusing everything nobody had typed a word about meant refusing every piece of food,
+    which is the whole point of the donation rule. Unknown is offered and flagged for a
+    person; only food somebody says was opened is refused.
     """
     scores = options.score_options(bagel_record(), SETTINGS)
+    donate = options.by_option(scores)[Option.donate]
+    assert donate.allowed is True
+    assert donate.needs_human_review is True
+    assert options.summarise(scores, SETTINGS).best_option is Option.donate
+
+
+def test_food_somebody_opened_is_not_offered_to_a_charity() -> None:
+    """PLAN.md 21a item 48. Nobody donates half a bagel."""
+    opened = bagel_record().model_copy(update={"description": "a half eaten bagel"})
+    scores = options.score_options(opened, SETTINGS)
     donate = options.by_option(scores)[Option.donate]
     assert donate.allowed is False
     assert donate.blocked_reason == tax.FOOD_NOT_SEALED

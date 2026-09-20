@@ -312,15 +312,23 @@ def portion_question() -> Question:
     return Question(kind=KIND_PORTION, question=PORTION_QUESTION, choices=PORTION_CHOICES)
 
 
+def _as_label(answer: str) -> str:
+    """An answer through the same wall a label goes through, or nothing at all."""
+    try:
+        return normalise_label(answer)
+    except (ValueError, TypeError):
+        return ""
+
+
 def cost_cents(answer: str) -> int | None:
     """An answer like "10 dollars" as whole cents, or nothing when it is not one."""
-    found = _COST_SHAPE.match(normalise_label(answer))
+    found = _COST_SHAPE.match(_as_label(answer))
     return int(found.group(1)) * 100 if found else None
 
 
 def portion_of(answer: str) -> float:
     """An answer like "a quarter" as a share of the whole thing. Unknown means all of it."""
-    return PORTIONS.get(normalise_label(answer), 1.0)
+    return PORTIONS.get(_as_label(answer), 1.0)
 
 
 def _build_client(settings: Settings) -> Any:

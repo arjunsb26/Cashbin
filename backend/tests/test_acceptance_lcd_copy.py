@@ -20,7 +20,15 @@ from app.engine.records import ItemClass as EngineClass
 from app.engine.records import ItemRecord as EngineRecord
 from app.engine.records import Option
 from app.notify import lcd
-from app.pipeline import BINNED, BLOCKED_ADVICE, BLOCKED_ONLY, FINE_TO_BIN, advice_line
+from app.pipeline import (
+    BINNED,
+    BLOCKED_ADVICE,
+    BLOCKED_ONLY,
+    FINE_TO_BIN,
+    LINE_TWO_COPY,
+    STILL_USABLE,
+    advice_line,
+)
 from app.schemas import LCD_BIG_MAX, LCD_LINE_MAX
 
 # Marks and words no line the bin draws may carry. CLAUDE.md "Writing" and "What users see".
@@ -42,11 +50,17 @@ BANNED_WORDS = (
 
 
 def every_line_two() -> list[str]:
-    """Every line 2 the pipeline can compose, from the three tables it composes them from."""
-    lines = list(BLOCKED_ADVICE.values())
-    lines.append(BLOCKED_ONLY)
-    lines.append(FINE_TO_BIN)
-    lines.append(BINNED[EngineClass.fixed_asset])
+    """Every line 2 the pipeline can compose, read off the pipeline's own set.
+
+    The set used to be retyped here and in the acceptance harness, which is two more
+    places for a line the bin draws to be wrong without anything going red.
+    """
+    lines = sorted(LINE_TWO_COPY)
+    assert BLOCKED_ONLY in lines
+    assert FINE_TO_BIN in lines
+    assert STILL_USABLE in lines
+    assert BINNED[EngineClass.fixed_asset] in lines
+    assert set(BLOCKED_ADVICE.values()) <= set(lines)
     return lines
 
 
@@ -94,12 +108,18 @@ def test_the_composer_only_ever_returns_one_of_those_lines() -> None:
 def test_the_binned_line_says_the_bin_was_the_right_place() -> None:
     """PLAN.md 21a item 37. Nothing to argue about, so the bin does not argue.
 
-    A tagged asset is the exception: it coming off the register is the news on that
-    ticket, and worth more than telling somebody the bin was acceptable.
+    Two exceptions. A tagged asset coming off the register is the news on that ticket. And
+    something cheap that nothing is wrong with was still usable, which is the honest thing
+    to say about a pencil rather than telling somebody the bin was acceptable.
     """
     assert advice_line(record(), ranking(Option.trash), blocked=False) == FINE_TO_BIN
     assert advice_line(
         record(**{"class": EngineClass.untracked}), ranking(Option.trash), blocked=False
+    ) == STILL_USABLE
+    assert advice_line(
+        record(**{"class": EngineClass.untracked}, fmv_mid=9_000),
+        ranking(Option.trash),
+        blocked=False,
     ) == FINE_TO_BIN
     assert advice_line(
         record(**{"class": EngineClass.fixed_asset}), ranking(Option.trash), blocked=False

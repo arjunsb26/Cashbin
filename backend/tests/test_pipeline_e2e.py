@@ -45,7 +45,6 @@ from app.pipeline import (
     VALUING_LINE,
     advice_line,
     headline_cents,
-    lcd_big,
     signed_money,
     title_for,
 )
@@ -329,21 +328,19 @@ def test_the_demo_scenario_ends_as_posted_balanced_tickets(demo_settings: Settin
             assert asset.status is AssetStatus.disposed
             assert asset.disposed_event_id == keyboard["id"]
 
-        # A bagel out of a bin is nobody's donation, and the ticket says so rather than
-        # leaving the option off. PLAN.md 21a item 48.
+        # Nobody said this bagel was opened, so the donation is offered and flagged for a
+        # person rather than refused on an assumption. PLAN.md 21a item 53.
         bagel = client.get(f"/api/events/{by_label['bagel']['id']}").json()
-        ranks = {row["option"]: row["rank"] for row in bagel["options"]}
-        assert ranks[OptionKind.trash] is not None
-        assert ranks[OptionKind.donate] is None
-        donate = next(row for row in bagel["options"] if row["option"] == OptionKind.donate)
-        assert donate["allowed"] is False
-        assert "donated" in donate["blocked_reason"]
-        assert donate["needs_human_review"] is True
+        rows = {row["option"]: row for row in bagel["options"]}
+        assert rows[OptionKind.trash]["rank"] is not None
+        assert rows[OptionKind.donate]["rank"] == 1
+        assert rows[OptionKind.donate]["needs_human_review"] is True
+        donate = rows[OptionKind.donate]
         assert "DONATE_FOOD" in donate["rule_ids"]
-        # The arithmetic behind the blocked option is untouched and still on the ticket.
+        # The arithmetic behind the option is what it always was.
         assert donate["tax_effect_cents"] > 0
-        # Nothing beats the bin on money for an opened bagel, so nothing is claimed.
-        assert by_label["bagel"]["saved_if_followed_cents"] == 0
+        # And giving it away beats binning it, which is why it is worth a person's minute.
+        assert by_label["bagel"]["saved_if_followed_cents"] > 0
 
         # Electronics do not go in the landfill, and the reason is on the row.
         for label in ("usb-c charger", "phone"):
@@ -465,11 +462,15 @@ def test_the_headline_figure_reads_the_same_on_every_surface() -> None:
 
 
 def test_the_big_figure_is_cut_until_the_bin_can_draw_it() -> None:
-    assert lcd_big(-2000) == "-$20.00"
-    assert lcd_big(-123_400) == "-$1,234"
-    assert lcd_big(-1_234_500) == "-$12345"
-    assert lcd_big(-98_765_400) == "-$988k"
-    assert len(lcd_big(-98_765_400)) <= 7
+    # One ladder, in `notify/lcd.py`, where every LCD string is built. The pipeline used to
+    # carry a second copy of it, which is two places for the same rule to drift.
+    from app.notify.lcd import big_money
+
+    assert big_money(-2000) == "-$20.00"
+    assert big_money(-123_400) == "-$1,234"
+    assert big_money(-1_234_500) == "-$12345"
+    assert big_money(-98_765_400) == "-$988k"
+    assert len(big_money(-98_765_400)) <= 7
 
 
 def test_the_advice_line_says_what_to_do_or_what_happened() -> None:

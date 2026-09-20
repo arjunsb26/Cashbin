@@ -563,6 +563,10 @@ class EventSummary(ApiModel):
     # can act on them. Today the only one is possible_unrecorded_asset.
     flags: list[str] = Field(default_factory=list)
     round_id: int | None = None
+    # What this toss meant, in one sentence with its figure in it: "Wasted $3.00",
+    # "Written off, $65.00 book loss", "Worth about $12.00". PLAN.md 21a item 41. Null on
+    # a ticket that has not been priced yet, where inventing a sentence would be a lie.
+    headline: str | None = Field(default=None, max_length=120)
 
 
 class EventListResponse(ApiModel):

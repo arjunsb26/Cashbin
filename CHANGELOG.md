@@ -19,6 +19,27 @@ Newest first. Each lane writes under its own heading.
   identification row, it reaches the estimator as data, it keys the estimate cache, and
   the condition pair sets the item's condition. The label the camera gave stands.
 - One toss may be asked at most two questions, ever.
+- A toss now says what it meant above the figure rather than repeating the item's name,
+  which the phone is already showing. Food reads "Wasted", a register asset "Written off",
+  anything else "Worth about", and packaging leads with the CO2e it keeps out of the air.
+  The words come from the one builder in `notify/lcd.py`; the second copy of that ladder
+  in the pipeline is gone, and so is the copy the acceptance harness kept of line 2.
+- The ticket carries that sentence with its figure in it, so a reloaded page says what the
+  bin said at the time instead of working it out again.
+- Something cheap that nothing is wrong with reads "Still usable" rather than "Fine to
+  bin". The user's words: for a pencil it said resell, which is reasonable, but you could
+  just use it.
+- Food nobody priced is asked what the whole thing cost and how much of it went in, and
+  the two answers multiply out to the cost basis: ten dollars and a quarter is $2.50.
+  Food the catalog prices is asked nothing.
+- Food is refused for donation only when somebody says it was opened. Nobody having said
+  anything is not the same as opened, and refusing on that meant refusing every piece of
+  food there was. Unknown is offered with the flag that puts it in front of a person.
+- An empty drink can is a can, not six cents of wasted drink. Under a fifth of the unit
+  mass of something mostly food or drink, the toss is the container: no cost basis, no
+  journal entry, the material is what the container is made of, and the line says
+  "Recycle, not trash".
+
 
 ## 2026-09-20, lane q: the dashboard for two audiences
 

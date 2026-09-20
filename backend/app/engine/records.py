@@ -198,6 +198,13 @@ class ItemRecord(BaseModel):
     # Both are outside text and both are read here only for words like "sealed".
     description: str = ""
     detail: str = ""
+    # Where the cost basis came from. The catalog prices most things; a person answering
+    # "10 dollars" and "a quarter" prices the rest, and the ticket says which it was.
+    cost_basis_source: EstimateSource | None = None
+    # PLAN.md 21a item 54. An empty drink can weighs a twentieth of a full one, and the
+    # portion rule read that as six cents of wasted drink. What went in the bin is the
+    # container, so it is priced and worded as one.
+    empty_container: bool = False
 
     @property
     def mass_kg(self) -> float:
@@ -261,6 +268,54 @@ def _cost_basis_from_catalog(catalog: CatalogItem, mass_g: float) -> int | None:
     return catalog.unit_cost_cents
 
 
+# How little of a unit has to be left before what was thrown away is the empty container
+# rather than any of what was in it.
+EMPTY_CONTAINER_SHARE = 0.2
+FOOD_FLAG = "food"
+
+
+def _mostly_food(mix: dict[str, float]) -> bool:
+    """True when most of what this row is made of is the food or drink inside it."""
+    from app.engine import carbon
+
+    if not mix:
+        return False
+    food = sum(share for material, share in mix.items() if carbon.is_food_material(material))
+    return food >= 0.5 * sum(mix.values())
+
+
+def _the_container(mix: dict[str, float]) -> dict[str, float]:
+    """What is left of the material mix once the food or drink is out of it.
+
+    An energy drink can is 95 percent drink and 5 percent aluminium. Empty, it is
+    aluminium, and the shares are put back on a scale of one so the carbon table reads it
+    as a whole can rather than a twentieth of one.
+    """
+    from app.engine import carbon
+
+    rest = {m: share for m, share in mix.items() if not carbon.is_food_material(m)}
+    total = sum(rest.values())
+    if not rest or total <= 0:
+        return {}
+    return {m: round(share / total, 6) for m, share in rest.items()}
+
+
+def is_empty_container(
+    item_class: ItemClass, catalog: CatalogItem | None, mass_g: float
+) -> bool:
+    """Whether this toss is the packaging a consumable came in, rather than the consumable.
+
+    PLAN.md 21a item 54. The live case: an empty energy drink can at 12 g against a 260 g
+    unit mass, written off as six cents of wasted drink, which read as nonsense on the tape.
+    """
+    if item_class is not ItemClass.inventory or catalog is None:
+        return False
+    unit = catalog.unit_mass_g or 0.0
+    if unit <= 0 or not _mostly_food(dict(catalog.material_mix)):
+        return False
+    return mass_g < EMPTY_CONTAINER_SHARE * unit
+
+
 def _fmv_from_catalog(catalog: CatalogItem, mass_g: float) -> int | None:
     if catalog.fmv_per_kg_cents is None:
         return None
@@ -287,6 +342,7 @@ def build_item_record(
     regulatory_flags: list[str] | None = None,
     description: str = "",
     detail: str = "",
+    cost_basis_cents: int | None = None,
 ) -> ItemRecord:
     """Assemble the record the engine scores.
 
@@ -307,13 +363,33 @@ def build_item_record(
 
     book_value_cents = 0
     tax_basis_cents = 0
-    cost_basis_cents: int | None = None
+    # A figure a person answered for wins, because somebody looked at the thing and said
+    # what it cost. PLAN.md 21a item 30.
+    answered = cost_basis_cents
+    cost_basis_cents = None
+    cost_basis_source: EstimateSource | None = None
+    empty = is_empty_container(item_class, catalog, mass_g)
 
     if item_class is ItemClass.fixed_asset and asset is not None:
         book_value_cents = depreciation.book_value(asset, event_date).book_value_cents
         tax_basis_cents = depreciation.tax_basis(asset, event_date)
-    elif item_class is ItemClass.inventory and catalog is not None:
-        cost_basis_cents = _cost_basis_from_catalog(catalog, mass_g)
+    elif item_class is ItemClass.inventory and not empty:
+        if answered is not None:
+            cost_basis_cents = answered
+            cost_basis_source = EstimateSource.human
+        elif catalog is not None:
+            cost_basis_cents = _cost_basis_from_catalog(catalog, mass_g)
+            cost_basis_source = (
+                EstimateSource.catalog if cost_basis_cents is not None else None
+            )
+
+    if empty:
+        # Nothing was wasted: what was bought was drunk, and the can is what is left.
+        container = _the_container(dict(catalog.material_mix) if catalog else {})
+        if container:
+            mix = container
+        flags = [flag for flag in flags if flag != FOOD_FLAG]
+        description = f"empty {label}"
 
     if fmv is None and catalog is not None:
         catalog_fmv = _fmv_from_catalog(catalog, mass_g)
@@ -352,6 +428,8 @@ def build_item_record(
         condition=condition,
         description=description,
         detail=detail,
+        cost_basis_source=cost_basis_source,
+        empty_container=empty,
     )
 
 

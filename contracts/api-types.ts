@@ -652,6 +652,7 @@ export interface EventSummary {
   crop_quality?: CropQuality | null;
   crop_url?: string | null;
   flags?: string[];
+  headline?: string | null;
   id: number;
   is_estimate?: boolean;
   kind: EventKind;

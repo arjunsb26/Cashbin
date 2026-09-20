@@ -15,6 +15,7 @@ Sign convention, from the point of view of the business:
 
 from __future__ import annotations
 
+import re
 from decimal import ROUND_HALF_UP, Decimal
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -395,7 +396,11 @@ MIN_WORTH_REPAIRING_CENTS = 2_000
 # slower way of buying one.
 REPAIR_SHARE_OF_REPLACEMENT = 0.6
 
-PACKAGING_MATERIALS_PREFIXES = ("mixed_paper", "corrugated", "mixed_plastics", "glass")
+# What a wrapper is made of. Cans are in here because an empty drink can is packaging by
+# the time it reaches a bin, whatever the catalog row it came from says. PLAN.md 21a 54.
+PACKAGING_MATERIALS_PREFIXES = (
+    "mixed_paper", "corrugated", "mixed_plastics", "glass", "aluminum_cans", "steel_cans",
+)
 
 TOO_CHEAP_TO_SELL = "It is worth under 5 dollars."
 TOO_CHEAP_TO_GIVE = "It is worth under 5 dollars."
@@ -418,10 +423,59 @@ def _is_packaging(record: ItemRecord) -> bool:
     )
 
 
-def _looks_sealed(record: ItemRecord) -> bool:
-    """Whether anybody said this food is still shut. Nothing is assumed either way."""
+# What a person or the camera has to have said before food counts as opened or as shut.
+# Word boundaries matter: "unopened" is not "opened" with something in front of it.
+OPENED_WORDS = (
+    "opened", "half eaten", "half-eaten", "part eaten", "partly eaten", "bitten",
+    "nibbled", "leftover", "leftovers", "unwrapped", "started",
+)
+SEALED_WORDS = ("sealed", "unopened", "wrapped", "packaged", "shrink wrapped", "in date")
+
+SEAL_OPENED = "opened"
+SEAL_SEALED = "sealed"
+SEAL_UNKNOWN = "unknown"
+
+
+WORD_EDGE = r"\b"
+
+
+def _says(words: str, phrases: tuple[str, ...]) -> bool:
+    """Whether any of these phrases is in the text as a whole word.
+
+    Whole words, because "unopened" carries "opened" inside it, and reading that as
+    opened food is the difference between offering a tray of sandwiches and refusing it.
+    """
+    return any(
+        re.search(WORD_EDGE + re.escape(phrase) + WORD_EDGE, words) for phrase in phrases
+    )
+
+
+def food_seal_state(record: ItemRecord) -> str:
+    """Opened, sealed, or nobody said. PLAN.md 21a item 53.
+
+    Treating "nobody said" as opened is what stopped a whole tray of bagels being offered
+    to a food bank: the bin refused to donate anything it had not been told was shut, which
+    is every piece of food nobody typed a word about. Unknown is now offered with the
+    review flag, so a person decides, and only food somebody says was opened is refused.
+    """
     words = f"{record.detail} {record.description}".lower()
-    return "sealed" in words or "unopened" in words
+    if _says(words, SEALED_WORDS):
+        return SEAL_SEALED
+    if _says(words, OPENED_WORDS):
+        return SEAL_OPENED
+    return SEAL_UNKNOWN
+
+
+def is_packaging(record: ItemRecord) -> bool:
+    """Whether what went in the bin is the wrapper rather than the goods."""
+    return record.empty_container or _is_packaging(record)
+
+
+def only_packaging(mix: dict[str, float]) -> bool:
+    """Whether a stored material mix is nothing but packaging materials."""
+    return bool(mix) and all(
+        material.startswith(PACKAGING_MATERIALS_PREFIXES) for material in mix
+    )
 
 
 def makes_no_sense(
@@ -451,7 +505,7 @@ def makes_no_sense(
 
     if option is Option.donate:
         if is_food_item(record):
-            return None if _looks_sealed(record) else FOOD_NOT_SEALED
+            return FOOD_NOT_SEALED if food_seal_state(record) == SEAL_OPENED else None
         if broken:
             return BROKEN_NOT_SELLABLE
         if fmv < MIN_WORTH_SELLING_CENTS:

@@ -117,7 +117,21 @@ def _summary(session: Session, row: Event) -> EventSummary:
         saved_if_followed_cents=_saved_if_followed(options, best),
         flags=_flags(record),
         round_id=row.round_id,
+        headline=_headline(record, options),
     )
+
+
+def _headline(record: ItemRecord | None, options: list[OptionScore]) -> str | None:
+    """What this toss meant, in the bin's own words rather than the dashboard's.
+
+    PLAN.md 21a item 41. One sentence, built where the ticket was priced, so a reloaded
+    page says what the bin said at the time instead of working it out again.
+    """
+    if record is None:
+        return None
+    from app.pipeline import sentence_for_row
+
+    return sentence_for_row(record, options) or None
 
 
 def _posted_cents(session: Session, event_id: int) -> int | None:
