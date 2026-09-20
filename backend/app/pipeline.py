@@ -138,6 +138,11 @@ STILL_USABLE = "Still usable"
 # honest line and something is genuinely lost by binning it.
 STILL_USABLE_UNDER_CENTS = 500
 
+# How long a result stands on the bin before the screen goes back to the running total.
+# PLAN.md 21a item 45. Long enough to read twice, short enough that the thing somebody is
+# meant to watch live is what the screen is showing most of the time.
+RESULT_HOLD_S = 6.0
+
 # Every line 2 a finished ticket may draw. The acceptance run reads this rather than a
 # copy of its own, because a harness that retypes user copy tests last week's wording.
 LINE_TWO_COPY: frozenset[str] = frozenset(
@@ -248,6 +253,60 @@ def headline_cents(record: ItemRecord) -> int:
     if record.item_class is ItemClass.inventory:
         return -(record.cost_basis_cents or 0)
     return record.fmv_mid or 0
+
+
+@dataclass(frozen=True)
+class BinTotal:
+    """What is in the bag at this moment, which is what the resting screen shows."""
+
+    cents: int
+    weight_g: float
+    count: int
+
+
+def bin_total(session: Session) -> BinTotal:
+    """Money recorded, weight and item count since the last bag change.
+
+    PLAN.md 21a item 45. The money is the same figure every ticket led with, without its
+    sign: waste written off, book value lost on a register asset, and what an untracked
+    thing would have fetched. Adding them is what somebody standing over the bin means by
+    "what is in there".
+
+    An item taken back out comes off the weight and the count. It does not come off the
+    money, because the row says a removal happened and never says which ticket it undid.
+    """
+    last_bag = (
+        session.scalars(
+            select(models.Event.id)
+            .where(models.Event.kind == models.EventKind.bag_change)
+            .order_by(models.Event.id.desc())
+        ).first()
+        or 0
+    )
+    weight = 0.0
+    count = 0
+    toss_ids: list[int] = []
+    for event_id, kind, mass_g in session.execute(
+        select(models.Event.id, models.Event.kind, models.Event.mass_g).where(
+            models.Event.id > last_bag
+        )
+    ).all():
+        grams = abs(float(mass_g or 0.0))
+        if kind is models.EventKind.toss:
+            weight += grams
+            count += 1
+            toss_ids.append(int(event_id))
+        elif kind is models.EventKind.removal:
+            weight -= grams
+            count -= 1
+
+    cents = 0
+    if toss_ids:
+        for record in session.scalars(
+            select(models.ItemRecord).where(models.ItemRecord.event_id.in_(toss_ids))
+        ):
+            cents += abs(_row_cents(ItemClass(record.item_class.value), record))
+    return BinTotal(cents=cents, weight_g=max(0.0, weight), count=max(0, count))
 
 
 # Words nobody writes in lower case. "Usb-c charger" was what the bin drew before this, and
@@ -565,6 +624,10 @@ class PipelineDeps:
         self.memory = memory
         self.vision = vision
         self._ingest: IngestState | None = None
+        # How long a result stands before the screen goes back to the running total, and
+        # the task counting that hold down. A test sets the hold to zero.
+        self.result_hold_s = RESULT_HOLD_S
+        self.idle_task: asyncio.Task[None] | None = None
         self.identify = IdentifyDeps(
             session_factory=session_factory,
             providers=providers,
@@ -586,9 +649,55 @@ class PipelineDeps:
         """
         ingest.on_event = self.on_event
         ingest.on_step_open = self.on_step_open
+        ingest.on_bag_change = self.on_bag_change
         ingest.current_round_id = self.current_round_id
         self._ingest = ingest
         set_on_final(self.finalise_event)
+
+    # The screen the bin rests on ------------------------------------------
+
+    def show_idle(self) -> None:
+        """Put the running total of what is in the bag back on the bin."""
+        session = self.session_factory()
+        try:
+            total = bin_total(session)
+        finally:
+            session.close()
+        log.info(
+            "the bin rests on %s, %.0f g, %d item(s)",
+            signed_money(total.cents),
+            total.weight_g,
+            total.count,
+        )
+        self.bus.publish(
+            lcd.idle_screen(total.cents, total.weight_g, total.count), CHANNEL_BIN
+        )
+
+    def cancel_hold(self) -> None:
+        """Drop whatever hold is counting down. The next thing to happen owns the screen."""
+        task = self.idle_task
+        self.idle_task = None
+        if task is not None and not task.done():
+            task.cancel()
+
+    def hold_then_idle(self) -> None:
+        """Let this result stand for its hold, then go back to the running total."""
+        self.cancel_hold()
+        try:
+            self.idle_task = asyncio.get_running_loop().create_task(self._hold())
+        except RuntimeError:  # pragma: no cover - only outside an event loop
+            log.debug("no event loop, so the result stands until the next thing happens")
+
+    async def _hold(self) -> None:
+        if self.result_hold_s > 0:
+            await asyncio.sleep(self.result_hold_s)
+        self.show_idle()
+
+    def on_bag_change(self, event_id: int) -> None:
+        """The bag went out, so the total starts again from nothing, on the screen too."""
+        log.info("event %d took the bag out, so the running total starts again", event_id)
+        self.cancel_hold()
+        self.show_idle()
 
     def current_round_id(self) -> int | None:
         """Which round an event belongs to at the moment it is created.
@@ -690,6 +799,9 @@ class PipelineDeps:
         mass_err_g: float,
     ) -> None:
         """What ingest calls. One await, so the seam stays as thin as Lane A left it."""
+        # Something is being thrown away, so the screen belongs to that from here until
+        # this ticket is drawn. Any hold left over from the last one would cover it.
+        self.cancel_hold()
         await identify_event(
             event_id,
             crop,
@@ -899,6 +1011,10 @@ class PipelineDeps:
         session.commit()
 
         self._publish(session, event, record, ranking, words)
+        if not valuing:
+            # PLAN.md 21a item 45. The result has its hold and then the screen goes back to
+            # what is in the bag. A ticket still being valued is not a result yet.
+            self.hold_then_idle()
         _raise_reviews(session, event_id)
         metrics.publish_metrics(session, self.bus)
         return "publish"

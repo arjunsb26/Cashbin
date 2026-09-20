@@ -82,6 +82,14 @@ async def create_event_from_step(step: Step, deps: IngestState) -> int:
         # Nothing identifies it, so the LCD is left showing whatever it already shows
         # rather than being parked on "thinking" with nothing coming to clear it.
         log.info("event %d is a %s of %.1f g", event_id, kind.value, step.mass_g)
+        if kind is EventKind.bag_change:
+            # PLAN.md 21a item 45. The bag is out, so the total the screen rests on is
+            # not true any more. Ingest knows nothing about money; it says the bag went
+            # and whatever is attached works out what that leaves behind.
+            try:
+                deps.on_bag_change(event_id)
+            except Exception:
+                log.exception("the bag change hook failed for event %d", event_id)
         return event_id
 
     deps.bus.publish(lcd.thinking(), CHANNEL_BIN)

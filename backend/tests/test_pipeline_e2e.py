@@ -190,11 +190,21 @@ def collect_topics(
 
 
 def collect_screens(socket: WebSocketTestSession, count: int) -> list[dict[str, Any]]:
-    """Every result or ask screen the bin was sent. Thinking screens are not answers."""
+    """Every result or ask screen the bin was sent. Thinking screens are not answers.
+
+    Neither is the running total the bin rests on between tosses, which wears the result
+    shape because it draws a figure. PLAN.md 21a item 45.
+    """
+    from app.notify.lcd import IDLE_HEADLINE
+
     found: list[dict[str, Any]] = []
     for _ in range(READ_CAP):
         message = socket.receive_json()
-        if message.get("type") == "screen" and message.get("s") in {"result", "ask"}:
+        if (
+            message.get("type") == "screen"
+            and message.get("s") in {"result", "ask"}
+            and message.get("l1") != IDLE_HEADLINE
+        ):
             found.append(message)
             if len(found) == count:
                 return found

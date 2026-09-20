@@ -152,7 +152,11 @@ def test_a_toss_puts_thinking_on_the_lcd(app: FastAPI, client: TestClient) -> No
 def test_a_bag_change_does_not_park_the_lcd_on_thinking(
     app: FastAPI, client: TestClient
 ) -> None:
-    """Nothing identifies a bag change, so nothing would ever clear a thinking screen."""
+    """Nothing identifies a bag change, so nothing would ever clear a thinking screen.
+
+    What it draws instead is the running total, which a fresh bag starts again from
+    nothing. PLAN.md 21a item 45.
+    """
     signal = Signal(seed=5, start_g=1200.0).hold(3.0)
     signal.add(-1109.0)
     signal.hold(2.5)
@@ -161,10 +165,14 @@ def test_a_bag_change_does_not_park_the_lcd_on_thinking(
     with client.websocket_connect("/ws/ui") as ui, client.websocket_connect("/ws/bin") as bin_sock:
         stream(bin_sock, signal)
         created = collect(ui, "event.created", 1)[0]
+        screens = collect(bin_sock, "screen", 1)
         bin_sock.send_json({"type": "ping"})
         assert bin_sock.receive_json() == {"type": "pong"}
 
     assert created["event"]["kind"] == EventKind.bag_change
+    assert screens[0]["s"] != "thinking"
+    assert screens[0]["l1"] == "In the bin"
+    assert screens[0]["l2"] == "Nothing in it yet"
 
 
 def test_an_event_with_no_camera_is_still_an_event(app: FastAPI, client: TestClient) -> None:

@@ -2,6 +2,18 @@
 
 Newest first. Each lane writes under its own heading.
 
+## 2026-09-20, lane w: the screen between tosses, and the asset nobody tagged
+
+- The bin no longer sits on the last ticket. A result stands for six seconds and then the
+  screen goes back to the running total of what is in the bag: the money recorded, the
+  weight and how many things are in there. Money is waste written off, book value lost on a
+  register asset and what an untracked thing would have fetched, each without its sign.
+- A bag going out empties the bag, so the total starts again from nothing and the screen
+  says so straight away. Ingest gained one seam for it, `on_bag_change`, and still knows
+  nothing about money.
+- A second toss inside the hold takes the screen back, so the running total never covers a
+  result somebody is reading.
+
 ## 2026-09-20, lane q2: the dashboard on the real contracts
 
 - Every wire shape the dashboard reads now comes from `contracts/api-types.ts`. The review

@@ -13,6 +13,9 @@ Two of the fields are seams for other lanes and default to doing nothing:
 - `on_step_open` is where the early vision call hangs. The detector knows a step has
   started about a second before it knows what it weighs, and the picture is good long
   before that, so the glue starts the model then rather than after the settle.
+- `on_bag_change` is where the running total hangs. The bag going out empties the bin, and
+  the screen it rests on is the total of what is in the bag, so somebody has to be told.
+  Ingest still identifies nothing and prices nothing.
 """
 
 from __future__ import annotations
@@ -72,6 +75,11 @@ async def no_pipeline(
     log.debug("no identification pipeline attached, event %d stays detected", event_id)
 
 
+def no_bag_change(event_id: int) -> None:
+    """The default bag-change hook. Nothing resets until a pipeline is attached."""
+    log.debug("no pipeline attached, the bag change on event %d tells nobody", event_id)
+
+
 def no_round() -> int | None:
     """The default round source. Lane C replaces it when rounds exist."""
     return None
@@ -95,6 +103,7 @@ class IngestState:
         self.recorder = recorder
         self.on_event: EventHook = no_pipeline
         self.on_step_open: Callable[[float, float], None] = no_step_open
+        self.on_bag_change: Callable[[int], None] = no_bag_change
         self.current_round_id: Callable[[], int | None] = no_round
         # The most recent reading off the scale, so the early call can say roughly how
         # heavy the thing is while the weight is still settling.
