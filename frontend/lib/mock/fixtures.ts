@@ -730,6 +730,23 @@ export const CLOSE: CloseRead = {
   status: "needs_review",
   investigation_md:
     "The scale is 14 g heavier than the tickets account for. The gap opened between ticket 103 and ticket 104, when two things went in within a second of each other. Recount those two.",
+  investigation_steps: [
+    {
+      tool: "read_weight_trace",
+      args_summary: "tickets 101 to 105",
+      finding: "Two settles inside one second between ticket 103 and ticket 104.",
+    },
+    {
+      tool: "sum_ticket_mass",
+      args_summary: "the whole period",
+      finding: "Tickets account for 1,204 g. The scale moved 1,218 g.",
+    },
+    {
+      tool: "list_events",
+      args_summary: "bag changes in the period",
+      finding: "One bag change at 14:12, tared cleanly.",
+    },
+  ],
   totals: {
     period: { start: DAY, end: DAY },
     events: { tosses: 5, counted: 4, bag_changes: 1, removals: 0, asking: 1, void: 0 },

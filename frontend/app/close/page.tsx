@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
 import { useClose, useEvents, useRunClose } from "@/lib/api";
 import {
@@ -21,7 +22,7 @@ import {
   formatPercent,
   formatTag,
 } from "@/lib/format";
-import type { CloseCheck, CloseRead } from "@/lib/types";
+import type { CloseCheck, CloseRead, ToolStep } from "@/lib/types";
 import { blocksOf } from "@/lib/cfo";
 import { CloseMemo, Form4797, Reconciliation, Rollforward } from "@/components/CloseBlocks";
 import { Co2, Mass, Money } from "@/components/Figure";
@@ -336,6 +337,7 @@ function Statement({ report, read }: { report: CloseReport; read: CloseRead }) {
               key={check.id}
               check={check}
               investigation={check.id === firstProblem ? report.investigation : null}
+              steps={check.id === firstProblem ? (read.investigation_steps ?? []) : []}
             />
           ))}
         </ul>
@@ -366,10 +368,13 @@ function checkValue(number: CheckNumber): string {
 function CheckRow({
   check,
   investigation,
+  steps,
 }: {
   check: CloseCheck;
   investigation: string | null;
+  steps: ToolStep[];
 }) {
+  const [open, setOpen] = useState(false);
   const tone = check.result === "pass" ? "kept" : check.result === "warn" ? "caution" : "red";
   const word = check.result === "pass" ? "Pass" : check.result === "warn" ? "Warn" : "Fail";
   const prose = checkProse(check);
@@ -403,6 +408,37 @@ function CheckRow({
               {block.text}
             </p>
           ))}
+          {/* How the note was arrived at: every lookup the investigation made,
+              with what it found. Folded away, because the note is the answer and
+              this is the working behind it. */}
+          {steps.length > 0 ? (
+            <>
+              <button
+                type="button"
+                onClick={() => setOpen(!open)}
+                aria-expanded={open}
+                className="mt-1 block text-left text-caption text-ink-soft underline underline-offset-2"
+              >
+                {open
+                  ? "Hide how it looked"
+                  : "How it looked, " +
+                    (steps.length === 1 ? "one lookup" : steps.length + " lookups")}
+              </button>
+              {open ? (
+                <ul className="m-0 list-none p-0 pt-1">
+                  {steps.map((step, i) => (
+                    <li key={i} className="border-t border-rule py-1 first:border-t-0">
+                      <p className="text-caption text-ink-soft">
+                        {step.tool ?? "Looked something up"}
+                        {step.args_summary ? ": " + step.args_summary : ""}
+                      </p>
+                      {step.finding ? <p className="text-body">{step.finding}</p> : null}
+                    </li>
+                  ))}
+                </ul>
+              ) : null}
+            </>
+          ) : null}
         </div>
       ) : null}
     </li>
