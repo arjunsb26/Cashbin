@@ -124,6 +124,8 @@ def test_the_demo_closes_clean(demo_settings: Settings) -> None:  # noqa: F811
 
         body = close_the_demo(client)
         checks = by_id(body["checks"])
+        print("M5 clean close:")
+        print(json.dumps(body["checks"], indent=2))
         assert set(checks) == set(CHECK_IDS)
         failed = [check["id"] for check in body["checks"] if check["result"] != "pass"]
         assert failed == [], json.dumps(body["checks"], indent=2)
@@ -152,6 +154,8 @@ def test_voiding_a_ticket_makes_mass_conservation_fail(
 
         body = close_the_demo(client)
         checks = by_id(body["checks"])
+        print("M5 close with one ticket voided:")
+        print(json.dumps(body["checks"], indent=2))
         assert checks["mass_conservation"]["numbers"]["tickets"] == 3
         gap_g = assert_the_gap_is_named(checks["mass_conservation"], missing_g)
         assert gap_g > 0

@@ -15,6 +15,32 @@ Newest first. Each lane writes under its own heading.
 - PLAN.md 21a item 19. `sim/run_scenario.py` waits 7 seconds between tosses by
   default, because a real vision call takes about 2 and the result has to land on the
   bin before the next item does.
+- `scripts/acceptance.py` runs a scenario against its own backend on ports 9443 and
+  9000, with its own database and the stub provider forced on whatever the .env says,
+  and prints fifteen checks covering M1, the readable parts of M3, and M5. It reads
+  the LCD boxes back out of the bin simulator's own log rather than trusting the
+  backend to say it published them. The one register row the tagged keyboard needs is
+  written through `POST /api/assets` and printed as a fixture, because
+  `assets_seed.csv` is still waiting on the team's real prices.
+- Eight test files under `backend/tests/test_acceptance_*.py`: M2 on three live
+  sockets, M3 through the bin socket, the M4 soak with scripted corrections in two
+  configurations, a clean close and two ways of losing a ticket, the three PLAN.md
+  rule 6 degradation cases, the attack set posted at the running API, the memory
+  accept rule, and every line the bin can draw.
+- `backend/app/api/sim.py` puts an empty bin in the frame ring behind an injected
+  toss. One frame is not a crop, so before this every ticket made from the dashboard's
+  demo button had an empty crop file, no exemplar was ever stored from that path, and
+  memory could not recognise anything tossed twice.
+- `backend/app/identify/memory.py` accepts a neighbour within 0.005 cosine distance on
+  its own. The four of five vote needs four confirmed exemplars of a label before it
+  will answer, which made PLAN.md section 20 M2 false the moment the table held five
+  rows. The vote still governs everything further away, and `memory_max_dist` is
+  unchanged.
+- `backend/app/main.py` answers a refused request with one sentence instead of
+  FastAPI's default body, which repeated every rejected field verbatim and handed a
+  hostile string back to whatever draws the error. The full reason goes to the log.
+- `backend/app/pipeline.py` draws USB, USB-C, HDMI and the rest in capitals. The bin
+  was showing "Usb-c charger".
 
 ## 2026-09-19, lane f: period close and the investigator
 
