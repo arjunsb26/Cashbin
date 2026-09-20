@@ -43,11 +43,45 @@ async function post(pathname, body) {
   return res.json();
 }
 
+async function get(pathname) {
+  const res = await fetch(`${BASE}${pathname}`);
+  return res.json();
+}
+
+const chaos = (step) => post("/api/dev/chaos", { step });
+
+// Every move through the page's state machine, kept so the run can print the
+// whole story at the end.
+const transitions = [];
+
 function watch(page, label) {
   page.on("console", (message) => {
-    if (message.type() === "error") console.log(`[${label}] console error: ${message.text()}`);
+    const line = message.text();
+    if (line.startsWith("sheet:") || line.startsWith("socket:")) transitions.push(line);
+    if (message.type() === "error") console.log(`[${label}] console error: ${line}`);
   });
   page.on("pageerror", (err) => console.log(`[${label}] page error: ${err.message}`));
+}
+
+/* ---- what the screen must say after a step ---- */
+
+async function is(page, selector, expected) {
+  const found = (await page.textContent(selector))?.trim();
+  if (found !== expected) throw new Error(`${selector} reads "${found}", not "${expected}"`);
+  console.log(`${selector} reads "${expected}"`);
+}
+
+async function hidden(page, selector, what) {
+  if (!(await page.isHidden(selector))) throw new Error(`${what} is on the screen and should not be`);
+  console.log(`${what} is off the screen`);
+}
+
+async function open(page, selector, expected, what) {
+  const found = (await page.getAttribute(selector, "data-open")) === "true";
+  if (found !== expected) {
+    throw new Error(`${what} is ${found ? "open" : "closed"} and should be ${expected ? "open" : "closed"}`);
+  }
+  console.log(`${what} is ${expected ? "open" : "closed"}`);
 }
 
 async function shot(page, name) {
@@ -139,7 +173,8 @@ async function main() {
   await shot(page, "5-ask-something-else");
   console.log("read back as:", await page.textContent("#askReadBack"));
 
-  // 4c. a result that lands while the question is open has to wait for the answer
+  // 4c. a result that lands while the question is open is not drawn at all. The
+  // question keeps the screen, and nothing waits in a queue behind it.
   await post("/api/dev/send", {
     type: "result",
     event_id: 19,
@@ -150,22 +185,18 @@ async function main() {
     mass_g: 95,
   });
   await wait(600);
-  const heldBack = await page.getAttribute("#resultSheet", "data-open");
-  console.log(`result sheet while the question is open: data-open=${heldBack}`);
-  if (heldBack !== "false") throw new Error("a result took the question off the screen");
+  const underAsk = await page.getAttribute("#resultSheet", "data-open");
+  console.log(`result sheet while the question is open: data-open=${underAsk}`);
+  if (underAsk !== "false") throw new Error("a result took the question off the screen");
 
   await page.click("#askSend");
   await page.waitForSelector('#askSheet[data-open="false"]');
   await wait(300);
   await shot(page, "6-learned");
-  await page.waitForSelector('#resultSheet[data-open="true"]', { timeout: 6000 });
-  await wait(300);
-  await shot(page, "10-result-after-answer");
-  const heldTitle = await page.textContent("#resultTitle");
-  if (heldTitle !== "Bagel") throw new Error(`the held back result read ${heldTitle}, not Bagel`);
-  console.log(`the held back result arrived after the answer, reading ${heldTitle}`);
-  await page.click("#resultSheet");
-  await wait(400);
+  await wait(3500);
+  const afterAnswer = await page.getAttribute("#resultSheet", "data-open");
+  if (afterAnswer !== "false") throw new Error("a ticket rose on its own after the answer");
+  console.log("nothing rose after the answer, which is the point of dropping the held queue");
 
   // 5. reconnecting, by killing the socket and keeping the mock closed for a while
   await page.waitForSelector("#learnedLine", { state: "hidden" });
@@ -204,6 +235,121 @@ async function main() {
   const addedMass = await page.textContent("#resultMass");
   if (!addedMass.startsWith("212")) throw new Error(`the added toss came back reading ${addedMass}`);
   console.log(`the added toss came back as a ticket reading ${addedMass}`);
+
+  // 8. the chaos script, one step at a time, with the screen checked after each
+  // one. The steps live in the mock, so the hand run on a real phone and this
+  // run are the same sequence.
+  await page.waitForSelector('#resultSheet[data-open="false"]', { state: "attached", timeout: 8000 });
+  const steps = (await get("/api/dev/chaos")).steps;
+  console.log(`chaos steps: ${steps.join(", ")}`);
+
+  // 8a. a ticket that lands with no figure on it yet
+  await chaos("valuing");
+  await page.waitForSelector('#resultSheet[data-open="true"]');
+  await wait(300);
+  await is(page, "#resultWaiting", "Working out the value");
+  await hidden(page, "#resultLine", "the advice line while the value is being worked out");
+  await shot(page, "c1-valuing");
+
+  // 8b. the same ticket again with its figure. It fills in where it stands, and
+  // the weight from the first pass is still there.
+  await chaos("figure");
+  await wait(400);
+  await open(page, "#resultSheet", true, "the ticket stays on the screen for its figure");
+  await is(page, "#resultTitle", "Keyboard");
+  await is(page, "#resultFigure", "-$20");
+  await is(page, "#resultLine", "Removed from register");
+  await is(page, "#resultMass", "212 g");
+  await hidden(page, "#resultWaiting", "the waiting line once the figure is in");
+  await shot(page, "c2-figure");
+
+  // 8c. a tap beside the ticket puts it away
+  await page.click("#backdrop", { position: { x: 195, y: 120 } });
+  await page.waitForSelector('#resultSheet[data-open="false"]', { state: "attached", timeout: 2000 });
+  console.log("a tap beside the ticket dismissed it");
+
+  // 8d. a question landing on top of a ticket takes the screen at once
+  await chaos("ask-during-result");
+  await page.waitForSelector('#askSheet[data-open="true"]', { timeout: 4000 });
+  await open(page, "#resultSheet", false, "the ticket under the question");
+  await wait(400);
+  await shot(page, "c3-ask-over-ticket");
+
+  // 8e. a tap beside a question leaves it alone
+  await page.click("#backdrop", { position: { x: 195, y: 120 } });
+  await wait(300);
+  await open(page, "#askSheet", true, "the question after a tap beside it");
+
+  // 8f. a ticket landing under an open question is not drawn
+  await chaos("result-during-ask");
+  await wait(600);
+  await open(page, "#resultSheet", false, "a ticket that landed under the question");
+  await open(page, "#askSheet", true, "the question while a ticket landed");
+  await shot(page, "c4-ticket-under-question");
+
+  // 8g. the socket dies under the open question and comes back by itself
+  await chaos("drop-mid-ask");
+  await page.waitForSelector('#status[data-state="reconnecting"]', { timeout: 4000 });
+  await wait(400);
+  await open(page, "#askSheet", true, "the question while the connection is down");
+  await shot(page, "c5-reconnect-mid-question");
+  await page.waitForSelector('#status[data-state="live"]', { timeout: 20000 });
+  await open(page, "#askSheet", true, "the question after the connection came back");
+  console.log("the socket came back on its own and the question was still there");
+
+  // 8h. a question says it is still waiting rather than looking dead
+  await wait(20500);
+  await is(page, "#askWaiting", "Still waiting on you");
+  await shot(page, "c6-still-waiting");
+
+  // 8i. Not now sends nothing and clears the question
+  await page.click("#askNotNow");
+  await page.waitForSelector('#askSheet[data-open="false"]', { state: "attached", timeout: 2000 });
+  console.log("Not now cleared the question without sending anything");
+
+  // 8ia. a question that outlives its connection goes by itself, because the
+  // backend it belongs to is not there to hear the answer any more.
+  await post("/api/dev/send", {
+    type: "ask",
+    event_id: 27,
+    candidates: [{ label: "wrap", p: 0.41 }],
+  });
+  await page.waitForSelector('#askSheet[data-open="true"]', { timeout: 4000 });
+  await post("/api/dev/drop", { refuse_s: 13 });
+  await page.waitForSelector('#askSheet[data-open="false"]', { state: "attached", timeout: 13000 });
+  console.log("a question left on its own after the connection stayed down");
+  await page.waitForSelector('#status[data-state="live"]', { timeout: 30000 });
+
+  // 8j. a ticket whose figure never comes says so and still leaves on its timer
+  await chaos("no-figure");
+  await page.waitForSelector('#resultSheet[data-open="true"]', { timeout: 4000 });
+  await is(page, "#resultWaiting", "Working out the value");
+  await wait(8600);
+  await is(page, "#resultWaiting", "Value not available");
+  await shot(page, "c7-no-value");
+  await page.waitForSelector('#resultSheet[data-open="false"]', { state: "attached", timeout: 8000 });
+  console.log("the ticket with no figure left on its own");
+
+  // 8k. an idle from the backend clears whatever is on the screen
+  await post("/api/dev/send", {
+    type: "result",
+    event_id: 26,
+    title: "Mug",
+    big: "-$3",
+    line: "Broken, landfill",
+    tone: "red",
+    best_option: "trash",
+    mass_g: 320,
+  });
+  await page.waitForSelector('#resultSheet[data-open="true"]', { timeout: 4000 });
+  await chaos("idle");
+  await page.waitForSelector('#resultSheet[data-open="false"]', { state: "attached", timeout: 3000 });
+  await wait(300);
+  await shot(page, "c8-idle");
+  console.log("an idle cleared the screen");
+
+  console.log("--- the state machine log for the chaos run ---");
+  transitions.forEach((line) => console.log(line));
 
   await context.close();
 

@@ -62,6 +62,118 @@ ASK_MESSAGE: dict[str, Any] = {
     "candidates": [{"label": "wrap", "p": 0.41}, {"label": "burrito", "p": 0.37}],
 }
 
+# ---- the chaos script ----
+#
+# The seven ways the phone page used to get stuck, in order, with the wait the
+# hand run leaves between them. The screenshot run drives the same steps one at a
+# time through /api/dev/chaos so it can check the screen after each one, and
+# --chaos plays the lot on its own for a run on a real phone.
+
+CHAOS: list[dict[str, Any]] = [
+    {
+        # An unpriced ticket lands first with no figure in it.
+        "name": "valuing",
+        "after_s": 3.0,
+        "send": [
+            {
+                "type": "result",
+                "event_id": 21,
+                "title": "Keyboard",
+                "big": "...",
+                "line": "Working out value",
+                "tone": "neutral",
+                "best_option": "recycle",
+                "mass_g": 212,
+            }
+        ],
+    },
+    {
+        # The same ticket again, this time with the money on it.
+        "name": "figure",
+        "after_s": 3.0,
+        "send": [
+            {
+                "type": "result",
+                "event_id": 21,
+                "title": "Keyboard",
+                "big": "-$20",
+                "line": "Removed from register",
+                "tone": "amber",
+                "best_option": "recycle",
+            }
+        ],
+    },
+    {
+        # A question lands while a ticket is up. The question wins at once.
+        "name": "ask-during-result",
+        "after_s": 7.0,
+        "send": [
+            {
+                "type": "result",
+                "event_id": 22,
+                "title": "Bagel",
+                "big": "-$0.48",
+                "line": "Food waste, composted",
+                "tone": "green",
+                "best_option": "compost",
+                "mass_g": 95,
+            },
+            {"wait_s": 0.6},
+            {
+                "type": "ask",
+                "event_id": 23,
+                "candidates": [{"label": "wrap", "p": 0.41}, {"label": "burrito", "p": 0.37}],
+            },
+        ],
+    },
+    {
+        # A ticket lands while the question is up. The question stays.
+        "name": "result-during-ask",
+        "after_s": 4.0,
+        "send": [
+            {
+                "type": "result",
+                "event_id": 24,
+                "title": "Coffee cup",
+                "big": "-$0.12",
+                "line": "Lined paper, landfill",
+                "tone": "red",
+                "best_option": "trash",
+                "mass_g": 18,
+            }
+        ],
+    },
+    {
+        # The socket dies under the open question and comes back by itself.
+        "name": "drop-mid-ask",
+        "after_s": 4.0,
+        "drop_refuse_s": 3.0,
+    },
+    {
+        # A ticket whose figure never turns up.
+        "name": "no-figure",
+        "after_s": 14.0,
+        "send": [
+            {
+                "type": "result",
+                "event_id": 25,
+                "title": "Cable",
+                "big": "...",
+                "line": "Working out value",
+                "tone": "neutral",
+                "best_option": "recycle",
+                "mass_g": 60,
+            }
+        ],
+    },
+    {
+        # The backend says nothing is happening.
+        "name": "idle",
+        "after_s": 16.0,
+        "send": [{"type": "idle"}],
+    },
+]
+
 
 def log(line: str) -> None:
     print(f"{dt.datetime.now():%H:%M:%S} {line}", flush=True)
@@ -139,6 +251,7 @@ def make_cert() -> tuple[Path, Path]:
 app = FastAPI()
 clients: set[WebSocket] = set()
 script_on = True
+chaos_on = False
 refuse_until = 0.0
 
 
@@ -245,20 +358,59 @@ async def dev_drop(request: Request) -> JSONResponse:
     An optional {"refuse_s": 6} keeps new sockets out for that long, which is
     what makes the reconnecting state sit still long enough to photograph.
     """
-    global refuse_until
     try:
         body = await request.json()
     except Exception:  # noqa: BLE001
         body = {}
-    seconds = float(body.get("refuse_s", 0) or 0)
-    refuse_until = asyncio.get_running_loop().time() + seconds
+    count = await drop_sockets(float(body.get("refuse_s", 0) or 0))
+    return JSONResponse({"dropped": count})
+
+
+async def drop_sockets(refuse_s: float) -> int:
+    """Close every phone socket and keep new ones out for a while."""
+    global refuse_until
+    refuse_until = asyncio.get_running_loop().time() + refuse_s
     count = len(clients)
     for client in list(clients):
         with contextlib.suppress(Exception):
             await client.close(code=1012)
         clients.discard(client)
-    log(f"dropped {count} phone socket(s), refusing new ones for {seconds:.0f} s")
-    return JSONResponse({"dropped": count})
+    log(f"dropped {count} phone socket(s), refusing new ones for {refuse_s:.0f} s")
+    return count
+
+
+async def run_chaos_step(step: dict[str, Any]) -> None:
+    """One step of the chaos script, whoever asked for it."""
+    log(f"chaos step {step['name']}")
+    if step.get("drop_refuse_s"):
+        await drop_sockets(float(step["drop_refuse_s"]))
+        return
+    for message in step.get("send", []):
+        if "wait_s" in message:
+            await asyncio.sleep(float(message["wait_s"]))
+            continue
+        await broadcast(message)
+
+
+@app.get("/api/dev/chaos")
+async def chaos_list() -> JSONResponse:
+    """The step names in order, so the screenshot run reads them off the server."""
+    return JSONResponse({"steps": [step["name"] for step in CHAOS]})
+
+
+@app.post("/api/dev/chaos")
+async def chaos_run(request: Request) -> JSONResponse:
+    """Play one named step of the chaos script."""
+    try:
+        body = await request.json()
+    except Exception:  # noqa: BLE001
+        body = {}
+    name = str(body.get("step", ""))
+    for step in CHAOS:
+        if step["name"] == name:
+            await run_chaos_step(step)
+            return JSONResponse({"step": name})
+    return JSONResponse({"detail": "no such step"}, status_code=404)
 
 
 @app.websocket("/ws/phone")
@@ -292,6 +444,12 @@ async def ws_phone(websocket: WebSocket) -> None:
         await asyncio.sleep(ASK_AFTER_RESULT_S)
         await broadcast(ASK_MESSAGE)
 
+    async def chaos() -> None:
+        for step in CHAOS:
+            await asyncio.sleep(float(step.get("after_s", 3.0)))
+            await run_chaos_step(step)
+        log("the chaos script is done")
+
     jobs = [asyncio.create_task(pinger()), asyncio.create_task(counter())]
     try:
         while True:
@@ -304,7 +462,9 @@ async def ws_phone(websocket: WebSocket) -> None:
                 if not state["seen_first"]:
                     state["seen_first"] = True
                     log("first frame arrived")
-                    if script_on:
+                    if chaos_on:
+                        jobs.append(asyncio.create_task(chaos()))
+                    elif script_on:
                         jobs.append(asyncio.create_task(script()))
             elif message.get("text") is not None:
                 log(f"phone said: {message['text'][:200]}")
@@ -321,13 +481,20 @@ app.mount("/phone", StaticFiles(directory=PHONE, html=True), name="phone")
 
 
 def main() -> None:
-    global script_on
+    global script_on, chaos_on
     parser = argparse.ArgumentParser(description="Mock backend for the phone page")
     parser.add_argument("--port", type=int, default=8444)
     parser.add_argument("--host", default="0.0.0.0")
     parser.add_argument("--no-script", action="store_true", help="do not play the scripted result and ask")
+    parser.add_argument(
+        "--chaos",
+        action="store_true",
+        help="play the chaos script instead: a ticket twice, a question over a ticket, a ticket "
+        "under a question, a dropped socket mid question, and a ticket with no figure",
+    )
     args = parser.parse_args()
     script_on = not args.no_script
+    chaos_on = args.chaos
 
     cert_path, key_path = make_cert()
     config = Config()

@@ -10,9 +10,11 @@ const FRAME_WIDTH = 640;
 const FRAME_INTERVAL_MS = 125; // about 8 frames a second
 const FRAME_QUALITY = 0.7;
 const FRAME_BYTES_GUESS = 24000; // used before the first frame is measured
-const RESULT_MS = 6000;
+const RESULT_MS = 6000; // a ticket leaves after this long with no update
+const VALUING_MS = 8000; // how long a ticket waits for its figure before it gives up
+const ASK_WAIT_MS = 20000; // when a question starts saying it is still waiting
+const ASK_DROP_MS = 10000; // how long a question survives a dropped connection
 const LEARNED_MS = 2500;
-const HELD_RESULT_MS = 2800; // a held ticket waits for the learned line to finish
 const TOOLTIP_MS = 4000;
 const BACKOFF_MIN_MS = 500;
 const BACKOFF_MAX_MS = 8000;
@@ -39,11 +41,13 @@ const statusTooltip = el("statusTooltip");
 const statusMessage = el("statusMessage");
 const cameraError = el("cameraError");
 const learnedLine = el("learnedLine");
+const backdrop = el("backdrop");
 const resultSheet = el("resultSheet");
 const resultTitle = el("resultTitle");
 const resultMass = el("resultMass");
 const resultFigure = el("resultFigure");
 const resultLine = el("resultLine");
+const resultWaiting = el("resultWaiting");
 const askSheet = el("askSheet");
 const askCrop = el("askCrop");
 const askOptions = el("askOptions");
@@ -52,7 +56,9 @@ const askField = el("askField");
 const askInput = el("askInput");
 const askReadBack = el("askReadBack");
 const askSend = el("askSend");
+const askNotNow = el("askNotNow");
 const askNote = el("askNote");
+const askWaiting = el("askWaiting");
 const addToss = el("addToss");
 const addSheet = el("addSheet");
 const addInput = el("addInput");
@@ -75,15 +81,24 @@ let framesPerSecond = 0;
 let droppedThisSecond = 0;
 let droppedPerSecond = 0;
 let lastFrameBytes = FRAME_BYTES_GUESS;
-let resultTimer = 0;
 let learnedTimer = 0;
 let tooltipTimer = 0;
-let askEventId = null;
 let answering = false;
-let heldResult = null;
-let heldTimer = 0;
 let wakeLock = null;
 let adding = false;
+let restartingCamera = false;
+
+/* The sheet state machine. One of "idle", "result", "ask", "adding" is on the
+   screen at any moment, never two. Every move through it is logged with the
+   event it belongs to, so a phone that looks stuck can be read back. */
+let sheetState = "idle";
+let resultEventId = null;
+let resultShown = null; // the message on the screen, so a second pass can fill it in
+let askEventId = null;
+let resultTimer = 0;
+let valuingTimer = 0;
+let askWaitTimer = 0;
+let askDropTimer = 0;
 
 const canvas = document.createElement("canvas");
 const context = canvas.getContext("2d", { alpha: false });
@@ -113,6 +128,26 @@ function show(node, message) {
 function hide(node) {
   node.hidden = true;
   node.textContent = "";
+}
+
+/* A field inside a sheet that is still sliding in is off the screen, and a
+   browser reaches it by scrolling the page under it. The page has nowhere to
+   scroll back to, so the camera sits high with a band of nothing under it for
+   the rest of the session. The focus takes no scroll, and anything that scrolls
+   the page anyway is put back. */
+function takeFocus(node) {
+  try {
+    node.focus({ preventScroll: true });
+  } catch (err) {
+    node.focus();
+  }
+  unscroll();
+}
+
+function unscroll() {
+  const root = document.scrollingElement || document.documentElement;
+  if (root.scrollTop) root.scrollTop = 0;
+  if (root.scrollLeft) root.scrollLeft = 0;
 }
 
 function setThemeColour() {
@@ -166,28 +201,16 @@ async function startCamera() {
   }
 
   startButton.disabled = true;
+  let next;
   try {
-    stream = await navigator.mediaDevices.getUserMedia({
-      video: { facingMode: { ideal: "environment" }, width: { ideal: 1280 } },
-    });
+    next = await openStream();
   } catch (err) {
     startButton.disabled = false;
     show(startError, cameraSentence(err));
     return;
   }
 
-  video.srcObject = stream;
-  stream.getVideoTracks().forEach((track) => {
-    track.addEventListener("ended", () => {
-      show(cameraError, "The camera stopped. Reload this page and tap Start camera again.");
-    });
-  });
-  try {
-    await video.play();
-  } catch (err) {
-    // Some browsers resolve the stream but defer play. The frame timer waits
-    // for readyState, so a deferred play costs nothing.
-  }
+  await attachStream(next);
 
   cameraRunning = true;
   startScreen.hidden = true;
@@ -197,6 +220,75 @@ async function startCamera() {
   requestWakeLock();
   connect();
   startFrameTimer();
+}
+
+function openStream() {
+  return navigator.mediaDevices.getUserMedia({
+    video: { facingMode: { ideal: "environment" }, width: { ideal: 1280 } },
+  });
+}
+
+async function attachStream(next) {
+  stream = next;
+  video.srcObject = next;
+  next.getVideoTracks().forEach((track) => {
+    track.addEventListener("ended", onTrackEnded);
+  });
+  try {
+    await video.play();
+  } catch (err) {
+    // Some browsers resolve the stream but defer play. The frame timer waits
+    // for readyState, so a deferred play costs nothing.
+  }
+  hide(cameraError);
+}
+
+function stopStream() {
+  if (!stream) return;
+  stream.getTracks().forEach((track) => {
+    track.removeEventListener("ended", onTrackEnded);
+    try {
+      track.stop();
+    } catch (err) {
+      // A track that has already ended throws on some builds of WebKit.
+    }
+  });
+  stream = null;
+}
+
+function cameraLive() {
+  if (!stream) return false;
+  return stream.getVideoTracks().some((track) => track.readyState === "live");
+}
+
+/* iOS ends the camera track when the page goes to the background. The page picks
+   it up again by itself when the person comes back, with no tap and no reload. */
+function onTrackEnded() {
+  if (document.visibilityState !== "visible") return;
+  restartCamera();
+}
+
+async function restartCamera() {
+  if (restartingCamera || !cameraRunning || cameraLive()) return;
+  restartingCamera = true;
+  stopStream();
+  let next;
+  try {
+    next = await openStream();
+  } catch (err) {
+    restartingCamera = false;
+    // The camera is not coming back on its own, so the way back in is a tap.
+    cameraRunning = false;
+    clearSheets("the camera stopped");
+    hide(cameraError);
+    cameraScreen.hidden = true;
+    startScreen.hidden = false;
+    startButton.disabled = false;
+    show(startError, cameraSentence(err));
+    return;
+  }
+  await attachStream(next);
+  restartingCamera = false;
 }
 
 function startFrameTimer() {
@@ -270,7 +362,14 @@ function connect() {
     reconnectAttempts = 0;
     setStatus("live");
     hide(statusMessage);
+    if (askDropTimer) {
+      clearTimeout(askDropTimer);
+      askDropTimer = 0;
+    }
+    // The hello goes first and the frames follow on the timer that never stopped,
+    // so coming back costs no tap and no reload.
     send({ type: "hello", ua: navigator.userAgent });
+    console.info("socket: open, hello sent, frames resume");
   });
 
   ws.addEventListener("message", (event) => {
@@ -289,6 +388,7 @@ function connect() {
   ws.addEventListener("close", () => {
     if (socket !== ws) return;
     socket = null;
+    onDisconnected();
     scheduleReconnect();
   });
 
@@ -313,6 +413,38 @@ function scheduleReconnect() {
   reconnectTimer = setTimeout(connect, delay);
 }
 
+/* What is on the screen when the connection goes belongs to the session that
+   went with it. The ticket goes at once, because it is only ever a few seconds
+   old. The question is given ten seconds to survive a blip, because the answer
+   travels over its own request and still lands, and then it goes too rather
+   than sit there unanswerable. */
+function onDisconnected() {
+  console.info("socket: closed");
+  if (sheetState === "result") {
+    dismissResult("the connection dropped");
+    return;
+  }
+  if (sheetState === "ask" && !askDropTimer) {
+    askDropTimer = setTimeout(() => {
+      askDropTimer = 0;
+      if (sheetState === "ask") closeAsk("the connection stayed down");
+    }, ASK_DROP_MS);
+  }
+}
+
+function clearSheets(why) {
+  if (sheetState === "idle") return;
+  if (sheetState === "result") {
+    dismissResult(why);
+    return;
+  }
+  if (sheetState === "ask") {
+    closeAsk(why);
+    return;
+  }
+  closeAdd();
+}
+
 function send(message) {
   if (!socket || socket.readyState !== WebSocket.OPEN) return;
   socket.send(JSON.stringify(message));
@@ -324,16 +456,15 @@ function handle(message) {
     return;
   }
   if (message.type === "result") {
-    showResult(message);
+    onResult(message);
     return;
   }
   if (message.type === "ask") {
-    showAsk(message);
+    onAsk(message);
     return;
   }
   if (message.type === "idle") {
-    closeResult();
-    closeAsk();
+    onIdle();
   }
 }
 
@@ -366,109 +497,218 @@ function toggleTooltip() {
   }, TOOLTIP_MS);
 }
 
-/* ---- sheets ---- */
+/* ---- the sheet state machine ----
+   Four states, one on the screen at a time: idle, result, ask, adding.
 
-function openSheet(sheet) {
-  sheet.dataset.open = "true";
-  sheet.inert = false;
+   A result for the event already on the screen fills that ticket in where it
+   stands. A result for a newer event takes its place. A question wins over any
+   ticket and shows the moment it lands. An idle from the backend clears the
+   screen. Nothing is queued and nothing waits its turn, so nothing can pile up
+   behind a message that never comes. */
+
+function setSheetOpen(sheet, open) {
+  sheet.dataset.open = open ? "true" : "false";
+  sheet.inert = !open;
 }
 
-function closeSheet(sheet) {
-  sheet.dataset.open = "false";
-  sheet.inert = true;
+function named(eventId) {
+  return eventId === null || eventId === undefined ? "none" : String(eventId);
+}
+
+function setState(next, eventId, why) {
+  const from = sheetState;
+  sheetState = next;
+  console.info("sheet: " + from + " to " + next + ", event " + named(eventId) + ", " + why);
+  renderSheets();
+}
+
+function stay(eventId, why) {
+  console.info("sheet: stays " + sheetState + ", event " + named(eventId) + ", " + why);
+}
+
+function renderSheets() {
+  setSheetOpen(resultSheet, sheetState === "result");
+  setSheetOpen(askSheet, sheetState === "ask");
+  setSheetOpen(addSheet, sheetState === "adding");
+  const covered = sheetState === "result" || sheetState === "ask";
+  backdrop.dataset.open = covered ? "true" : "false";
+  backdrop.hidden = !covered;
 }
 
 function tone(value) {
   return TONES.indexOf(value) === -1 ? "neutral" : value;
 }
 
-function showResult(message) {
-  // A question on screen is never taken away under someone's thumb. A result
-  // that lands while an ask is open waits here and rises once the question is
-  // off the screen, so neither the question nor the ticket is lost.
-  if (askSheet.dataset.open === "true") {
-    heldResult = message;
+function eventOf(message) {
+  return Number.isInteger(message.event_id) ? message.event_id : null;
+}
+
+/* The backend posts a ticket it cannot price yet twice: once with a placeholder
+   where the money goes, then again with the figure. The placeholder is how the
+   page knows a second pass is still coming. */
+function isValuing(message) {
+  return text(message.big, 16).replace(/[.…·-]/g, "").length === 0;
+}
+
+function clearResultTimers() {
+  if (resultTimer) {
+    clearTimeout(resultTimer);
+    resultTimer = 0;
+  }
+  if (valuingTimer) {
+    clearTimeout(valuingTimer);
+    valuingTimer = 0;
+  }
+}
+
+function clearAskTimers() {
+  if (askWaitTimer) {
+    clearTimeout(askWaitTimer);
+    askWaitTimer = 0;
+  }
+}
+
+function forgetResult() {
+  clearResultTimers();
+  resultEventId = null;
+  resultShown = null;
+}
+
+/* ---- tickets ---- */
+
+function onResult(message) {
+  const eventId = eventOf(message);
+  if (sheetState === "ask") {
+    stay(eventId, "a question is open, so this ticket is not drawn");
     return;
   }
-  // A newer ticket takes the place of one still waiting its turn.
-  clearHeld();
-  drawResult(message);
-}
-
-function clearHeld() {
-  if (heldTimer) {
-    clearTimeout(heldTimer);
-    heldTimer = 0;
+  // A weight still being typed keeps the screen. A weight already sent does not,
+  // because the ticket on its way back is the answer to it.
+  if (sheetState === "adding" && !adding) {
+    stay(eventId, "a weight is being typed, so this ticket is not drawn");
+    return;
   }
-  heldResult = null;
+  if (
+    sheetState === "result" &&
+    eventId !== null &&
+    resultEventId !== null &&
+    eventId < resultEventId
+  ) {
+    stay(eventId, "an older ticket than the one on the screen");
+    return;
+  }
+  const sameEvent = sheetState === "result" && eventId !== null && eventId === resultEventId;
+  drawResult(message, sameEvent);
+  if (sameEvent) {
+    stay(eventId, "the same ticket, filled in where it stands");
+  } else {
+    setState("result", eventId, "a ticket arrived");
+  }
 }
 
-function drawResult(message) {
-  resultSheet.dataset.tone = tone(message.tone);
-  resultTitle.textContent = text(message.title, 60) || "Ticket";
-  const big = text(message.big, 12);
+function drawResult(message, sameEvent) {
+  // A second pass that leaves a field out keeps what the first pass carried, so
+  // the weight does not vanish when the figure turns up.
+  const base = sameEvent && resultShown ? resultShown : {};
+  const shown = Object.assign({}, base, message);
+  if (typeof shown.mass_g !== "number" && typeof base.mass_g === "number") {
+    shown.mass_g = base.mass_g;
+  }
+  resultShown = shown;
+  resultEventId = eventOf(message);
+
+  const valuing = isValuing(shown);
+  resultSheet.dataset.tone = tone(shown.tone);
+  resultTitle.textContent = text(shown.title, 60) || "Ticket";
+  const big = text(shown.big, 12);
   resultFigure.textContent = big;
   // The backend sends the figure already shaped for the LCD, so the page reads
   // the sign off the front of it rather than formatting the number again.
   resultFigure.dataset.sign = big.startsWith("-") || big.startsWith("(") ? "negative" : "positive";
-  resultLine.textContent = text(message.line, 80);
 
-  const grams = typeof message.mass_g === "number" && isFinite(message.mass_g) ? message.mass_g : null;
+  if (valuing) {
+    // The advice line is the backend's to write, and there is none on this pass,
+    // so the sheet says what it is doing in its own words until the figure lands.
+    resultLine.hidden = true;
+    resultLine.textContent = "";
+    show(resultWaiting, "Working out the value");
+  } else {
+    hide(resultWaiting);
+    resultLine.textContent = text(shown.line, 80);
+    resultLine.hidden = false;
+  }
+
+  const grams = typeof shown.mass_g === "number" && isFinite(shown.mass_g) ? shown.mass_g : null;
   if (grams === null) {
     resultMass.hidden = true;
     resultMass.textContent = "";
   } else {
     // Thin space between the number and its unit, DESIGN.md section 2.
-    resultMass.textContent = wholeNumber(grams) + " g";
+    resultMass.textContent = wholeNumber(grams) + " g";
     resultMass.hidden = false;
   }
 
-  openSheet(resultSheet);
-  if (typeof navigator.vibrate === "function") {
+  if (!sameEvent && typeof navigator.vibrate === "function") {
     try {
       navigator.vibrate(10);
     } catch (err) {
       // iOS has no vibrate. Nothing to report to the person here.
     }
   }
-  if (resultTimer) clearTimeout(resultTimer);
-  resultTimer = setTimeout(closeResult, RESULT_MS);
+
+  clearResultTimers();
+  if (valuing) {
+    // A ticket waiting on its figure does not start its six seconds yet, or it
+    // would leave the screen before the thing it is waiting for arrives.
+    valuingTimer = setTimeout(giveUpOnValue, VALUING_MS);
+  } else {
+    resultTimer = setTimeout(() => dismissResult("six seconds with no update"), RESULT_MS);
+  }
 }
 
-function closeResult() {
-  if (resultTimer) {
-    clearTimeout(resultTimer);
-    resultTimer = 0;
-  }
-  closeSheet(resultSheet);
+function giveUpOnValue() {
+  valuingTimer = 0;
+  if (sheetState !== "result") return;
+  show(resultWaiting, "Value not available");
+  stay(resultEventId, "no figure arrived, so the ticket leaves on its timer");
+  resultTimer = setTimeout(() => dismissResult("six seconds with no update"), RESULT_MS);
 }
 
-function showAsk(message) {
-  closeResult();
-  // A new question stops a held ticket rising over it. The ticket waits again.
-  if (heldTimer) {
-    clearTimeout(heldTimer);
-    heldTimer = 0;
-  }
-  const eventId = Number.isInteger(message.event_id) ? message.event_id : null;
+function dismissResult(why) {
+  clearResultTimers();
+  if (sheetState !== "result") return;
+  const eventId = resultEventId;
+  resultEventId = null;
+  resultShown = null;
+  setState("idle", eventId, why);
+}
+
+/* ---- questions ---- */
+
+function onAsk(message) {
+  forgetResult();
+  clearAskTimers();
+  hide(learnedLine);
+
+  const eventId = eventOf(message);
   askEventId = eventId;
   answering = false;
 
   const candidates = Array.isArray(message.candidates) ? message.candidates.slice(0, 4) : [];
   askOptions.textContent = "";
   candidates.forEach((candidate) => {
-    const label = text(candidate && candidate.label, LABEL_MAX);
-    if (!label) return;
+    const name = text(candidate && candidate.label, LABEL_MAX);
+    if (!name) return;
     const button = document.createElement("button");
     button.type = "button";
     button.className = "button button--candidate";
-    const name = document.createElement("span");
-    name.textContent = label;
+    const word = document.createElement("span");
+    word.textContent = name;
     const p = document.createElement("span");
     p.className = "ask__p";
     p.textContent = percent(candidate.p);
-    button.append(name, p);
-    button.addEventListener("click", () => answer(label));
+    button.append(word, p);
+    button.addEventListener("click", () => answer(name));
     askOptions.append(button);
   });
 
@@ -482,24 +722,56 @@ function showAsk(message) {
   askReadBack.textContent = "";
   askSend.disabled = true;
   askOther.hidden = false;
+  askNotNow.disabled = false;
   hide(askNote);
-  openSheet(askSheet);
+  hide(askWaiting);
+  // A question never times out. After a while it says it is still waiting, so a
+  // screen that is holding still does not read as a screen that has died.
+  askWaitTimer = setTimeout(() => {
+    askWaitTimer = 0;
+    if (sheetState === "ask") show(askWaiting, "Still waiting on you");
+  }, ASK_WAIT_MS);
+
+  setState("ask", eventId, "a question arrived");
 }
 
-function closeAsk() {
+function closeAsk(why) {
+  clearAskTimers();
   askEventId = null;
-  closeSheet(askSheet);
-  if (!heldResult || heldTimer) return;
-  // The held ticket rises after the quiet learned line has had its moment, so
-  // the two never sit on top of each other at the bottom of the screen.
-  heldTimer = setTimeout(() => {
-    heldTimer = 0;
-    const waiting = heldResult;
-    heldResult = null;
-    if (!waiting) return;
-    hide(learnedLine);
-    drawResult(waiting);
-  }, HELD_RESULT_MS);
+  hide(askWaiting);
+  if (sheetState !== "ask") return;
+  setState("idle", null, why);
+}
+
+function notNow() {
+  if (answering) return;
+  // Nothing is sent. The question leaves this screen and the bin keeps it open,
+  // which is what the dashboard is there for.
+  closeAsk("tapped Not now");
+}
+
+/* ---- the backend says nothing is happening ---- */
+
+function onIdle() {
+  if (sheetState === "result") {
+    dismissResult("the backend went idle");
+    return;
+  }
+  if (sheetState === "ask") {
+    closeAsk("the backend went idle");
+    return;
+  }
+  stay(null, "the backend went idle");
+}
+
+/* ---- a tap beside a sheet ---- */
+
+function tapOutside() {
+  if (sheetState === "result") {
+    dismissResult("tapped beside the ticket");
+    return;
+  }
+  stay(null, "tapped beside a question, which stays until it is answered");
 }
 
 /* ---- the free text answer ----
@@ -542,7 +814,7 @@ function onLabelInput() {
 function revealOther() {
   askOther.hidden = true;
   askField.hidden = false;
-  askInput.focus();
+  takeFocus(askInput);
 }
 
 /* ---- answering ---- */
@@ -570,7 +842,7 @@ async function answer(label) {
   }
 
   answering = false;
-  closeAsk();
+  closeAsk("answered");
   show(learnedLine, "Learned. Next time this is recognised without asking.");
   if (learnedTimer) clearTimeout(learnedTimer);
   learnedTimer = setTimeout(() => hide(learnedLine), LEARNED_MS);
@@ -618,18 +890,24 @@ function readMass(raw) {
 
 function openAdd() {
   if (addToss.hidden) return;
-  closeResult();
+  // A question stays on the screen until it is answered, so it is not covered.
+  if (sheetState === "ask") {
+    stay(askEventId, "a question is open, so the weight box does not open over it");
+    return;
+  }
+  forgetResult();
   adding = false;
   addInput.value = MASS_DEFAULT;
   hide(addNote);
   setAddDisabled(false);
-  openSheet(addSheet);
-  addInput.focus();
+  setState("adding", null, "opened the weight box");
+  takeFocus(addInput);
   addInput.select();
 }
 
 function closeAdd() {
-  closeSheet(addSheet);
+  if (sheetState !== "adding") return;
+  setState("idle", null, "closed the weight box");
 }
 
 function setAddDisabled(disabled) {
@@ -643,7 +921,7 @@ async function sendToss() {
   const mass = readMass(addInput.value);
   if (mass === null) {
     show(addNote, "Type the weight in grams, above zero.");
-    addInput.focus();
+    takeFocus(addInput);
     return;
   }
   adding = true;
@@ -704,8 +982,10 @@ async function requestWakeLock() {
 
 startButton.addEventListener("click", startCamera);
 statusPill.addEventListener("click", toggleTooltip);
-resultSheet.addEventListener("click", closeResult);
+resultSheet.addEventListener("click", () => dismissResult("tapped the ticket"));
+backdrop.addEventListener("click", tapOutside);
 askOther.addEventListener("click", revealOther);
+askNotNow.addEventListener("click", notNow);
 askInput.addEventListener("input", onLabelInput);
 askSend.addEventListener("click", () => answer(askInput.value));
 askCrop.addEventListener("error", () => {
@@ -729,13 +1009,15 @@ document.addEventListener("keydown", (event) => {
   closeAdd();
 });
 
+window.addEventListener("scroll", unscroll, { passive: true });
+
 document.addEventListener("visibilitychange", () => {
-  if (document.visibilityState === "visible" && cameraRunning) requestWakeLock();
+  if (document.visibilityState !== "visible" || !cameraRunning) return;
+  requestWakeLock();
+  restartCamera();
 });
 
-closeSheet(resultSheet);
-closeSheet(askSheet);
-closeSheet(addSheet);
+renderSheets();
 setThemeColour();
 loadBrand();
 checkDevTools();
