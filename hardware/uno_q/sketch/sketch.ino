@@ -50,6 +50,9 @@
 
 #if WEIGHT_SOURCE == WEIGHT_SOURCE_HX711
 HX711 scale;
+#if HX711_COUNT > 1
+HX711 scale2;
+#endif
 #endif
 
 static float lastGrams = 0.0f;
@@ -280,6 +283,9 @@ void tareScale() {
 #if WEIGHT_SOURCE == WEIGHT_SOURCE_HX711
   // HX711::tare(byte times = 10) averages that many readings and stores the offset.
   scale.tare(10);
+#if HX711_COUNT > 1
+  scale2.tare(10);
+#endif
 #else
   // The same idea without a library: whatever the gauge reads now becomes the new zero.
   analogZero = readAnalogCounts();
@@ -293,8 +299,15 @@ static void readScale() {
   // is_ready() is false while the amplifier is still converting. Asking anyway would
   // block the loop for up to a tenth of a second at 10 samples per second.
   if (!scale.is_ready()) return;
+#if HX711_COUNT > 1
+  if (!scale2.is_ready()) return;
+  // Two cells under one plate: the load splits between them, so the sum is the weight.
+  lastCounts = scale.get_value(HX711_AVERAGE_OF) + scale2.get_value(HX711_AVERAGE_OF);
+  lastGrams = scale.get_units(HX711_AVERAGE_OF) + scale2.get_units(HX711_AVERAGE_OF);
+#else
   lastCounts = scale.get_value(HX711_AVERAGE_OF);
   lastGrams = scale.get_units(HX711_AVERAGE_OF);
+#endif
 #else
   // Two points make a line: the counts at zero, and how far the counts move per gram.
   lastCounts = readAnalogCounts();
@@ -473,6 +486,11 @@ void setup() {
   scale.begin(HX711_DT_PIN, HX711_SCK_PIN);
   scale.set_scale(HX711_CALIBRATION);
   scale.tare(10);
+#if HX711_COUNT > 1
+  scale2.begin(HX711_DT2_PIN, HX711_SCK2_PIN);
+  scale2.set_scale(HX711_CALIBRATION);
+  scale2.tare(10);
+#endif
 #else
   // Ask the converter for its full width before the first reading, so the calibration
   // numbers and the live readings are on the same scale.

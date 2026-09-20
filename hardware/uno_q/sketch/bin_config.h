@@ -33,7 +33,7 @@
 #define WEIGHT_SOURCE_HX711 0
 #define WEIGHT_SOURCE_ANALOG 1
 
-#define WEIGHT_SOURCE WEIGHT_SOURCE_ANALOG
+#define WEIGHT_SOURCE WEIGHT_SOURCE_HX711
 
 // The analog load gauge ----------------------------------------------------
 //
@@ -80,6 +80,13 @@
 // SCK is the clock the board drives.
 #define HX711_DT_PIN 2
 #define HX711_SCK_PIN 3
+
+// The bin sits on two bar load cells, each behind its own HX711. Both are read and the
+// counts are added, so the plate weighs the same wherever the item lands. Set
+// HX711_COUNT to 1 for a single amplifier and the second pair is ignored.
+#define HX711_COUNT 2
+#define HX711_DT2_PIN 4
+#define HX711_SCK2_PIN 5
 
 // NEEDS_HARDWARE_CHECK: does the breakout run at 10 or at 80 samples per second? Most
 // HX711 breakouts tie the RATE pin low, which is 10 SPS, and the firmware contract asks
