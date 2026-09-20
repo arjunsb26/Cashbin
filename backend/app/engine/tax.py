@@ -72,6 +72,37 @@ def apply_rate(rate: float, cents: int) -> int:
     return int(value.quantize(Decimal("1"), rounding=ROUND_HALF_UP))
 
 
+# PLAN.md 21a item 47. A model asked what a mouse is worth says 1173 cents, and 11.73 on a
+# bin reads as a number somebody measured rather than a number somebody estimated. These
+# are the steps a person uses out loud: fifty cents up to twenty dollars, a dollar to a
+# hundred, five dollars to a thousand, ten above that.
+MONEY_STEPS: tuple[tuple[int, int], ...] = (
+    (2_000, 50),
+    (10_000, 100),
+    (100_000, 500),
+)
+MONEY_STEP_ABOVE = 1_000
+
+
+def round_money(cents: int | None) -> int | None:
+    """One estimate, rounded to a figure a person would actually say.
+
+    Only the middle of a range is rounded. The low and the high keep every cent, because
+    the drawer draws the range and a rounded range would be a claim about precision that
+    nobody made.
+    """
+    if cents is None:
+        return None
+    size = abs(cents)
+    step = MONEY_STEP_ABOVE
+    for ceiling, candidate in MONEY_STEPS:
+        if size < ceiling:
+            step = candidate
+            break
+    sign = -1 if cents < 0 else 1
+    return sign * int(round(size / step) * step)
+
+
 def money(cents: int) -> str:
     """Cents as a plain dollar figure for a note a person reads."""
     sign = "-" if cents < 0 else ""

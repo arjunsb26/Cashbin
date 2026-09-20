@@ -52,7 +52,7 @@ from app.engine.records import (
     Option,
     OptionScore,
 )
-from app.engine.tax import money, tax_effect_for
+from app.engine.tax import money, round_money, tax_effect_for
 from app.identify import early, estimate_cache, qr
 from app.identify.embed import Embedder, get_embedder
 from app.identify.memory import MemoryIndex, get_memory
@@ -313,10 +313,15 @@ def frame_bytes(frames: FramePick) -> list[bytes]:
 
 
 def _estimate_from(value: ValueEstimate, which: str) -> Estimate:
+    """One of the four ranges, with the middle rounded to a figure a person would say.
+
+    PLAN.md 21a item 47. Low and high keep every cent: the drawer draws the range, and
+    rounding it would claim a precision nobody has. The middle is the number on the bin.
+    """
     money_range = getattr(value, which)
     return Estimate(
         low=money_range.low,
-        mid=money_range.mid,
+        mid=round_money(money_range.mid),
         high=money_range.high,
         source=EstimateSource.model_estimate,
     )
@@ -847,9 +852,11 @@ def _build_record(
         condition=condition,
         fmv=_estimate_from(estimate, "fmv") if estimate is not None else None,
         repair=_estimate_from(estimate, "repair") if estimate is not None else None,
-        replacement_cents=estimate.replacement.mid if estimate is not None else None,
+        replacement_cents=(
+            round_money(estimate.replacement.mid) if estimate is not None else None
+        ),
         replacement_source=EstimateSource.model_estimate if estimate is not None else None,
-        scrap_cents=estimate.scrap.mid if estimate is not None else None,
+        scrap_cents=round_money(estimate.scrap.mid) if estimate is not None else None,
         scrap_source=EstimateSource.model_estimate if estimate is not None else None,
         material_mix=mix or None,
         regulatory_flags=flags or None,

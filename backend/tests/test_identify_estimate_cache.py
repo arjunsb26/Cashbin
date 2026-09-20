@@ -107,3 +107,45 @@ def test_an_estimate_that_will_not_validate_is_refused(settings: Settings) -> No
     provider = OpenAIEstimatorProvider(conf(), FakeClient(["{}", "{}"]))
     with pytest.raises(ValueError, match="could read"):
         provider.estimate("mystery thing", vision, 50.0)
+
+
+# The same item gives the same figure ------------------------------------------
+
+
+def test_the_key_carries_everything_that_would_change_the_answer() -> None:
+    """PLAN.md 21a item 47. A judge who saw a number once should see it again."""
+    def seen(**kwargs: object) -> VisionResult:
+        base = {"label": "mouse", "class": "untracked", "confidence": 0.9}
+        return VisionResult.model_validate({**base, **kwargs})
+
+    plain = seen()
+    assert estimate_key("mouse", plain) == "mouse"
+
+    # Each of the three parts moves the key, and moving none of them does not.
+    branded = seen(visible_text="MX MASTER 3")
+    broken = seen(condition="broken")
+    keys = {
+        estimate_key("mouse", plain),
+        estimate_key("mouse", branded),
+        estimate_key("mouse", broken),
+        estimate_key("mouse", plain, detail="64 gb"),
+    }
+    assert len(keys) == 4
+
+    # And the same item, twice, is the same key.
+    assert estimate_key("mouse", branded) == estimate_key("mouse", seen(visible_text="MX MASTER 3"))
+    assert estimate_key("mouse", branded) == estimate_key("mouse", seen(visible_text="mx master 3"))
+
+
+def test_the_same_item_priced_twice_is_one_cache_entry(settings: Settings) -> None:
+    setup_db(settings)
+    vision = VisionResult.model_validate_json(GOOD_VISION)
+    client = FakeClient([GOOD_ESTIMATE])
+    provider = OpenAIEstimatorProvider(conf(), client)
+
+    first = provider.estimate("cracked phone", vision, 180.0)
+    fresh = OpenAIEstimatorProvider(conf(), FakeClient([]))
+    second = fresh.estimate("cracked phone", vision, 180.0)
+
+    assert len(client.calls) == 1, "the second one never reached a model"
+    assert first == second

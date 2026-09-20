@@ -48,7 +48,9 @@ ESTIMATE_TASK = (
     "object in the image, each as whole US cents low, mid and high. The data block says "
     "what it was identified as, what condition it is in, and any text read off it. When a "
     "brand or model is legible, price that product and say so in the rationale. When it is "
-    "not, price a typical example of this kind of thing and say that instead. Material mix "
+    "not, price a typical example of this kind of thing and say that instead. Every rationale "
+    "is one sentence naming what you recognised and how you got to the figure, for example "
+    "\"Logitech MX Master 3, used, about 60 percent of new price\". Material mix "
     "fractions must sum to 1, and every material key must be one of the strings in the "
     "materials list in the data block."
 )
