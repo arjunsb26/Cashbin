@@ -13,8 +13,8 @@
     background: var(--paper);
     color: var(--ink);
     font-family: var(--font-plex-sans), system-ui, sans-serif;
-    font-size: 14px;
-    line-height: 20px;
+    font-size: var(--size-body);
+    line-height: var(--line-body);
     font-variant-numeric: tabular-nums lining-nums;
     -webkit-font-smoothing: antialiased;
   }

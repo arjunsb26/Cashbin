@@ -1,10 +1,12 @@
 "use client";
 
-import { useEventDetails, useSummary } from "@/lib/api";
+import { API_URL, useEventDetails, useRounds, useSummary } from "@/lib/api";
 import { askFromDetail, type AskView } from "@/lib/derive";
-import { useLive } from "@/lib/live";
+import { useLive, useReach } from "@/lib/live";
 import { formatCount, formatMoney, formatPercent, massParts } from "@/lib/format";
 import { AskPanel } from "@/components/AskPanel";
+import { FirstRun } from "@/components/FirstRun";
+import { RoundTotals } from "@/components/RoundTotals";
 import { ScaleStrip } from "@/components/ScaleStrip";
 import { Tape } from "@/components/Tape";
 import { Ticket } from "@/components/Ticket";
@@ -14,10 +16,12 @@ import {
   FinanceFooter,
   SectionTitle,
   Skeleton,
+  StatusDot,
   cx,
 } from "@/components/ui";
 
 const TAPE_ROWS = 25;
+const TAPE_FILLS_COLUMN = 12;
 
 export default function LivePage() {
   const summary = useSummary();
@@ -38,24 +42,36 @@ export default function LivePage() {
     : live.ticket;
   const ticketDetail = ticket ? (details.get(ticket.event.id) ?? null) : null;
   const totals = summary.data;
+  const reach = useReach(live.status, summary.isError, totals != null);
+  const rounds = useRounds();
+  const round = (rounds.data?.rounds ?? []).at(-1) ?? null;
+  // The three tosses before the one on the sheet, printed small, so the space
+  // under a short tape is tickets rather than paper.
+  const recent = tape
+    .filter(
+      (e) => e.kind === "toss" && e.status !== "void" && e.id !== ticket?.event.id,
+    )
+    .slice(0, 3);
 
   return (
     <div className="flex flex-col gap-4">
       <section aria-label="Totals">
-        {summary.isError ? (
+        {reach === "dead" ? (
           <ErrorState
-            title="The totals did not load. The backend is not answering."
+            title={`Nothing is answering at ${API_URL}. The bin's service may not be running.`}
             onRetry={() => summary.refetch()}
           />
         ) : (
           <div className="grid grid-cols-2 gap-x-8 gap-y-4 border-b border-rule pb-4 sm:grid-cols-4">
             <Total
+              tone="kept"
               label="Saved if followed"
               value={
                 totals ? formatMoney(totals.saved_if_followed_cents ?? 0, { symbol: true }) : null
               }
             />
             <Total
+              tone="kept"
               label="Kept from landfill"
               value={totals ? massParts((totals.kg_diverted ?? 0) * 1000).value : null}
               unit={totals ? massParts((totals.kg_diverted ?? 0) * 1000).unit : ""}
@@ -82,20 +98,22 @@ export default function LivePage() {
         steps={live.steps}
         weight_g={live.weight_g}
         connected={live.bin.connected}
-        connecting={live.status === "connecting"}
+        reach={reach}
         detail={live.bin.detail}
       />
 
-      <div className="grid grid-cols-1 gap-8 lg:grid-cols-[560px_minmax(0,1fr)]">
+      <div className="grid grid-cols-1 gap-8 lg:grid-cols-[var(--ticket-w)_minmax(0,1fr)]">
         <section aria-label="Current ticket">
-          {live.status === "connecting" ? (
+          {reach === "connecting" ? (
             <div className="flex w-ticket max-w-full flex-col gap-3 border border-rule bg-surface p-5">
-              <Skeleton className="h-[72px] w-[72px]" />
+              <Skeleton className="h-[var(--crop-ticket)] w-[var(--crop-ticket)]" />
               <Skeleton className="h-14 w-48" />
               <Skeleton className="h-row w-full" />
               <Skeleton className="h-row w-full" />
               <Skeleton className="h-row w-full" />
             </div>
+          ) : reach === "dead" ? (
+            <EmptyState title="Tickets appear here as soon as the service answers." />
           ) : ticket ? (
             <Ticket
               event={ticket.event}
@@ -106,8 +124,25 @@ export default function LivePage() {
               {asked && ask ? <AskPanel ask={ask} /> : undefined}
             </Ticket>
           ) : (
-            <EmptyState title="No ticket on the scale. Toss something in the bin, or run the simulator." />
+            <FirstRun />
           )}
+
+          {reach === "live" && ticket && recent.length > 0 ? (
+            <div className="hidden pt-8 lg:block">
+              <SectionTitle>Before that</SectionTitle>
+              <div className="flex flex-col gap-3 pt-3">
+                {recent.map((event) => (
+                  <Ticket
+                    key={event.id}
+                    event={event}
+                    detail={details.get(event.id) ?? null}
+                    size="compact"
+                    showMenu={false}
+                  />
+                ))}
+              </div>
+            </div>
+          ) : null}
         </section>
 
         <section aria-label="Tape" className="min-w-0">
@@ -121,15 +156,23 @@ export default function LivePage() {
             Tape
           </SectionTitle>
           <div className="pt-2">
-            {live.status === "connecting" ? (
+            {reach === "connecting" ? (
               <div className="flex flex-col gap-2">
                 {[0, 1, 2, 3, 4].map((i) => (
                   <Skeleton key={i} className="h-row w-full" />
                 ))}
               </div>
+            ) : reach === "dead" ? (
+              <EmptyState title="The tape is whatever the service has recorded, so it is blank until it answers." />
             ) : (
               <Tape events={tape} details={details} />
             )}
+
+            {/* A tape shorter than its column leaves the foot empty, and a ledger
+                column ends in its total. Twelve rows is the column at 1440x900. */}
+            {reach === "live" && tape.length > 0 && tape.length < TAPE_FILLS_COLUMN ? (
+              <RoundTotals summary={totals} round={round} />
+            ) : null}
           </div>
         </section>
       </div>
@@ -144,15 +187,21 @@ function Total({
   value,
   unit,
   quiet = false,
+  tone,
 }: {
   label: string;
   value: string | null;
   unit?: string;
   quiet?: boolean;
+  /** Set on the two totals that are money and mass kept out of the bin. */
+  tone?: "kept";
 }) {
   return (
     <div>
-      <p className="text-caption text-ink-soft">{label}</p>
+      <p className="flex items-center gap-2 text-caption text-ink-soft">
+        {tone ? <StatusDot tone={tone} /> : null}
+        {label}
+      </p>
       {value === null ? (
         <Skeleton className="mt-1 h-7 w-24" />
       ) : quiet ? (

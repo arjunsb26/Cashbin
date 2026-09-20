@@ -16,7 +16,8 @@ export function CropFrame({
 }: {
   src: string | null;
   label: string;
-  size?: number;
+  /** A number of pixels, or a CSS length, so the frame can move with the layout. */
+  size?: number | string;
   className?: string;
 }) {
   const [failed, setFailed] = useState(false);
@@ -46,7 +47,9 @@ export function CropFrame({
       title="Photo arrives with the phone camera"
     >
       <ImageOff size={16} strokeWidth={1.5} aria-hidden="true" />
-      {size >= 96 ? <span>Photo arrives with the phone camera</span> : null}
+      {typeof size === "number" && size >= 96 ? (
+        <span>Photo arrives with the phone camera</span>
+      ) : null}
     </div>
   );
 }

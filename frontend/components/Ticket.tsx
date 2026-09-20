@@ -6,18 +6,21 @@ import * as Dialog from "@radix-ui/react-dialog";
 import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
 import { MoreHorizontal } from "lucide-react";
 import type { EventDetail, EventSummary, OptionScoreRead } from "@/lib/types";
-import { bestOption, ticketFigure } from "@/lib/derive";
-import { imageSrc, useAnswerAsk, useVoidEvent } from "@/lib/api";
+import { bestOption, co2eAvoided, ticketFigure, ticketTone } from "@/lib/derive";
+import { imageSrc, useAnswerAsk, useAssetTag, useSettings, useVoidEvent } from "@/lib/api";
+import { classLine } from "@/lib/copy";
 import {
   ESTIMATE_MARKER,
   formatMass,
   formatMassError,
   formatMoney,
   formatOption,
+  formatTag,
   isNegativeCents,
   readLabel,
 } from "@/lib/format";
 import { Co2, Mass, Money } from "./Figure";
+import { Term } from "./Term";
 import { CropFrame } from "./CropFrame";
 import { Button, Field, Input, cx } from "./ui";
 
@@ -26,6 +29,14 @@ import { Button, Field, Input, cx } from "./ui";
 // structure flat and the class names readable.
 
 export type TicketPhase = "weighing" | "identified";
+
+/**
+ * Full is the sheet on the Live page and the event page. Compact is the same
+ * sheet printed small, for the tickets that came before the current one: the
+ * label, the class, the mass, the figure and which option would have been best,
+ * with the option table and the menu left off.
+ */
+export type TicketSize = "full" | "compact";
 
 function useCountUp(target: number, arrival: number, enabled: boolean): number {
   const [value, setValue] = useState(target);
@@ -61,7 +72,8 @@ export function Ticket({
   detail,
   phase = "identified",
   arrival = 0,
-  width = 560,
+  width,
+  size = "full",
   showMenu = true,
   children,
 }: {
@@ -69,75 +81,124 @@ export function Ticket({
   detail?: EventDetail | null;
   phase?: TicketPhase;
   arrival?: number;
-  width?: number;
+  width?: number | string;
+  size?: TicketSize;
   showMenu?: boolean;
   children?: React.ReactNode;
 }) {
   const record = detail?.item_record ?? null;
   const figure = ticketFigure(event, record);
+  const tag = useAssetTag(record?.asset_id);
+  const settings = useSettings();
+  const sort = classLine(record?.class ?? event.class, tag ? formatTag(tag) : null);
   const counted = useCountUp(figure.cents, arrival, phase === "identified" && arrival > 0);
   const identified = phase === "identified" && event.label !== null;
+  // The money leaves the critical path, so a ticket can be labelled seconds
+  // before it is valued. Until it is, the sheet prints the mass, not a false zero.
+  const priced = identified && figure.known;
   const options = detail?.options ?? [];
   const mass = event.mass_g ?? 0;
+  // An open question is amber whatever the options say, because the answer is
+  // not settled yet. Otherwise the ticket carries the engine's own tone.
+  const asking = children != null;
+  const tone = asking ? "caution" : ticketTone(options, settings.data);
+  const compact = size === "compact";
+  const best = bestOption(options);
 
   return (
     <article
       className={cx(
-        "ticket-arrive rounded-ticket border border-rule bg-surface p-5 shadow-ticket",
+        "ticket-arrive rounded-ticket border border-rule bg-surface shadow-ticket",
+        compact ? "p-3 lg:p-4" : "p-5 lg:p-6",
+        // The tone band, the same 4 px edge the phone sheet carries.
+        tone === "kept" && "border-t-4 border-t-kept",
+        tone === "caution" && "border-t-4 border-t-caution",
+        tone === "red" && "border-t-4 border-t-red-ink",
         arrival > 0 && "animate-ticket-in",
       )}
-      style={{ width, maxWidth: "100%" }}
+      style={{ width: width ?? "var(--ticket-w)", maxWidth: "100%" }}
       key={arrival}
     >
-      <header className="flex items-start gap-3">
+      <header
+        className={cx(
+          "flex items-start gap-3",
+          // A question tints its own header, so the ticket waiting on a person is
+          // the one thing on the page that is not the usual white paper.
+          asking &&
+            "-mx-5 -mt-5 bg-caution-tint px-5 pb-4 pt-5 lg:-mx-6 lg:-mt-6 lg:px-6 lg:pt-6",
+        )}
+      >
         {/* An ask shows the crop large in its own body, so the header does not repeat it. */}
         {children ? null : (
           <CropFrame
             src={imageSrc(event.crop_url)}
             label={event.label ?? "Item on the scale"}
-            size={72}
+            size={compact ? 44 : "var(--crop-ticket)"}
             className={identified ? "animate-fade-in" : undefined}
           />
         )}
-        <div className="flex-1">
+        <div className="min-w-0 flex-1">
           <h2 className="text-section">{identified ? event.label : "Identifying"}</h2>
+          {identified && sort ? (
+            <p className="pt-1 text-caption text-ink-soft">{sort}</p>
+          ) : null}
           <p className="pt-1 text-body text-ink-soft">
             <Mass grams={mass} eventId={event.id} focus="mass" />{" "}
             <span className="text-ink-soft">{formatMassError(event.mass_err_g ?? 0)}</span>
           </p>
-          <p className="pt-1 text-caption text-ink-soft">Ticket {event.id}</p>
+          {compact ? null : <p className="pt-1 text-caption text-ink-soft">Ticket {event.id}</p>}
         </div>
-        {showMenu ? <TicketMenu event={event} /> : null}
+        {compact ? (
+          <span className="shrink-0 text-caption text-ink-soft">Ticket {event.id}</span>
+        ) : showMenu ? (
+          <TicketMenu event={event} />
+        ) : null}
       </header>
 
       {children ? (
         <div className="pt-4">{children}</div>
       ) : (
         <>
-          <div className="flex items-end gap-3 pt-5">
+          <div className={cx("flex items-end gap-3", compact ? "pt-3" : "pt-5")}>
             <span
               className={cx(
-                "font-condensed text-figure leading-none",
-                isNegativeCents(figure.cents) && "text-red-ink",
+                "font-condensed leading-none",
+                compact ? "text-total" : "text-figure",
+                priced && isNegativeCents(figure.cents) && "text-red-ink",
               )}
             >
-              {identified ? formatMoney(counted, { symbol: true }) : formatMass(mass)}
+              {priced ? formatMoney(counted, { symbol: true }) : formatMass(mass)}
             </span>
             <span className="pb-2 text-body text-ink-soft">
-              {identified ? figure.caption : "on the scale"}
-              {identified && figure.estimate ? (
+              {priced ? (
+                <Term>{figure.caption}</Term>
+              ) : identified ? (
+                "on the scale, being valued"
+              ) : (
+                "on the scale"
+              )}
+              {priced && figure.estimate ? (
                 <span className="pl-1">{ESTIMATE_MARKER}</span>
               ) : null}
             </span>
           </div>
 
-          {identified && options.length > 0 ? (
+          {compact ? (
+            best ? (
+              <p className="pt-2 text-caption text-ink-soft">
+                Best was {formatOption(best.option).toLowerCase()}, at{" "}
+                {formatMoney(best.net_after_tax_cents, { symbol: true })} after tax.
+              </p>
+            ) : null
+          ) : identified && options.length > 0 ? (
             <OptionTable eventId={event.id} options={options} />
           ) : (
             <p className="pt-4 text-caption text-ink-soft">
-              {identified
-                ? "No options were scored for this one."
-                : "The mass is in. The label and the options land next."}
+              {!identified
+                ? "The mass is in. The label and the options land next."
+                : !priced
+                  ? "The label is in. The money and the options land next."
+                  : "No options were scored for this one."}
             </p>
           )}
         </>
@@ -299,7 +360,7 @@ export function OptionTable({
             <tr className="border-b border-rule bg-bar text-caption text-ink-soft">
               <th className="py-1 font-normal">Option</th>
               <th className="py-1 text-right font-normal">After tax ($)</th>
-              <th className="py-1 text-right font-normal">CO2e (kg)</th>
+              <th className="py-1 text-right font-normal">CO2e avoided (kg)</th>
               <th className="py-1 text-right font-normal">Landfill (g)</th>
             </tr>
           </thead>
@@ -312,7 +373,7 @@ export function OptionTable({
                   className={cx(
                     "border-b border-rule",
                     option.allowed ? "h-row" : "align-top",
-                    isBest && "border-l-2 border-l-kept",
+                    isBest && "border-l-2 border-l-kept bg-kept-tint",
                     !option.allowed && "text-red-ink",
                   )}
                 >
@@ -337,7 +398,7 @@ export function OptionTable({
                   </td>
                   <td className="text-right">
                     <Co2
-                      kg={option.kg_co2e ?? null}
+                      kg={co2eAvoided(option)}
                       eventId={eventId}
                       focus={`${option.option} carbon`}
                       unit={false}

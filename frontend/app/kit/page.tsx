@@ -283,23 +283,32 @@ export default function KitPage() {
 
       <Block title="Scale strip">
         <ScaleStrip
-          samples={Array.from({ length: 120 }, (_, i) => 2412 + Math.sin(i / 4) * 3)}
-          steps={[40, 88]}
+          samples={Array.from({ length: 300 }, (_, i) => 2412 + Math.sin(i / 4) * 3)}
+          steps={[186, 258]}
+          stepMasses={[212, 88]}
           weight_g={2412}
           connected
         />
         <ScaleStrip
-          samples={Array.from({ length: 120 }, () => 0)}
+          samples={Array.from({ length: 300 }, () => 0)}
           steps={[]}
           weight_g={0}
           connected={false}
-          connecting
+          reach="connecting"
         />
         <ScaleStrip
-          samples={Array.from({ length: 120 }, () => 0)}
+          samples={Array.from({ length: 300 }, () => 0)}
           steps={[]}
           weight_g={0}
           connected={false}
+          reach="dead"
+        />
+        <ScaleStrip
+          samples={Array.from({ length: 300 }, () => 0)}
+          steps={[]}
+          weight_g={0}
+          connected={false}
+          detail="the bin disconnected"
         />
       </Block>
 

@@ -10,6 +10,7 @@ import type {
   EventSummary,
   JournalResponse,
   RoundListResponse,
+  RuleRead,
   SettingsRead,
   SummaryResponse,
 } from "../types";
@@ -52,6 +53,7 @@ export const mockApi = {
   settings: (): Promise<SettingsRead> => respond(fx.SETTINGS, fx.SETTINGS),
   close: (): Promise<CloseRead | null> => respond<CloseRead | null>(fx.CLOSE, null),
   setup: (): Promise<string[]> => respond(fx.SETUP, []),
+  rules: (): Promise<RuleRead[]> => respond(fx.RULES, []),
 };
 
 export { startMockLive, emptyLiveState, flatSamples } from "./live";

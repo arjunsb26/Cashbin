@@ -5,7 +5,8 @@ import { askOpen, mockState, replayOn } from "./state";
 import type { EventSummary } from "../types";
 import type { DeviceState, LiveState, LiveStatus } from "../live";
 
-const WINDOW = 120;
+/** Thirty seconds at the 10 Hz the backend publishes. */
+const WINDOW = 300;
 const BASELINE = 2412;
 const OFF: DeviceState = { connected: false, detail: null };
 const ON: DeviceState = { connected: true, detail: null };
@@ -20,6 +21,7 @@ export function emptyLiveState(): LiveState {
     weight_g: 0,
     samples: Array.from({ length: WINDOW }, () => 0),
     steps: [],
+    stepMasses: [],
     tape: [],
     ticket: null,
     ask: null,
@@ -57,7 +59,8 @@ export function startMockLive(
     status: "live",
     weight_g: BASELINE,
     samples: flatSamples(BASELINE),
-    steps: [42, 78],
+    steps: [186, 258],
+    stepMasses: [212, 88],
     tape: fx.EVENTS,
     ticket: showAsk
       ? { event: asking, phase: "weighing", arrival: 0 }
@@ -93,6 +96,7 @@ export function startMockLive(
             samples: next,
             weight_g: next[next.length - 1] ?? BASELINE,
             steps: [...prev.steps.slice(-4), next.length - 1],
+            stepMasses: [...prev.stepMasses.slice(-4), event.mass_g ?? 0],
             ticket: { event, phase: "weighing", arrival: (prev.ticket?.arrival ?? 0) + 1 },
             tape: [event, ...prev.tape.filter((e) => e.id !== event.id)],
           };

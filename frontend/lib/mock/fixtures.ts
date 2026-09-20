@@ -13,6 +13,7 @@ import type {
   JournalResponse,
   OptionScoreRead,
   RoundListResponse,
+  RuleRead,
   SettingsRead,
   SummaryResponse,
   TrialBalanceRow,
@@ -868,4 +869,28 @@ export const SETUP: string[] = [
   "assets_seed.csv, row bb-0001, the day the wireless mouse went into service.",
   "assets_seed.csv, row bb-0002, the tax treatment of the mechanical keyboard.",
   "catalog.csv, row water bottle empty, where its price came from.",
+];
+
+/**
+ * Two of the rules the engine cites, quoted from the file the backend serves at
+ * `GET /api/rules`. The live page reads them from there; this copy exists only so
+ * the kit and the mock screenshots show the drawer as a person will see it.
+ */
+export const RULES: RuleRead[] = [
+  {
+    id: "ABANDON",
+    title: "Abandoned business property",
+    plain_text:
+      "Throwing out business property that still has tax basis left is generally an ordinary loss you can deduct. It goes on Form 4797 Part II.",
+    citation_url: "https://www.irs.gov/publications/p544",
+    needs_human_review: false,
+  },
+  {
+    id: "EWASTE",
+    title: "Electronic waste disposal",
+    plain_text:
+      "Many states forbid putting electronics in household or office trash, so the bin is not a legal answer for them wherever that is the rule.",
+    citation_url: null,
+    needs_human_review: true,
+  },
 ];

@@ -39,6 +39,8 @@ export type {
   OptionScoreRead,
   RoundListResponse,
   RoundRead,
+  RuleRead,
+  RulesResponse,
   SettingsRead,
   SettingsUpdate,
   SetupResponse,

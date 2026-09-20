@@ -15,20 +15,24 @@ const config: Config = {
         "control-border": "var(--control-border)",
         "red-ink": "var(--red-ink)",
         kept: "var(--kept)",
+        "kept-tint": "var(--kept-tint)",
         caution: "var(--caution)",
+        "caution-tint": "var(--caution-tint)",
         surface: "var(--surface)",
       },
       fontFamily: {
         sans: "var(--font-plex-sans), system-ui, sans-serif",
         condensed: "var(--font-plex-condensed), var(--font-plex-sans), system-ui, sans-serif",
       },
+      // Sizes are variables so one media query in tokens.css moves the whole
+      // scale up a step on the laptop layout without touching a single class.
       fontSize: {
-        figure: ["56px", { lineHeight: "56px", fontWeight: "600" }],
-        total: ["28px", { lineHeight: "32px", fontWeight: "600" }],
-        title: ["20px", { lineHeight: "28px", fontWeight: "600" }],
-        section: ["15px", { lineHeight: "22px", fontWeight: "600" }],
-        body: ["14px", { lineHeight: "20px", fontWeight: "400" }],
-        caption: ["12.5px", { lineHeight: "18px", fontWeight: "400" }],
+        figure: ["var(--size-figure)", { lineHeight: "var(--line-figure)", fontWeight: "600" }],
+        total: ["var(--size-total)", { lineHeight: "var(--line-total)", fontWeight: "600" }],
+        title: ["var(--size-title)", { lineHeight: "var(--line-title)", fontWeight: "600" }],
+        section: ["var(--size-section)", { lineHeight: "var(--line-section)", fontWeight: "600" }],
+        body: ["var(--size-body)", { lineHeight: "var(--line-body)", fontWeight: "400" }],
+        caption: ["var(--size-caption)", { lineHeight: "var(--line-caption)", fontWeight: "400" }],
       },
       borderRadius: {
         control: "6px",
@@ -40,9 +44,9 @@ const config: Config = {
       },
       spacing: {
         rail: "76px",
-        ticket: "560px",
+        ticket: "var(--ticket-w)",
         drawer: "420px",
-        row: "36px",
+        row: "var(--row-h)",
       },
       transitionTimingFunction: {
         standard: "var(--ease)",

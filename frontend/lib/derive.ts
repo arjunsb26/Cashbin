@@ -14,6 +14,7 @@ import type {
   JournalEntryRead,
   OptionKind,
   OptionScoreRead,
+  RuleRead,
   VisionCandidate,
 } from "./types";
 
@@ -63,10 +64,37 @@ export function ticketFigure(
     return { cents: -cost, caption: "waste expense", estimate, known: record != null };
   }
   if (itemClass === "untracked") {
-    const fmv = record?.fmv?.mid ?? 0;
-    return { cents: fmv, caption: "resale value", estimate, known: record != null };
+    // The estimate leaves the critical path, so a ticket can be labelled and
+    // classed with no value yet. Nothing on the books is not the same as zero.
+    const fmv = record?.fmv?.mid ?? null;
+    return {
+      cents: fmv ?? 0,
+      caption: "resale value",
+      estimate,
+      known: record != null && fmv != null,
+    };
   }
   return { cents: 0, caption: "nothing on the books", estimate, known: false };
+}
+
+/**
+ * What the tape prints for a row.
+ *
+ * `posted_cents` is what the journal actually posted against the ticket, which is
+ * the honest number for a printed tape: a ticket whose entry moved nothing says
+ * nothing. The field is newer than this screen, so where the backend does not send
+ * it the ticket's own figure stands in and the tape reads exactly as it did.
+ */
+export function tapeAmount(
+  event: EventSummary,
+  record: ItemRecordRead | null | undefined,
+): TicketFigure {
+  const posted = event.posted_cents;
+  if (typeof posted === "number") {
+    const figure = ticketFigure(event, record);
+    return { ...figure, cents: posted, known: true };
+  }
+  return ticketFigure(event, record);
 }
 
 /**
@@ -100,6 +128,64 @@ export function bestOption(
   return allowed.reduce((best, o) =>
     o.net_after_tax_cents > best.net_after_tax_cents ? o : best,
   );
+}
+
+/** The three tones the LCD, the phone sheet and now the ticket share. */
+export type Tone = "kept" | "caution" | "red";
+
+/** Defaults matching the engine's own, used until the settings read lands. */
+export const TONE_CO2E_KG = 0.02;
+export const TIE_BREAK_CENTS = 50;
+
+/**
+ * The tone of a ticket, by the same rule the engine uses for the LCD.
+ *
+ * Red when the bin was not allowed to take the thing at all. Green only when the
+ * bin was already a fine answer, which means it was the best option, or the best
+ * option beat it by less than the money tie break and by less than the carbon
+ * threshold. Everything else is amber, so an option worth the same money and much
+ * less carbon still says a better answer existed. An unknown carbon figure never
+ * buys a green tone.
+ *
+ * Null when the ticket has no options yet, because a colour with nothing behind
+ * it is a colour without meaning.
+ */
+export function ticketTone(
+  options: OptionScoreRead[] | null | undefined,
+  thresholds?: { tone_co2e_kg?: number | null; tie_break_cents?: number | null } | null,
+): Tone | null {
+  const rows = options ?? [];
+  if (rows.length === 0) return null;
+  const trash = rows.find((o) => o.option === "trash") ?? null;
+  if (trash !== null && !trash.allowed) return "red";
+  const best = bestOption(rows);
+  if (best === null || trash === null) return "caution";
+  if (best.option === "trash") return "kept";
+
+  const tieBreak = thresholds?.tie_break_cents ?? TIE_BREAK_CENTS;
+  if (best.net_after_tax_cents - trash.net_after_tax_cents >= tieBreak) return "caution";
+  if (best.kg_co2e == null || trash.kg_co2e == null) return "caution";
+  const carbon = thresholds?.tone_co2e_kg ?? TONE_CO2E_KG;
+  if (Math.abs(best.kg_co2e - trash.kg_co2e) >= carbon) return "caution";
+  return "kept";
+}
+
+/**
+ * Carbon the option avoids, as a positive number.
+ *
+ * The engine's WARM factors are negative for anything that keeps material out of
+ * the ground, which reads as nonsense on a page. The backend sends the positive
+ * form where it has it; where it does not, flipping the sign is the same figure.
+ */
+export function co2eAvoided(option: OptionScoreRead): number | null {
+  if (option.kg_co2e_avoided != null) return option.kg_co2e_avoided;
+  if (option.kg_co2e == null) return null;
+  return -option.kg_co2e;
+}
+
+/** The rules by the code the engine cites, so a drawer can look one up. */
+export function ruleMap(rules: RuleRead[] | null | undefined): Map<string, RuleRead> {
+  return new Map((rules ?? []).map((rule) => [rule.id, rule]));
 }
 
 /** The identification the pipeline settled on, newest final one first. */
@@ -136,9 +222,30 @@ export function posteriorCandidates(
   limit = 4,
 ): VisionCandidate[] {
   return Object.entries(posterior ?? {})
+    .filter(([label]) => !isMarker(label))
     .map(([label, p]) => ({ label, p }))
     .sort((a, b) => b.p - a.p)
     .slice(0, limit);
+}
+
+/**
+ * The posterior map carries the odd key that says how the decision was made
+ * rather than what the thing was. A validated label is letters, digits, spaces
+ * and hyphens, so a key with an underscore in it is never a label and is never
+ * drawn as a bar or offered as an answer.
+ */
+function isMarker(key: string): boolean {
+  return key.includes("_");
+}
+
+/**
+ * True when the decision was made because the top two answers come out the same
+ * in the books, which is why a ticket that looks uncertain did not ask.
+ */
+export function sameTreatment(
+  posterior: { [k: string]: number } | null | undefined,
+): boolean {
+  return Object.keys(posterior ?? {}).includes("same_treatment");
 }
 
 /**
@@ -251,6 +358,8 @@ export type EvidenceBundle = {
   identification: IdentificationRead | null;
   candidates: VisionCandidate[];
   posterior: VisionCandidate[];
+  /** True when the top two answers come out the same in the books. */
+  same_treatment: boolean;
   formula: FormulaStep[];
   rule_ids: string[];
   human_confirmed: boolean;
@@ -380,6 +489,7 @@ export function evidenceBundle(detail: EventDetail): EvidenceBundle {
     identification,
     candidates: visionCandidates(identification),
     posterior: posteriorCandidates(identification?.posterior),
+    same_treatment: sameTreatment(identification?.posterior),
     formula: formulaFor(detail),
     rule_ids: [...ruleIds],
     human_confirmed: byHand || (detail.corrections ?? []).length > 0,
@@ -552,7 +662,8 @@ export function closeReport(read: CloseRead): CloseReport {
 
 /**
  * A check is identified by a key, and the statement needs a name for it.
- * An id nobody has named reads as words rather than as a key.
+ * The close names its own checks, so that name wins. The map behind it is what
+ * an older close, which sent the key alone, still reads as.
  */
 const CHECK_NAMES: { [k: string]: string } = {
   mass_conservation: "Mass conservation",
@@ -563,6 +674,7 @@ const CHECK_NAMES: { [k: string]: string } = {
 };
 
 export function checkName(check: CloseCheck): string {
+  if (check.title) return check.title;
   const known = CHECK_NAMES[check.id];
   if (known) return known;
   const words = check.id.replace(/[_-]+/g, " ").trim();

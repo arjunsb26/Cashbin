@@ -17,6 +17,7 @@ import type {
   JournalResponse,
   RoundListResponse,
   RoundRead,
+  RulesResponse,
   SettingsRead,
   SettingsUpdate,
   SetupResponse,
@@ -75,6 +76,9 @@ const source = MOCK
       settings: () => get<SettingsRead>("/api/settings"),
       close: () => getOrNull<CloseRead>("/api/close/latest"),
       setup: () => get<SetupResponse>("/api/setup").then((body) => body.items ?? []),
+      // A backend older than the rules route answers 404, and the drawer then
+      // prints the rule's code on its own, as it did before the route existed.
+      rules: () => getOrNull<RulesResponse>("/api/rules").then((body) => body?.rules ?? []),
     };
 
 /**
@@ -96,6 +100,7 @@ export const keys = {
   settings: ["settings"] as const,
   close: ["close"] as const,
   setup: ["setup"] as const,
+  rules: ["rules"] as const,
 };
 
 export function useSummary() {
@@ -144,6 +149,21 @@ export function useAssets() {
   return useQuery({ queryKey: keys.assets, queryFn: source.assets });
 }
 
+/**
+ * The tag on a ticket's asset. The event read carries the asset id and not the
+ * tag, and the line under a ticket's label has to name the tag a person can see
+ * on the thing. It shares the register's own read, so it costs nothing extra.
+ */
+export function useAssetTag(assetId: number | null | undefined): string | null {
+  const assets = useQuery({
+    queryKey: keys.assets,
+    queryFn: source.assets,
+    enabled: assetId !== null && assetId !== undefined,
+  });
+  if (assetId === null || assetId === undefined) return null;
+  return (assets.data ?? []).find((asset) => asset.id === assetId)?.tag ?? null;
+}
+
 export function useRounds() {
   return useQuery({ queryKey: keys.rounds, queryFn: source.rounds });
 }
@@ -154,6 +174,11 @@ export function useSettings() {
 
 export function useClose() {
   return useQuery({ queryKey: keys.close, queryFn: source.close });
+}
+
+/** The rules in plain language, keyed by the code the engine cites. */
+export function useRules() {
+  return useQuery({ queryKey: keys.rules, queryFn: source.rules, staleTime: Infinity });
 }
 
 export function useSetup() {
