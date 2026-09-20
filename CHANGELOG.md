@@ -2,6 +2,39 @@
 
 Newest first. Each lane writes under its own heading.
 
+## 2026-09-20, lane o: the phone page can never get stuck
+
+- The sheets on the phone are one state machine now: `idle`, `result`, `ask`, `adding`, one
+  of them on the screen at a time. A ticket for the event already up fills that ticket in
+  where it stands, a ticket for a newer event takes its place, an older one is dropped, a
+  question wins over any ticket and shows at once, and an `idle` from the backend clears
+  the screen. The held queue and the 2.8 s rising delay are gone, so nothing can wait
+  behind a message that never comes. Every move is logged to the console with its event id.
+- A ticket leaves after six seconds with no update. A ticket that arrives with no figure on
+  it says "Working out the value" and keeps the screen until the figure lands, which fills
+  it in and starts the six seconds. If no figure comes within eight seconds the line reads
+  "Value not available" and the ticket leaves on its timer.
+- A question never times out. After twenty seconds it says "Still waiting on you" rather
+  than sitting there looking dead. It can be answered, or put away with "Not now", which
+  sends nothing. A tap beside a ticket puts the ticket away; a tap beside a question leaves
+  it alone.
+- A dropped connection clears the ticket that belonged to it at once. A question survives a
+  ten second blip, because the answer travels over its own request, and then goes too. The
+  page sends its hello and picks the frames back up on reconnect with no reload.
+- The camera comes back by itself. iOS ends the camera track when the page goes to the
+  background; the page now reopens it on the way back with no tap. If the camera is refused
+  at that point, the Start camera button comes back instead of a dead black screen.
+- Focusing a field inside a sheet used to scroll the whole page out from under the camera,
+  and with the page set to `overflow: hidden` there was no way to scroll it back: the
+  camera sat high with a band of nothing under it for the rest of the session. Focus takes
+  no scroll now, and anything that scrolls the page anyway is put straight back.
+- `phone/dev/mock_server.py` has a chaos script: a ticket that arrives twice, a question
+  landing on a ticket, a ticket landing under a question, the socket dying under an open
+  question, and a ticket whose figure never comes. `--chaos` plays the lot for a run on a
+  real phone, and `POST /api/dev/chaos` plays one named step so the screenshot run can check
+  the screen after each one. The run asserts what is on the screen at every step, prints the
+  whole state machine log, and writes shots `c1` to `c8`.
+
 ## 2026-09-20, lane n: add a toss from the phone
 
 - The phone page can make a toss by itself now, so a ticket can be raised without the
