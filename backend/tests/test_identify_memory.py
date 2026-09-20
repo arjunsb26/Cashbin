@@ -1,4 +1,4 @@
-"""Exemplar memory: who the neighbours are, and when their vote is enough."""
+"""Exemplar memory: who the neighbours are, and how much they are allowed to say."""
 
 from __future__ import annotations
 
@@ -8,7 +8,7 @@ import pytest
 from app.config import Settings
 from app.db import session_scope
 from app.identify.embed import to_bytes
-from app.identify.memory import MemoryIndex, Neighbour, votes_needed
+from app.identify.memory import MemoryIndex, Neighbour, boost, boost_label
 from app.models import Exemplar
 from tests.test_identify_support import make_event, setup_db
 
@@ -32,11 +32,6 @@ def neighbours(*pairs: tuple[str, float]) -> list[Neighbour]:
     ]
 
 
-def test_the_vote_rule_scales_to_a_small_table() -> None:
-    # 4 of 5 in PLAN.md section 9, and the same share rounded up below five neighbours.
-    assert [votes_needed(n) for n in (0, 1, 2, 3, 4, 5)] == [0, 1, 2, 3, 4, 4]
-
-
 def test_query_returns_the_nearest_first(settings: Settings) -> None:
     index = index_with([("bagel", unit(1, 0, 0)), ("cookie", unit(0, 1, 0))])
     found = index.query(unit(1, 0.1, 0), k=2)
@@ -44,54 +39,63 @@ def test_query_returns_the_nearest_first(settings: Settings) -> None:
     assert found[0].distance < found[1].distance
 
 
-def test_a_clear_neighbourhood_is_accepted(settings: Settings) -> None:
-    index = MemoryIndex()
-    hit = index.decide(
-        neighbours(
-            ("bagel", 0.02), ("bagel", 0.05), ("bagel", 0.08), ("bagel", 0.1), ("cookie", 0.3)
-        ),
-        settings,
+def test_neighbours_that_back_the_answer_are_told_apart_from_the_ones_that_do_not(
+    settings: Settings,
+) -> None:
+    found = MemoryIndex().agreement(
+        neighbours(("bagel", 0.02), ("bagel", 0.05), ("cookie", 0.10)), "bagel", settings
     )
-    assert hit is not None
-    assert hit.label == "bagel"
-    assert hit.votes == 4
-    assert hit.confidence == pytest.approx(0.8)
+    assert found.agrees is True
+    assert len(found.agreeing) == 2
+    assert [n.label for n in found.disagreeing] == ["cookie"]
+    assert found.nearest == pytest.approx(0.02)
 
 
-def test_a_split_neighbourhood_is_refused(settings: Settings) -> None:
-    hit = MemoryIndex().decide(
-        neighbours(
-            ("bagel", 0.02), ("bagel", 0.05), ("bagel", 0.08), ("cookie", 0.1), ("cookie", 0.12)
-        ),
-        settings,
-    )
-    assert hit is None
-
-
-def test_a_distant_match_is_refused_however_well_it_votes(settings: Settings) -> None:
+def test_a_neighbour_past_the_distance_gate_counts_for_neither_side(
+    settings: Settings,
+) -> None:
     far = settings.memory_max_dist + 0.05
-    hit = MemoryIndex().decide(
-        neighbours(("bagel", far), ("bagel", far), ("bagel", far), ("bagel", far)), settings
+    found = MemoryIndex().agreement(
+        neighbours(("bagel", far), ("cookie", far)), "bagel", settings
     )
-    assert hit is None
+    assert found.agrees is False
+    assert found.disagreeing == ()
 
 
-def test_one_neighbour_may_carry_itself_when_it_is_close(settings: Settings) -> None:
-    hit = MemoryIndex().decide(neighbours(("bagel", 0.01)), settings)
-    assert hit is not None and hit.label == "bagel" and hit.considered == 1
+def test_memory_disagreeing_changes_nothing(settings: Settings) -> None:
+    """Lane K section 5: the only two answers memory ever gave were wrong ones."""
+    found = MemoryIndex().agreement(
+        neighbours(("usb-c charger", 0.21)), "hdmi cable", settings
+    )
+    assert found.agrees is False
+    assert [n.label for n in found.disagreeing] == ["usb-c charger"]
 
 
-def test_three_neighbours_need_all_three(settings: Settings) -> None:
-    assert MemoryIndex().decide(
-        neighbours(("bagel", 0.01), ("bagel", 0.02), ("cookie", 0.03)), settings
-    ) is None
-    assert MemoryIndex().decide(
-        neighbours(("bagel", 0.01), ("bagel", 0.02), ("bagel", 0.03)), settings
-    ) is not None
+def test_each_agreeing_example_halves_the_doubt() -> None:
+    assert boost(0.70, 0) == pytest.approx(0.70)
+    assert boost(0.70, 1) == pytest.approx(0.85)
+    assert boost(0.70, 2) == pytest.approx(0.925)
+    # Never certain, however many examples agree.
+    assert boost(0.70, 40) == pytest.approx(0.99)
 
 
-def test_an_empty_neighbourhood_decides_nothing(settings: Settings) -> None:
-    assert MemoryIndex().decide([], settings) is None
+def test_the_boost_takes_what_it_gains_from_the_other_labels() -> None:
+    raised = boost_label({"bagel": 0.60, "cookie": 0.30}, "bagel", 1)
+    assert raised["bagel"] == pytest.approx(0.80)
+    assert raised["cookie"] == pytest.approx(0.10)
+    # The share the model left unspoken for is untouched.
+    assert sum(raised.values()) == pytest.approx(0.90)
+
+
+def test_a_label_memory_never_saw_is_left_alone() -> None:
+    same = {"bagel": 0.60, "cookie": 0.30}
+    assert boost_label(same, "phone", 3) == same
+    assert boost_label(same, "bagel", 0) == same
+
+
+def test_an_empty_neighbourhood_agrees_with_nothing(settings: Settings) -> None:
+    found = MemoryIndex().agreement([], "bagel", settings)
+    assert found.agrees is False
     assert MemoryIndex().query(unit(1, 0, 0)) == []
 
 

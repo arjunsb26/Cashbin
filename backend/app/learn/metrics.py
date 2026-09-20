@@ -25,7 +25,9 @@ from app.models import (
 from app.notify.bus import CHANNEL_UI, Bus
 from app.schemas import RoundListResponse, RoundRead, SummaryResponse, UiMetricsUpdated
 
-LOCAL_METHODS = (IdentifyMethod.qr, IdentifyMethod.memory)
+# PLAN.md 21a item 23: memory no longer answers on its own, so the only identification that
+# costs nothing is a QR tag. This number is smaller than it used to be and it is honest.
+LOCAL_METHODS = (IdentifyMethod.qr,)
 DEFAULT_LEARNED = 5
 
 

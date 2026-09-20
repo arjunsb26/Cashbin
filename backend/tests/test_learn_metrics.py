@@ -109,7 +109,10 @@ def test_an_empty_round_reports_no_rates_rather_than_zero(settings: Settings) ->
     assert read.cost_per_event_microusd is None
 
 
-async def test_the_local_share_counts_qr_and_memory(settings: Settings) -> None:
+async def test_the_local_share_counts_qr_only(settings: Settings) -> None:
+    """PLAN.md 21a item 23. Memory no longer answers on its own, so a remembered example
+    does not make an event free: the model was still asked. A QR tag is the only
+    identification that costs nothing, and this number now says so."""
     setup_db(settings)
     name = write_crop(settings, "crop-1.jpg", CROP)
     deps = make_deps(settings)
@@ -128,7 +131,7 @@ async def test_the_local_share_counts_qr_and_memory(settings: Settings) -> None:
         assert rnd is not None
         read = metrics.round_read(rnd, session)
         assert read.n_events == 2
-        assert read.local_share == pytest.approx(0.5)
+        assert read.local_share == pytest.approx(0.0)
         assert read.ask_rate == pytest.approx(0.5)
 
 

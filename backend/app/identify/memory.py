@@ -1,14 +1,22 @@
-"""Exemplar memory: the free, local half of identification.
+"""Exemplar memory: the part of identification that says "I have seen this before".
 
-PLAN.md section 9 item 2. Every confirmed answer leaves an exemplar behind, so the second
-time the same thing is tossed the crop is recognised from the table with no cloud call.
+PLAN.md 21a item 23. Memory used to answer on its own and skip the model. Lane K measured
+what that does to real photographs: the two photographs of the same object are further
+apart than the two closest photographs of different objects, so no threshold separates
+them, and in a thirty toss run memory fired twice and was wrong both times, posting an HDMI
+cable to the books as a USB-C charger in 84 ms for nothing. A free, instant, confident,
+wrong answer is worse than a slow right one.
+
+So memory no longer decides. The model is always asked, and memory is a second opinion on
+the answer: neighbours that agree with it raise the confidence, so asks fall as the system
+learns, and neighbours that disagree are logged and change nothing.
+
 The index is a plain matrix held in memory and kept in step with the exemplar table, which
 is the right shape for a few thousand rows and needs no extra dependency.
 """
 
 from __future__ import annotations
 
-import math
 from dataclasses import dataclass
 
 import numpy as np
@@ -21,21 +29,12 @@ from app.identify.embed import from_bytes
 from app.models import Exemplar
 
 DEFAULT_K = 5
-# 4 of 5 in PLAN.md section 9. Below five neighbours the same share is required, rounded up,
-# so three neighbours need three and two need two. One neighbour may carry itself, and the
-# distance gate still has to pass.
-VOTE_SHARE = 0.8
-# Cosine distance at which two crops are the same picture rather than a near miss. Nothing
-# but the same bytes, or a frame indistinguishable from them, lands this close.
-#
-# A match this close is accepted on its own, without the vote. Without that rule the vote
-# needs four confirmed exemplars of a label before memory will answer it at all, because the
-# moment the table holds five rows a perfect match sits by itself among four unrelated
-# neighbours and loses 1 to 4. PLAN.md section 20 M2 says the second toss of the same thing
-# comes back free, and on a populated table that is only true with this rule. It is
-# deliberately far tighter than `memory_max_dist`, which is about how different a photograph
-# of the same object may be; this is about the photograph being the same one.
-EXACT_DIST = 0.005
+# Each neighbour that agrees with the model halves the doubt left in its answer. Two
+# agreeing exemplars take a 0.70 answer to 0.925, which is how an ask stops being asked
+# once a person has confirmed the same thing a couple of times.
+AGREEMENT_HALVING = 0.5
+# Never exactly certain. Nothing a histogram says should make an answer unquestionable.
+MAX_BOOSTED_P = 0.99
 
 
 @dataclass(frozen=True)
@@ -46,24 +45,55 @@ class Neighbour:
 
 
 @dataclass(frozen=True)
-class MemoryHit:
+class Agreement:
+    """What memory thinks of the answer the model just gave."""
+
     label: str
-    distance: float
-    votes: int
-    considered: int
-    neighbours: tuple[Neighbour, ...]
+    agreeing: tuple[Neighbour, ...]
+    disagreeing: tuple[Neighbour, ...]
 
     @property
-    def confidence(self) -> float:
-        """How much of the neighbourhood agreed. The accept rule keeps this at 0.8 or above."""
-        return self.votes / self.considered if self.considered else 0.0
+    def agrees(self) -> bool:
+        return bool(self.agreeing)
+
+    @property
+    def nearest(self) -> float | None:
+        return min((n.distance for n in self.agreeing), default=None)
 
 
-def votes_needed(considered: int) -> int:
-    """The 4 of 5 rule, scaled to however many neighbours the table actually holds."""
-    if considered <= 0:
-        return 0
-    return max(1, math.ceil(VOTE_SHARE * considered))
+def boost(p: float, agreeing: int, cap: float = MAX_BOOSTED_P) -> float:
+    """Raise a probability toward certainty, once per neighbour that agrees.
+
+    Each agreeing exemplar halves what is left of the doubt, so the first one counts for
+    most and the tenth counts for almost nothing. Capped, because a colour histogram is not
+    proof.
+    """
+    if agreeing <= 0:
+        return p
+    return min(cap, 1.0 - (1.0 - p) * (AGREEMENT_HALVING**agreeing))
+
+
+def boost_label(
+    distribution: dict[str, float], label: str, agreeing: int, cap: float = MAX_BOOSTED_P
+) -> dict[str, float]:
+    """The same distribution with one label more believed and the rest less.
+
+    What the boost takes it takes from the other labels, so the share the model left
+    unspoken for is untouched. An answer nobody can name stays just as unnamed.
+    """
+    if agreeing <= 0 or label not in distribution:
+        return dict(distribution)
+    raised = boost(distribution[label], agreeing, cap)
+    gain = raised - distribution[label]
+    if gain <= 0.0:
+        return dict(distribution)
+    others = {name: p for name, p in distribution.items() if name != label}
+    pool = sum(others.values())
+    out = {label: raised}
+    scale = max(0.0, (pool - gain) / pool) if pool > 0.0 else 0.0
+    for name, p in others.items():
+        out[name] = p * scale
+    return out
 
 
 class MemoryIndex:
@@ -124,34 +154,20 @@ class MemoryIndex:
             for i in order
         ]
 
-    def decide(self, neighbours: list[Neighbour], settings: Settings) -> MemoryHit | None:
-        """Accept when the neighbourhood agrees and the nearest match is genuinely close."""
-        if not neighbours:
-            return None
-        counts: dict[str, int] = {}
-        for neighbour in neighbours:
-            counts[neighbour.label] = counts.get(neighbour.label, 0) + 1
-        label = max(counts, key=lambda name: (counts[name], -_first_distance(neighbours, name)))
-        votes = counts[label]
-        nearest = min(n.distance for n in neighbours if n.label == label)
-        closest = neighbours[0]
-        if closest.distance <= EXACT_DIST:
-            label, votes, nearest = closest.label, counts[closest.label], closest.distance
-        elif votes < votes_needed(len(neighbours)):
-            return None
-        if nearest > settings.memory_max_dist:
-            return None
-        return MemoryHit(
+    def agreement(
+        self, neighbours: list[Neighbour], label: str, settings: Settings
+    ) -> Agreement:
+        """Split the neighbourhood into the ones that back this label and the ones that do not.
+
+        Only neighbours inside `memory_max_dist` count either way. Anything further away is
+        not a neighbour, it is just the nearest row in a small table.
+        """
+        near = [n for n in neighbours if n.distance <= settings.memory_max_dist]
+        return Agreement(
             label=label,
-            distance=nearest,
-            votes=votes,
-            considered=len(neighbours),
-            neighbours=tuple(neighbours),
+            agreeing=tuple(n for n in near if n.label == label),
+            disagreeing=tuple(n for n in near if n.label != label),
         )
-
-
-def _first_distance(neighbours: list[Neighbour], label: str) -> float:
-    return min(n.distance for n in neighbours if n.label == label)
 
 
 _index: MemoryIndex | None = None

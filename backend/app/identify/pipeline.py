@@ -25,6 +25,7 @@ from sqlalchemy.orm import Session
 from app.config import Settings, get_settings
 from app.db import get_session_factory
 from app.identify import early, qr
+from app.identify import memory as memory_module
 from app.identify.embed import Embedder, get_embedder, to_bytes
 from app.identify.memory import DEFAULT_K, MemoryIndex, Neighbour, get_memory
 from app.identify.priors import MassPrior, fuse
@@ -315,6 +316,16 @@ def _mass_fit(facts: CatalogFacts, mass_g: float | None, mass_err_g: float | Non
     return fuse(flat, mass_g, err, usable)
 
 
+def _neighbour_distances(neighbours: Sequence[Neighbour]) -> dict[str, float]:
+    """The nearest distance per label, for the evidence drawer."""
+    out: dict[str, float] = {}
+    for neighbour in neighbours:
+        best = out.get(neighbour.label)
+        if best is None or neighbour.distance < best:
+            out[neighbour.label] = round(neighbour.distance, 4)
+    return out
+
+
 def _neighbour_votes(neighbours: Sequence[Neighbour]) -> dict[str, float]:
     if not neighbours:
         return {}
@@ -392,7 +403,9 @@ async def identify_event(
             )
             return await _finalise(session, event, row, active, started)
 
-        # 2. Memory. A crop that will not decode simply skips this stage.
+        # 2. Memory. It no longer answers: it writes down who the neighbours are, and the
+        # model is asked anyway. PLAN.md 21a item 23 and Lane K section 6. A crop that will
+        # not decode simply skips this stage.
         neighbours: list[Neighbour] = []
         vector = None
         if crop:
@@ -403,23 +416,25 @@ async def identify_event(
         if vector is not None:
             active.memory.ensure_loaded(session)
             neighbours = active.memory.query(vector, DEFAULT_K)
-            hit = active.memory.decide(neighbours, settings)
-            if hit is not None:
-                votes = _neighbour_votes(hit.neighbours)
-                row = write_identification(
-                    session,
-                    event_id=event_id,
-                    method=IdentifyMethod.memory,
-                    label=hit.label,
-                    item_class=facts.classes.get(hit.label, ItemClass.untracked),
-                    confidence=hit.confidence,
-                    candidates=sorted(votes.items(), key=lambda kv: -kv[1]),
-                    posterior=votes,
-                    latency_ms=_elapsed(started),
-                    usage=_local_usage(active.embedder.name),
-                    is_final=True,
-                )
-                return await _finalise(session, event, row, active, started)
+        if neighbours:
+            write_identification(
+                session,
+                event_id=event_id,
+                method=IdentifyMethod.memory,
+                label=neighbours[0].label,
+                item_class=facts.classes.get(neighbours[0].label, ItemClass.untracked),
+                confidence=None,
+                # A candidate's score is a probability, so the neighbours are listed by how
+                # alike they are rather than how far away. The distances themselves are in
+                # the posterior below, exactly as measured.
+                candidates=[(n.label, max(0.0, min(1.0, 1.0 - n.distance))) for n in neighbours],
+                # The drawer shows what memory had to say. These are cosine distances, not
+                # probabilities: nearer is more like the crop, and nothing here decides.
+                posterior=_neighbour_distances(neighbours),
+                latency_ms=_elapsed(started),
+                usage=_local_usage(active.embedder.name),
+                is_final=False,
+            )
 
         # 3. The cloud call, in a thread, under the timeout. Any failure goes to the ask.
         context = build_context(
@@ -449,6 +464,7 @@ async def identify_event(
             return await _ask(session, event, fallback, active, started, row)
 
         vision_dist = _distribution(vision)
+        raw_dist = dict(vision_dist)
         row = write_identification(
             session,
             event_id=event_id,
@@ -457,10 +473,34 @@ async def identify_event(
             item_class=vision.item_class,
             confidence=vision.confidence,
             candidates=[(c.label, c.p) for c in vision.candidates],
-            posterior=vision_dist,
+            posterior=raw_dist,
             latency_ms=_elapsed(started),
             usage=usage,
         )
+
+        # 3b. Memory as a second opinion. Exemplars that back the model's answer raise its
+        # confidence, so an ask stops being asked once a person has confirmed the same thing
+        # a couple of times. Exemplars that disagree are a log line and nothing more.
+        agreement = active.memory.agreement(neighbours, str(vision.label), settings)
+        if agreement.agrees:
+            vision_dist = memory_module.boost_label(
+                vision_dist, agreement.label, len(agreement.agreeing)
+            )
+            log.info(
+                "event %s: %d remembered example(s) agree with %s, nearest %.4f",
+                event_id,
+                len(agreement.agreeing),
+                agreement.label,
+                agreement.nearest or 0.0,
+            )
+        elif agreement.disagreeing:
+            log.info(
+                "event %s: memory's nearest example says %s and the model says %s, "
+                "so memory is ignored",
+                event_id,
+                agreement.disagreeing[0].label,
+                vision.label,
+            )
 
         # 4. Mass prior fusion, when a prior has enough weighings behind it to count.
         final_dist = vision_dist
