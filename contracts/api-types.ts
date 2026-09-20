@@ -47,6 +47,19 @@ export type EventKind = "toss" | "bag_change" | "removal";
  * via the `definition` "IdentifyMethod".
  */
 export type IdentifyMethod = "qr" | "memory" | "cloud" | "human" | "stub";
+/**
+ * Why a ticket landed in the review queue. Lane P, PLAN.md 21a item 39.
+ *
+ * This interface was referenced by `BinBooksContracts`'s JSON-Schema
+ * via the `definition` "ReviewKind".
+ */
+export type ReviewKind =
+  "donation" | "estimate_above_threshold" | "possible_unrecorded_asset" | "unresolved_ask" | "confident_overruled";
+/**
+ * This interface was referenced by `BinBooksContracts`'s JSON-Schema
+ * via the `definition` "ReviewStatus".
+ */
+export type ReviewStatus = "open" | "approved" | "rejected";
 
 /**
  * Generated from backend/app/schemas.py. Do not edit. Run scripts/gen_types.py after any schema change.
@@ -68,6 +81,7 @@ export interface BinBooksContracts {
   CatalogItemCreate?: CatalogItemCreate;
   CatalogItemRead?: CatalogItemRead;
   CatalogListResponse?: CatalogListResponse;
+  CategoryStat?: CategoryStat;
   CloseCheck?: CloseCheck;
   CloseRead?: CloseRead;
   CloseRequest?: CloseRequest;
@@ -83,6 +97,8 @@ export interface BinBooksContracts {
   EventListResponse?: EventListResponse;
   EventStatus?: EventStatus;
   EventSummary?: EventSummary;
+  Form4797Block?: Form4797Block;
+  Form4797Row?: Form4797Row;
   HealthResponse?: HealthResponse;
   IdentificationRead?: IdentificationRead;
   IdentifyMethod?: IdentifyMethod;
@@ -101,6 +117,18 @@ export interface BinBooksContracts {
   PhonePing?: PhonePing;
   PhonePong?: PhonePong;
   PhoneResult?: PhoneResult;
+  ReconciliationBlock?: ReconciliationBlock;
+  ReconciliationRow?: ReconciliationRow;
+  ReviewDecision?: ReviewDecision;
+  ReviewDecisionResponse?: ReviewDecisionResponse;
+  ReviewItemRead?: ReviewItemRead;
+  ReviewKind?: ReviewKind;
+  ReviewListResponse?: ReviewListResponse;
+  ReviewProposal?: ReviewProposal;
+  ReviewRunResponse?: ReviewRunResponse;
+  ReviewStatus?: ReviewStatus;
+  RollforwardBlock?: RollforwardBlock;
+  RollforwardRow?: RollforwardRow;
   RoundListResponse?: RoundListResponse;
   RoundRead?: RoundRead;
   RuleRead?: RuleRead;
@@ -117,8 +145,12 @@ export interface BinBooksContracts {
   SimExpectResponse?: SimExpectResponse;
   SimTossRequest?: SimTossRequest;
   SimTossResponse?: SimTossResponse;
+  StatsAverages?: StatsAverages;
+  StatsBucket?: StatsBucket;
+  StatsResponse?: StatsResponse;
   SummaryResponse?: SummaryResponse;
   TaxMethod?: TaxMethod;
+  ToolStep?: ToolStep;
   TrialBalanceRow?: TrialBalanceRow;
   UiAskOpened?: UiAskOpened;
   UiAskResolved?: UiAskResolved;
@@ -339,6 +371,16 @@ export interface CatalogListResponse {
 }
 /**
  * This interface was referenced by `BinBooksContracts`'s JSON-Schema
+ * via the `definition` "CategoryStat".
+ */
+export interface CategoryStat {
+  category: "food" | "packaging" | "equipment" | "e-waste" | "other";
+  cents?: number;
+  kg?: number;
+  tosses?: number;
+}
+/**
+ * This interface was referenced by `BinBooksContracts`'s JSON-Schema
  * via the `definition` "CloseCheck".
  */
 export interface CloseCheck {
@@ -357,17 +399,124 @@ export interface CloseCheck {
 export interface CloseRead {
   checks?: CloseCheck[];
   created_at: string;
+  form4797?: Form4797Block | null;
   id: number;
   investigation_md?: string | null;
+  investigation_steps?: ToolStep[];
+  memo_md?: string | null;
   period_end: string;
   period_start: string;
+  reconciliation?: ReconciliationBlock | null;
   report?: {
     [k: string]: unknown;
   };
+  rollforward?: RollforwardBlock | null;
   status: string;
   totals?: {
     [k: string]: unknown;
   };
+}
+/**
+ * This interface was referenced by `BinBooksContracts`'s JSON-Schema
+ * via the `definition` "Form4797Block".
+ */
+export interface Form4797Block {
+  disclaimer?: string;
+  part_ii_line_10_cents?: number;
+  part_ii_rows?: Form4797Row[];
+  part_iii_recapture_cents?: number;
+  part_iii_rows?: Form4797Row[];
+}
+/**
+ * This interface was referenced by `BinBooksContracts`'s JSON-Schema
+ * via the `definition` "Form4797Row".
+ */
+export interface Form4797Row {
+  cost_cents?: number;
+  date_acquired?: string;
+  date_disposed?: string;
+  depreciation_allowed_cents?: number;
+  description?: string;
+  gain_or_loss_cents?: number;
+  gross_proceeds_cents?: number;
+  line?: string;
+  part?: "II" | "III";
+  recapture_note?: string;
+  rule_ids?: string[];
+}
+/**
+ * One lookup an agent made, and what it found. This is the working, shown.
+ *
+ * This interface was referenced by `BinBooksContracts`'s JSON-Schema
+ * via the `definition` "ToolStep".
+ */
+export interface ToolStep {
+  args_summary?: string;
+  finding?: string;
+  tool?: string;
+}
+/**
+ * The M-1 shape: book loss, less the differences, equals the tax loss.
+ *
+ * This interface was referenced by `BinBooksContracts`'s JSON-Schema
+ * via the `definition` "ReconciliationBlock".
+ */
+export interface ReconciliationBlock {
+  book_loss_cents?: number;
+  differences_cents?: number;
+  rows?: ReconciliationRow[];
+  tax_loss_cents?: number;
+  ties?: boolean;
+  title?: string;
+}
+/**
+ * One disposed asset, book against tax, with the reason for the gap.
+ *
+ * This interface was referenced by `BinBooksContracts`'s JSON-Schema
+ * via the `definition` "ReconciliationRow".
+ */
+export interface ReconciliationRow {
+  asset_id?: number | null;
+  book_loss_cents?: number;
+  description?: string;
+  difference_cents?: number;
+  event_id: number;
+  reason?: string;
+  rule_ids?: string[];
+  tag?: string;
+  tax_loss_cents?: number;
+}
+/**
+ * This interface was referenced by `BinBooksContracts`'s JSON-Schema
+ * via the `definition` "RollforwardBlock".
+ */
+export interface RollforwardBlock {
+  period_end?: string;
+  period_start?: string;
+  rows?: RollforwardRow[];
+  ties?: boolean;
+  total?: RollforwardRow;
+}
+/**
+ * One asset's movement through the period, cost and accumulated depreciation.
+ *
+ * This interface was referenced by `BinBooksContracts`'s JSON-Schema
+ * via the `definition` "RollforwardRow".
+ */
+export interface RollforwardRow {
+  additions_cents?: number;
+  asset_id?: number | null;
+  closing_accum_cents?: number;
+  closing_cost_cents?: number;
+  closing_nbv_cents?: number;
+  depreciation_cents?: number;
+  description?: string;
+  disposals_accum_cents?: number;
+  disposals_cost_cents?: number;
+  opening_accum_cents?: number;
+  opening_cost_cents?: number;
+  opening_nbv_cents?: number;
+  tag?: string;
 }
 /**
  * This interface was referenced by `BinBooksContracts`'s JSON-Schema
@@ -707,6 +856,88 @@ export interface PhoneResult {
   type?: "result";
 }
 /**
+ * Who decided and why. Both fields are outside text, so both are cleaned.
+ *
+ * This interface was referenced by `BinBooksContracts`'s JSON-Schema
+ * via the `definition` "ReviewDecision".
+ */
+export interface ReviewDecision {
+  by?: string;
+  note?: string;
+}
+/**
+ * What the decision did: the item as it now stands, and what it moved.
+ *
+ * This interface was referenced by `BinBooksContracts`'s JSON-Schema
+ * via the `definition` "ReviewDecisionResponse".
+ */
+export interface ReviewDecisionResponse {
+  agreed_with_agent?: boolean | null;
+  detail?: string;
+  difference_cents?: number;
+  item: ReviewItemRead;
+  reversing_entry_ids?: number[];
+}
+/**
+ * One open question, as the Review tab lists it.
+ *
+ * This interface was referenced by `BinBooksContracts`'s JSON-Schema
+ * via the `definition` "ReviewItemRead".
+ */
+export interface ReviewItemRead {
+  agreed_with_agent?: boolean | null;
+  amount_cents?: number;
+  asset_id?: number | null;
+  asset_tag?: string | null;
+  candidates?: AskCandidate[];
+  created_at?: string;
+  decided_at?: string | null;
+  decided_by?: string | null;
+  event_id: number;
+  id: number;
+  kind: ReviewKind;
+  label?: string | null;
+  note?: string | null;
+  proposal?: ReviewProposal | null;
+  reason?: string;
+  status: ReviewStatus;
+}
+/**
+ * What the review agent thinks, and how it got there. It never acts on this.
+ *
+ * This interface was referenced by `BinBooksContracts`'s JSON-Schema
+ * via the `definition` "ReviewProposal".
+ */
+export interface ReviewProposal {
+  decision?: "approve" | "reject" | "ask_person";
+  downgraded_reason?: string | null;
+  evidence?: string[];
+  latency_ms?: number | null;
+  model?: string;
+  provider?: string;
+  reason?: string;
+  steps?: ToolStep[];
+  tool_calls?: number;
+}
+/**
+ * This interface was referenced by `BinBooksContracts`'s JSON-Schema
+ * via the `definition` "ReviewListResponse".
+ */
+export interface ReviewListResponse {
+  items?: ReviewItemRead[];
+  open_count?: number;
+}
+/**
+ * What one run of the review agent produced.
+ *
+ * This interface was referenced by `BinBooksContracts`'s JSON-Schema
+ * via the `definition` "ReviewRunResponse".
+ */
+export interface ReviewRunResponse {
+  items?: ReviewItemRead[];
+  proposed?: number;
+}
+/**
  * This interface was referenced by `BinBooksContracts`'s JSON-Schema
  * via the `definition` "RoundListResponse".
  */
@@ -911,6 +1142,49 @@ export interface SimTossRequest {
 export interface SimTossResponse {
   event_id: number;
   status: EventStatus;
+}
+/**
+ * This interface was referenced by `BinBooksContracts`'s JSON-Schema
+ * via the `definition` "StatsAverages".
+ */
+export interface StatsAverages {
+  days?: number;
+  kg_per_day?: number;
+  tosses_per_day?: number;
+  wasted_cents_per_day?: number;
+}
+/**
+ * One day or one week of tickets, totalled.
+ *
+ * This interface was referenced by `BinBooksContracts`'s JSON-Schema
+ * via the `definition` "StatsBucket".
+ */
+export interface StatsBucket {
+  asks?: number;
+  book_loss_cents?: number;
+  by_category?: CategoryStat[];
+  estimated_value_cents?: number;
+  first_try_accuracy?: number | null;
+  kg_co2e_avoided?: number;
+  kg_landfill?: number;
+  start: string;
+  tosses?: number;
+  wasted_cents?: number;
+}
+/**
+ * What the bin saw over a range, by day or by week.
+ *
+ * This interface was referenced by `BinBooksContracts`'s JSON-Schema
+ * via the `definition` "StatsResponse".
+ */
+export interface StatsResponse {
+  averages?: StatsAverages;
+  bucket?: "day" | "week";
+  buckets?: StatsBucket[];
+  period_end?: string;
+  period_start?: string;
+  suggestions?: string[];
+  summary_md?: string | null;
 }
 /**
  * The four header numbers on the Live page.

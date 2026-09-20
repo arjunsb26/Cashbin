@@ -65,6 +65,56 @@ Newest first. Each lane writes under its own heading.
   Debian's externally managed refusal, copying the bridge, a systemd unit, and the App Lab
   app layout to fall back to. Every command is cited.
 
+## 2026-09-20, lane p: the CFO workflow with depth, and the stats behind it
+
+- A review queue. `review_item` holds one open question per ticket per kind, raised when
+  the best option needs a person to sign it off, when a model estimate above the register
+  limit is carrying real money, when something valuable and untracked went in the bin,
+  when a ticket has waited longer than `review_after_s` for an answer, and when a person
+  had to overrule a label the model was confident about. `GET /api/review?status=` lists
+  them with the ticket's label, the amount and the reason.
+- Approve keeps the entries that were posted and closes the question. Reject undoes it:
+  for a donation the donate row is blocked and the ticket is re-ranked without it, so the
+  close stops counting money the business will not get; for anything else the entries are
+  reversed through `void_event`, the ticket goes void, and an asset that came off the
+  register goes back on it. Nothing is ever deleted. Every decision carries who and when
+  and writes a `correction` row with `field=review`.
+- An unresolved ask carries the candidates the bin was asking about, and
+  `POST /api/review/{id}/answer` sends a label to the same correction handler the phone
+  uses, so answering from the queue is the same answer given anywhere else.
+- A review agent. `POST /api/review/run` has it look at every open item with six read-only
+  tools: the ticket, the estimate, the register, the rule, how the same label was decided
+  before, and the policy thresholds. It comes back with a proposal, the lookups it made
+  and what each one found. It never acts. Every figure in its reason has to appear in a
+  tool result or the reason is replaced with the plain one. It may not approve a donation
+  of food somebody opened, or an estimate more than ten times the catalog median for its
+  class; either becomes ask_person. When a person decides, whether they agreed with the
+  proposal is recorded.
+- A fixed asset rollforward on the close: opening cost, additions, disposals, closing
+  cost, the same four on accumulated depreciation, and net book value at both ends, per
+  asset and in total. Closing equals opening plus movements, and the block says whether it
+  ties rather than leaving anyone to add it up.
+- A book to tax reconciliation in the M-1 shape: book loss on disposals, less the
+  differences, equals the tax loss on disposals, with the reason for every gap in plain
+  words (`bonus_100 taken in 2025`, `override`, `straight line, no difference`).
+- A Form 4797 schedule: abandonments on Part II line 10 and sales on Part III with the
+  recapture noted, each row carrying the dates, the cost, the depreciation allowed and the
+  rule ids from `tax_rules.yaml`. Plain data, and the footer says what it is not.
+- A close memo. One call to the agent model turns the computed totals, checks, rollforward
+  and bridge into 150 to 250 words for a CFO. It may not add a figure: every sentence is
+  checked against the data block and a sentence carrying a number that is not in there is
+  dropped. With no model configured a deterministic memo says the same things.
+- `GET /api/stats?bucket=day|week&from=&to=` totals a range into buckets: tickets, what
+  was written off, book loss, estimated value, kilograms to landfill, carbon avoided,
+  asks, first try accuracy, and a split by food, packaging, equipment, e-waste and other.
+  Plus averages per day, three to five plain suggestions, and one paragraph joining them.
+- The suggestions have a floor. Nothing is said unless the money is at least 200 cents or
+  the count at least 3, a percentage never appears without its base, no sentence can name
+  an option the engine did not offer for that item, and a comparison to the range before
+  is only drawn when both ranges hold at least five tickets.
+- The close investigator now records the lookups it made, and `CloseRead` carries them as
+  `investigation_steps` beside the note.
+
 ## 2026-09-20, lane n: add a toss from the phone
 
 - The phone page can make a toss by itself now, so a ticket can be raised without the

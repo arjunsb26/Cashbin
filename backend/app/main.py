@@ -24,10 +24,12 @@ from app.api import (
     events,
     journal,
     metrics,
+    review,
     rules,
     settings,
     setup,
     sim,
+    stats,
 )
 from app.config import APP_VERSION, REPO_DIR, Settings, get_settings
 from app.db import dispose_db, init_db, session_scope, table_names
@@ -260,6 +262,8 @@ def create_app(active: Settings | None = None) -> FastAPI:
     app.include_router(rules.router)
     app.include_router(metrics.router)
     app.include_router(close.router)
+    app.include_router(review.router)
+    app.include_router(stats.router)
     app.include_router(settings.router)
     app.include_router(setup.router)
     if conf.dev_tools:
