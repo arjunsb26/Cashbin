@@ -12,6 +12,7 @@ import json
 import pytest
 
 from app.identify.openai_request import (
+    DETAIL_MAX,
     ESTIMATE_TASK,
     MATERIAL_VOCABULARY,
     SYSTEM_TEXT,
@@ -21,7 +22,7 @@ from app.identify.openai_request import (
     strict_schema,
 )
 from app.identify.providers import IdentifyContext
-from app.schemas import ValueEstimate, VisionResult
+from app.schemas import VISIBLE_TEXT_MAX, ValueEstimate, VisionResult
 from tests.attack_set import NORMALISE_CASES, VISIBLE_TEXT_ATTACKS
 from tests.test_identify_support import make_jpeg
 
@@ -113,7 +114,9 @@ def test_the_data_block_carries_the_catalog_the_tags_and_the_mass() -> None:
 
 
 def test_the_estimate_request_sends_the_object_as_data() -> None:
-    request = build_estimate_request("cracked phone", VISION, 180.0, "test-text-model")
+    request = build_estimate_request(
+        "cracked phone", VISION, 180.0, "test-text-model", detail="screen is cracked"
+    )
     task, data = request["messages"][1]["content"]
     assert task["text"] == ESTIMATE_TASK
     sent = json.loads(data["text"])
@@ -122,12 +125,59 @@ def test_the_estimate_request_sends_the_object_as_data() -> None:
         "label": "cracked phone",
         "class": "inventory",
         "condition": "unknown",
+        "description": "",
+        "visible_text": "EVERYTHING BAGEL",
+        "detail": "screen is cracked",
         "material": "food_waste",
         "mass_g": 180.0,
     }
     # The vocabulary is data too: the only material names the engine can price carbon for.
     assert vocabulary == list(MATERIAL_VOCABULARY)
     assert request["response_format"]["json_schema"]["name"] == "value_estimate"
+
+
+def test_the_estimator_sees_the_item() -> None:
+    """PLAN.md 21a item 29. A label alone priced a 150 dollar mouse at 12 dollars."""
+    vision = VisionResult.model_validate(
+        {
+            "label": "mouse",
+            "class": "untracked",
+            "confidence": 0.9,
+            "condition": "working",
+            "description": "black wireless mouse with a thumb wheel",
+            "visible_text": "MX Master 3",
+        }
+    )
+    request = build_estimate_request(
+        "mouse", vision, 141.0, "test-text-model", "low", "fast", CROP, "still works"
+    )
+    task, data, image = request["messages"][1]["content"]
+    assert task["text"] == ESTIMATE_TASK
+    assert image["type"] == "image_url"
+    assert image["image_url"]["url"].startswith("data:image/jpeg;base64,")
+    sent = json.loads(data["text"])
+    assert sent["visible_text"] == "MX Master 3"
+    assert sent["description"] == "black wireless mouse with a thumb wheel"
+    assert sent["condition"] == "working"
+    assert sent["detail"] == "still works"
+    assert sent["label"] == "mouse"
+    assert request["reasoning_effort"] == "low"
+    assert request["service_tier"] == "fast"
+
+
+def test_the_estimate_prompt_asks_for_the_model_it_can_read() -> None:
+    """The rationale a judge reads has to name what was recognised, or say it is generic."""
+    assert "rationale" in ESTIMATE_TASK
+    assert "generic" in ESTIMATE_TASK
+    assert "second hand" in ESTIMATE_TASK
+
+
+def test_an_oversized_answer_to_the_question_is_cut_before_it_is_sent() -> None:
+    request = build_estimate_request(
+        "mouse", VISION, 141.0, "test-text-model", detail="x" * 500
+    )
+    sent = json.loads(request["messages"][1]["content"][1]["text"])
+    assert sent["detail"] == "x" * DETAIL_MAX
 
 
 # Where outside text is allowed to sit ---------------------------------------
@@ -151,20 +201,35 @@ def test_a_hostile_catalog_label_travels_only_in_the_data_block(
     assert [part for part in user["content"] if expected in json.dumps(part)] == [data]
 
 
-def test_what_the_camera_read_is_never_sent_back_to_a_model() -> None:
+@pytest.mark.parametrize("attack", VISIBLE_TEXT_ATTACKS)
+def test_what_the_camera_read_travels_only_in_the_data_block(attack: str) -> None:
+    """A sign held up to the camera is priced as data, never obeyed.
+
+    Item 29 sends the text the camera read to the estimator, because "MX Master 3" is the
+    difference between a 12 dollar mouse and a 90 dollar one. CLAUDE.md allows that in one
+    place only: a quoted JSON value in the data block, capped, with the fixed instruction
+    text above it telling the model that everything down there is data.
+    """
     vision = VisionResult.model_validate(
         {
             "label": "cardboard box",
             "class": "untracked",
             "confidence": 0.8,
-            "visible_text": VISIBLE_TEXT_ATTACKS[1],
+            "visible_text": attack,
         }
     )
-    request = build_estimate_request("cardboard box", vision, 120.0, "test-text-model")
-    body = json.dumps(request)
-    assert "administrator" not in body
-    assert vision.visible_text not in body
-    assert request["messages"][1]["content"][0]["text"] == ESTIMATE_TASK
+    request = build_estimate_request("cardboard box", vision, 120.0, "test-text-model",
+                                     crop=CROP)
+    system, user = request["messages"]
+    assert system["content"] == SYSTEM_TEXT
+    assert user["content"][0]["text"] == ESTIMATE_TASK
+    assert vision.visible_text not in system["content"]
+    assert vision.visible_text not in ESTIMATE_TASK
+    sent = json.loads(user["content"][1]["text"])
+    assert sent["visible_text"] == vision.visible_text
+    assert len(sent["visible_text"]) <= VISIBLE_TEXT_MAX
+    # The third part is the picture and nothing else.
+    assert set(user["content"][2]) == {"type", "image_url"}
 
 
 def test_the_instruction_text_is_fixed_and_carries_no_outside_string() -> None:

@@ -23,15 +23,18 @@ from pydantic import BaseModel, ValidationError
 from app.config import Settings
 from app.detect.crop import downscale_jpeg
 from app.identify.cost import cost_microusd, price_for
-from app.identify.estimate_cache import read_estimate, write_estimate
+from app.identify.estimate_cache import cache_key, read_estimate, write_estimate
 from app.identify.openai_request import build_estimate_request, build_vision_request
 from app.identify.providers import CallUsage, IdentifyContext
-from app.schemas import ValueEstimate, VisionResult, normalise_label
+from app.identify.rounding import round_money
+from app.schemas import MoneyRange, ValueEstimate, VisionResult, normalise_label
 
 log = logging.getLogger(__name__)
 
 PROVIDER_NAME = "openai"
 FALLBACK_CONFIDENCE = 0.3
+# The effort the estimate call runs at when the shared text default says "none".
+ESTIMATE_EFFORT = "low"
 
 
 class _Adapter:
@@ -140,28 +143,74 @@ class OpenAIVisionProvider(_Adapter):
         return result.model_copy(update={"provider": PROVIDER_NAME, "model": model})
 
 
-class OpenAIEstimatorProvider(_Adapter):
-    """Value estimates, cached by normalised label so no object is ever priced twice."""
+def clean_range(money: MoneyRange) -> MoneyRange:
+    """One range with its mid cleaned. Low and high stay raw, but cannot cross the mid.
 
-    def estimate(self, label: str, vision: VisionResult, mass_g: float) -> ValueEstimate:
-        key = normalise_label(label)
+    PLAN.md 21a item 47. Only the mid is drawn, so only the mid is cleaned; the drawer
+    still shows the spread the model gave. The clamp is for the narrow ranges: a mid of
+    9987 with a high of 9990 would otherwise round past its own high and fail validation.
+    """
+    mid = round_money(money.mid)
+    return money.model_copy(
+        update={"mid": mid, "low": min(money.low, mid), "high": max(money.high, mid)}
+    )
+
+
+def clean_estimate(estimate: ValueEstimate) -> ValueEstimate:
+    """The four figures a person reads, cleaned to money people say out loud."""
+    return estimate.model_copy(
+        update={
+            "fmv": clean_range(estimate.fmv),
+            "repair": clean_range(estimate.repair),
+            "replacement": clean_range(estimate.replacement),
+            "scrap": clean_range(estimate.scrap),
+        }
+    )
+
+
+class OpenAIEstimatorProvider(_Adapter):
+    """Value estimates, cached by what was seen, so no object is ever priced twice."""
+
+    def estimate(self, label: str, vision: VisionResult, mass_g: float,
+                 crop: bytes | None = None, detail: str = "") -> ValueEstimate:
+        """Price one object. The crop and the answered question are optional, and help."""
+        key = cache_key(label, vision.visible_text, detail, vision.condition)
         cached = self._memo.get(key) or read_estimate(key)
         if cached is not None:
             self._memo[key] = cached
             self.last_call = None
             return cached
-        model, effort = self.settings.llm_text_model, self.settings.llm_text_effort
+        model = self.settings.llm_text_model
+        # PLAN.md 21a item 29: the estimate call runs at effort low. It is off the critical
+        # path, and a text model at effort none guesses the object's kind rather than the
+        # object. The setting still names any other effort; only the shared "none" default
+        # for text calls is lifted here.
+        effort = self.settings.llm_text_effort or ESTIMATE_EFFORT
+        if effort == "none":
+            effort = ESTIMATE_EFFORT
+        picture = None
+        if crop:
+            picture = downscale_jpeg(
+                crop, self.settings.vision_image_max_px, self.settings.vision_image_quality
+            )
         parsed = self._parse(
             build_estimate_request(
-                key, vision, mass_g, model, effort, self.settings.llm_service_tier
+                normalise_label(label), vision, mass_g, model, effort,
+                self.settings.llm_service_tier, picture, detail,
             ),
             model,
             ValueEstimate,
         )
         if parsed is None:
             raise ValueError("the estimator returned nothing this code could read")
-        estimate: ValueEstimate = parsed.model_copy(
-            update={"label": key, "provider": PROVIDER_NAME, "model": model}
+        estimate: ValueEstimate = clean_estimate(
+            parsed.model_copy(
+                update={
+                    "label": normalise_label(label),
+                    "provider": PROVIDER_NAME,
+                    "model": model,
+                }
+            )
         )
         self._memo[key] = estimate
         write_estimate(key, estimate)

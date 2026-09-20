@@ -112,7 +112,9 @@ def test_a_second_write_replaces_the_first(settings: Settings) -> None:
     found = read_estimate("cracked phone")
     assert found is not None and found.fmv.mid == 9999
     with session_scope() as session:
-        assert len(json.loads(session.get(Setting, CACHE_SETTING_KEY).value_json)["entries"]) == 1
+        row = session.get(Setting, CACHE_SETTING_KEY)
+        assert row is not None
+        assert len(json.loads(row.value_json)["entries"]) == 1
 
 
 def test_a_label_on_its_own_finds_the_newest_estimate_for_that_label(

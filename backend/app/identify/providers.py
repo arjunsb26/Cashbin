@@ -68,4 +68,9 @@ class EstimatorProvider(Protocol):
     name: str
     last_call: CallUsage | None
 
-    def estimate(self, label: str, vision: VisionResult, mass_g: float) -> ValueEstimate: ...
+    def estimate(self, label: str, vision: VisionResult, mass_g: float,
+                 crop: bytes | None = None, detail: str = "") -> ValueEstimate:
+        """Price one object. `crop` is the same picture the vision call saw and `detail` is
+        the answer to the bin's question; both are optional and both make the price better.
+        PLAN.md 21a item 29."""
+        ...
