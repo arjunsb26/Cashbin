@@ -322,7 +322,7 @@ class PhoneResult(WireModel):
 class PhoneAsk(WireModel):
     type: Literal["ask"] = "ask"
     event_id: int
-    candidates: list[AskCandidate] = Field(min_length=1, max_length=4)
+    candidates: list[AskCandidate] = Field(default_factory=list, max_length=4)
     crop_url: str | None = None
     looks_like: str | None = Field(default=None, max_length=DESCRIPTION_MAX)
 
@@ -381,7 +381,9 @@ class UiJournalPosted(WireModel):
 class UiAskOpened(WireModel):
     type: Literal["ask.opened"] = "ask.opened"
     event_id: int
-    candidates: list[AskCandidate] = Field(min_length=1, max_length=4)
+    # Empty when the model had no guess worth drawing as a button. The question is then
+    # the picture, what the model says it sees, and Something else.
+    candidates: list[AskCandidate] = Field(default_factory=list, max_length=4)
     crop_url: str | None = None
     # The model's plain words about what it is looking at, when it had any. Shown beside
     # the buttons so a person knows what the camera saw before they answer.
@@ -865,6 +867,7 @@ class SettingsRead(ApiModel):
     disposal_fee_cents: int
     recycle_fee_cents: int
     tone_co2e_kg: float
+    speak_up_cents: int = 100
     step_min_g: float
     settle_ms: int
     bag_change_g: float
@@ -878,6 +881,7 @@ class SettingsRead(ApiModel):
     llm_service_tier: ServiceTier = "fast"
     llm_vision_effort: ReasoningEffort = "none"
     llm_text_effort: ReasoningEffort = "none"
+    llm_estimate_effort: ReasoningEffort = "low"
 
 
 class SettingsUpdate(ApiModel):
@@ -886,6 +890,7 @@ class SettingsUpdate(ApiModel):
     disposal_fee_cents: int | None = Field(default=None, ge=0)
     recycle_fee_cents: int | None = Field(default=None, ge=0)
     tone_co2e_kg: float | None = Field(default=None, ge=0.0)
+    speak_up_cents: int | None = Field(default=None, ge=0)
     step_min_g: float | None = Field(default=None, gt=0.0)
     settle_ms: int | None = Field(default=None, gt=0)
     bag_change_g: float | None = Field(default=None, gt=0.0)
@@ -897,6 +902,7 @@ class SettingsUpdate(ApiModel):
     llm_service_tier: ServiceTier | None = None
     llm_vision_effort: ReasoningEffort | None = None
     llm_text_effort: ReasoningEffort | None = None
+    llm_estimate_effort: ReasoningEffort | None = None
 
 
 class DeviceTareResponse(ApiModel):

@@ -260,6 +260,30 @@ body {
   max-width: 100%;
 }
 
+/* The area beside an open sheet. It takes the tap that would otherwise land on
+   the camera and do nothing at all. */
+.backdrop {
+  position: absolute;
+  inset: 0;
+  background: transparent;
+  z-index: 2;
+}
+
+/* The pill and the Add control stay reachable while a sheet is up. */
+.status,
+.add-toss,
+.learned {
+  z-index: 3;
+}
+
+.sheet {
+  z-index: 4;
+}
+
+.backdrop[data-open="false"] {
+  display: none;
+}
+
 /* The sheet, a ticket at phone scale. DESIGN.md sections 4.1 and 6. */
 .sheet {
   position: absolute;
@@ -341,6 +365,14 @@ body {
   margin-top: 4px;
 }
 
+/* The quiet line a ticket carries while its figure is still being worked out. */
+.result__waiting {
+  margin: 0;
+  color: var(--ink-soft);
+  font-size: 12.5px;
+  line-height: 18px;
+}
+
 /* The ask. DESIGN.md section 4.4. */
 .ask__crop {
   width: 100%;
@@ -407,6 +439,18 @@ body {
 }
 
 .ask__note {
+  margin: 0;
+  color: var(--ink-soft);
+  font-size: 12.5px;
+  line-height: 18px;
+}
+
+/* The way out of a question for someone who does not want to answer it. */
+.ask__not-now {
+  margin-top: 4px;
+}
+
+.ask__waiting {
   margin: 0;
   color: var(--ink-soft);
   font-size: 12.5px;

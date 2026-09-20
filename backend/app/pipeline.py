@@ -52,7 +52,7 @@ from app.engine.records import (
     Option,
     OptionScore,
 )
-from app.engine.tax import money, tax_effect_for
+from app.engine.tax import money, round_money, tax_effect_for
 from app.identify import early, estimate_cache, qr
 from app.identify.embed import Embedder, get_embedder
 from app.identify.memory import MemoryIndex, get_memory
@@ -65,6 +65,7 @@ from app.identify.pipeline import (
     set_on_final,
 )
 from app.identify.providers import CallUsage, IdentifyContext, VisionProvider
+from app.ingest.media import read_jpeg
 from app.ingest.state import IngestState
 from app.learn import metrics, rounds
 from app.ledger import journal as ledger_journal
@@ -91,6 +92,8 @@ TONES: dict[str, LcdColour] = {"green": "green", "amber": "amber", "red": "red"}
 
 # User copy. DESIGN.md section 8: say what to do, or say what happened, in one short line.
 BLOCKED_ONLY = "Not for the bin"
+# What the bin says when it has nothing to argue about, which is most of the time.
+FINE_TO_BIN = "Fine to bin"
 ADVICE: dict[Option, str] = {
     Option.recycle: "Recycle it instead",
     Option.donate: "Donate it instead",
@@ -169,16 +172,36 @@ def title_for(label: str) -> str:
     return joined[:1].upper() + joined[1:]
 
 
-def advice_line(record: ItemRecord, ranking: engine_options.Ranking, blocked: bool) -> str:
-    """One line: what to do instead, or what this toss did to the books."""
+def advice_line(
+    record: ItemRecord,
+    ranking: engine_options.Ranking,
+    blocked: bool,
+    speak_up_cents: int = 100,
+) -> str:
+    """One line: what to do instead, or that the bin was the right place for it.
+
+    PLAN.md 21a item 37. The user's words: if something is trash you should just say it is
+    trash. A bin that says "Donate it instead" to save three cents on a bagel is a bin
+    nobody believes the fourth time, so it only speaks up when the difference is worth
+    hearing, or when the bin is not allowed to have the thing at all.
+    """
     best = ranking.best_option
     if blocked:
         if best is not None and best in BLOCKED_ADVICE:
             return BLOCKED_ADVICE[best]
         return BLOCKED_ONLY
-    if best is not None and best in ADVICE:
-        return ADVICE[best]
-    return BINNED[record.item_class]
+    if (
+        best is not None
+        and best is not Option.trash
+        and best in BLOCKED_ADVICE
+        and ranking.saved_if_followed_cents >= speak_up_cents
+    ):
+        return BLOCKED_ADVICE[best]
+    if record.item_class is ItemClass.fixed_asset:
+        # A tagged asset leaving the register is the news on that ticket, and it is worth
+        # more than telling somebody the bin was an acceptable place for it.
+        return BINNED[ItemClass.fixed_asset]
+    return FINE_TO_BIN
 
 
 # Small conversions between the database rows and the engine's own types ------
@@ -290,10 +313,15 @@ def frame_bytes(frames: FramePick) -> list[bytes]:
 
 
 def _estimate_from(value: ValueEstimate, which: str) -> Estimate:
+    """One of the four ranges, with the middle rounded to a figure a person would say.
+
+    PLAN.md 21a item 47. Low and high keep every cent: the drawer draws the range, and
+    rounding it would claim a precision nobody has. The middle is the number on the bin.
+    """
     money_range = getattr(value, which)
     return Estimate(
         low=money_range.low,
-        mid=money_range.mid,
+        mid=round_money(money_range.mid),
         high=money_range.high,
         source=EstimateSource.model_estimate,
     )
@@ -546,7 +574,11 @@ class PipelineDeps:
             # an unpriced ticket at six seconds. It comes off the critical path: the label
             # and the mass reach all three surfaces now, and the figure follows.
             cached = (
-                estimate_cache.read_estimate(display) if cls is ItemClass.untracked else None
+                estimate_cache.read_estimate(
+                    estimate_cache.estimate_key(display, seen or _vision_stand_in(display, cls))
+                )
+                if cls is ItemClass.untracked
+                else None
             )
             valuing = cls is ItemClass.untracked and cached is None
 
@@ -567,7 +599,12 @@ class PipelineDeps:
                 return
 
             stage = "estimate"
-            estimate = await self._estimate(cls, display, mass_g, seen)
+            # The same picture the vision call looked at. The estimator used to see the
+            # word alone, which is how a hundred and fifty dollar mouse came back at
+            # twelve dollars. PLAN.md 21a item 29.
+            estimate = await self._estimate(
+                cls, display, mass_g, seen, read_jpeg(event_id, "crop", self.settings)
+            )
             if estimate is None:
                 log.info("event %d has no estimate, the ticket stands as it is", event_id)
                 return
@@ -661,6 +698,7 @@ class PipelineDeps:
         label: str,
         mass_g: float,
         seen: VisionResult | None,
+        crop: bytes | None = None,
     ) -> ValueEstimate | None:
         """What an untracked object is worth, from the cache when it was priced before.
 
@@ -670,13 +708,15 @@ class PipelineDeps:
         """
         if cls is not ItemClass.untracked:
             return None
-        cached = estimate_cache.read_estimate(label)
+        vision = seen or _vision_stand_in(label, cls)
+        cached = estimate_cache.read_estimate(estimate_cache.estimate_key(label, vision))
         if cached is not None:
             return cached
-        vision = seen or _vision_stand_in(label, cls)
         try:
             estimate = await asyncio.wait_for(
-                asyncio.to_thread(self.providers.estimator.estimate, label, vision, mass_g),
+                asyncio.to_thread(
+                    self.providers.estimator.estimate, label, vision, mass_g, crop
+                ),
                 timeout=self.settings.llm_timeout_s,
             )
         except TimeoutError:
@@ -685,7 +725,7 @@ class PipelineDeps:
         except Exception:
             log.exception("the estimate for %s failed", label)
             return None
-        estimate_cache.write_estimate(label, estimate)
+        estimate_cache.write_estimate(estimate_cache.estimate_key(label, vision), estimate)
         return estimate
 
     def _publish(
@@ -706,9 +746,13 @@ class PipelineDeps:
         table = engine_options.by_option(scores)
         trash = table.get(Option.trash)
         blocked = trash is not None and not trash.allowed
-        tone = TONES.get(ranking.tone, "neutral")
         title = title_for(record.label)
-        line = advice_line(record, ranking, blocked)
+        line = advice_line(record, ranking, blocked, self.settings.speak_up_cents)
+        tone = TONES.get(ranking.tone, "neutral")
+        if line == FINE_TO_BIN and not blocked:
+            # The words and the colour have to agree. Amber beside "Fine to bin" reads as
+            # the bin hedging about something it has just called fine.
+            tone = "green"
         cents = headline_cents(record)
         big_money = signed_money(cents)[:16]
         lcd_money = lcd_big(cents)
@@ -808,9 +852,11 @@ def _build_record(
         condition=condition,
         fmv=_estimate_from(estimate, "fmv") if estimate is not None else None,
         repair=_estimate_from(estimate, "repair") if estimate is not None else None,
-        replacement_cents=estimate.replacement.mid if estimate is not None else None,
+        replacement_cents=(
+            round_money(estimate.replacement.mid) if estimate is not None else None
+        ),
         replacement_source=EstimateSource.model_estimate if estimate is not None else None,
-        scrap_cents=estimate.scrap.mid if estimate is not None else None,
+        scrap_cents=round_money(estimate.scrap.mid) if estimate is not None else None,
         scrap_source=EstimateSource.model_estimate if estimate is not None else None,
         material_mix=mix or None,
         regulatory_flags=flags or None,

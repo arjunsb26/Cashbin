@@ -40,6 +40,7 @@ from app.models import (
     TaxMethod,
 )
 from app.pipeline import (
+    FINE_TO_BIN,
     VALUING_BIG,
     VALUING_LINE,
     advice_line,
@@ -328,16 +329,21 @@ def test_the_demo_scenario_ends_as_posted_balanced_tickets(demo_settings: Settin
             assert asset.status is AssetStatus.disposed
             assert asset.disposed_event_id == keyboard["id"]
 
-        # The bagel is worth more donated than binned, and a person has to sign it off.
+        # A bagel out of a bin is nobody's donation, and the ticket says so rather than
+        # leaving the option off. PLAN.md 21a item 48.
         bagel = client.get(f"/api/events/{by_label['bagel']['id']}").json()
         ranks = {row["option"]: row["rank"] for row in bagel["options"]}
-        assert ranks[OptionKind.donate] is not None
         assert ranks[OptionKind.trash] is not None
-        assert ranks[OptionKind.donate] < ranks[OptionKind.trash]
+        assert ranks[OptionKind.donate] is None
         donate = next(row for row in bagel["options"] if row["option"] == OptionKind.donate)
+        assert donate["allowed"] is False
+        assert "donated" in donate["blocked_reason"]
         assert donate["needs_human_review"] is True
         assert "DONATE_FOOD" in donate["rule_ids"]
-        assert by_label["bagel"]["saved_if_followed_cents"] > 0
+        # The arithmetic behind the blocked option is untouched and still on the ticket.
+        assert donate["tax_effect_cents"] > 0
+        # Nothing beats the bin on money for an opened bagel, so nothing is claimed.
+        assert by_label["bagel"]["saved_if_followed_cents"] == 0
 
         # Electronics do not go in the landfill, and the reason is on the row.
         for label in ("usb-c charger", "phone"):
@@ -477,7 +483,10 @@ def test_the_advice_line_says_what_to_do_or_what_happened() -> None:
         saved_if_followed_cents=3,
         tone="amber",
     )
-    assert advice_line(_record(), donate, blocked=False) == "Donate it instead"
+    # Three cents better donated is not worth arguing about. PLAN.md 21a item 37.
+    assert advice_line(_record(), donate, blocked=False) == FINE_TO_BIN
+    worth_it = donate.model_copy(update={"saved_if_followed_cents": 1500})
+    assert advice_line(_record(), worth_it, blocked=False) == "Donate it, not trash"
     recycle = donate.model_copy(update={"best_option": Option.recycle})
     assert advice_line(_record(), recycle, blocked=True) == "Recycle, not trash"
     binned = donate.model_copy(update={"best_option": Option.trash})

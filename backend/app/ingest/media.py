@@ -52,6 +52,15 @@ def save_jpeg(
     return f"{event_id}/{name}.jpg"
 
 
+def read_jpeg(event_id: int, name: str, settings: Settings | None = None) -> bytes | None:
+    """One of an event's four pictures, off disk, or nothing when it was never written."""
+    try:
+        data = (event_dir(event_id, settings) / f"{name}.jpg").read_bytes()
+    except OSError:
+        return None
+    return data or None
+
+
 def media_url(path: str | None) -> str | None:
     """The URL a client fetches for a stored relative path."""
     if not path:

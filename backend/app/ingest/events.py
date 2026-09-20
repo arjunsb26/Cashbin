@@ -15,7 +15,14 @@ import json
 import logging
 
 from app.db import session_scope
-from app.detect.crop import CropParams, CropResult, FramePick, crop_item, pick_frames
+from app.detect.crop import (
+    CropParams,
+    CropResult,
+    FramePick,
+    crop_item,
+    pick_frames,
+    whole_frame,
+)
 from app.detect.steps import Step
 from app.identify import early
 from app.ingest import media
@@ -117,14 +124,26 @@ def _save_media(
 ) -> tuple[FramePick, CropResult | None]:
     """Pick the frames, cut the item out, write all four files, record the paths."""
     params = CropParams()
-    picked = pick_frames(deps.frames.snapshot(), step, params)
+    held = deps.frames.snapshot()
     crop: CropResult | None = None
 
-    if picked.before is not None and picked.after is not None:
-        try:
-            crop = crop_item(picked.before.jpeg, picked.after.jpeg, params)
-        except (ValueError, RuntimeError):
-            log.exception("could not crop event %d", event_id)
+    if step.whole_frame:
+        # PLAN.md 21a item 36. Somebody held this up and pressed Add, so the newest frame
+        # is the item and there is nothing to isolate it from.
+        newest = held[-1] if held else None
+        picked = FramePick(before=newest, after=newest, peak=newest)
+        if newest is not None:
+            try:
+                crop = whole_frame(newest.jpeg, params)
+            except (ValueError, RuntimeError):
+                log.exception("could not read the added picture for event %d", event_id)
+    else:
+        picked = pick_frames(held, step, params)
+        if picked.before is not None and picked.after is not None:
+            try:
+                crop = crop_item(picked.before.jpeg, picked.after.jpeg, params)
+            except (ValueError, RuntimeError):
+                log.exception("could not crop event %d", event_id)
 
     paths = {
         "before": media.save_jpeg(

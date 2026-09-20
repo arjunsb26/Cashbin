@@ -11,11 +11,12 @@ rather than stored, because a cache key is a key like any other.
 
 from __future__ import annotations
 
+import hashlib
 import logging
 
 from pydantic import ValidationError
 
-from app.schemas import ValueEstimate, normalise_label
+from app.schemas import ValueEstimate, VisionResult, normalise_label
 
 log = logging.getLogger(__name__)
 
@@ -25,6 +26,35 @@ KEY_PREFIX = "estimate:"
 def cache_key(label: str) -> str:
     """The settings key for one label. Raises if the label is not a label."""
     return f"{KEY_PREFIX}{normalise_label(label)}"
+
+
+def estimate_key(
+    label: str, vision: VisionResult | None = None, detail: str = ""
+) -> str:
+    """What makes two estimates the same estimate.
+
+    PLAN.md 21a item 47. The label alone made every mouse one entry, so the first one
+    priced set the price for every mouse after it. Everything that would change the answer
+    goes in the key: what is written on the thing, what condition it is in, and whatever a
+    person answered about it. Two runs of the same item then give the same figure, which
+    is the point: a judge who saw a number once should see it again.
+
+    The parts are hashed rather than stored. They are outside text, and a key is not the
+    place for prose.
+    """
+    condition = (vision.condition if vision else "") or ""
+    parts = [
+        (vision.visible_text if vision else "") or "",
+        # "unknown" is the default, which is the same as nobody having said anything, and
+        # it must not split the cache from a plain one.
+        "" if condition == "unknown" else condition,
+        detail or "",
+    ]
+    joined = "|".join(part.strip().lower() for part in parts)
+    if not joined.replace("|", "").strip():
+        return normalise_label(label)
+    digest = hashlib.sha256(joined.encode("utf-8")).hexdigest()[:12]
+    return f"{normalise_label(label)} {digest}"
 
 
 def read_estimate(label: str) -> ValueEstimate | None:

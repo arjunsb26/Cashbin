@@ -48,7 +48,8 @@ from app.identify.providers import IdentifyContext  # noqa: E402
 from app.schemas import VisionResult  # noqa: E402
 
 REAL = REPO / "sim" / "assets" / "real"
-REPORTS = REPO / "briefs" / "reports" / "lane-k"
+REPORTS_ROOT = REPO / "briefs" / "reports"
+REPORTS = REPORTS_ROOT / "lane-k"
 PHONE_WIDTH = 640
 PHONE_JPEG_QUALITY = 70
 MAX_CONTEXT_LABELS = 60
@@ -63,6 +64,52 @@ MASS_G = {
     "power_bank": 210.0, "hdmi_cable": 140.0,
 }
 MASS_ERR_G = 1.6
+
+# The label is free text again, so an exact string compare scores "mechanical keyboard" as a
+# miss on a photograph of a keyboard. Each item gets the phrases that count as the right
+# answer and the phrases that rule one out, so a charger answered for a laptop brick is still
+# a miss. Substring test, on the normalised label. Exact-match accuracy is reported beside it.
+ACCEPT: dict[str, tuple[tuple[str, ...], tuple[str, ...]]] = {
+    "bagel": (("bagel",), ()),
+    "half_sandwich": (("sandwich", "sandwhich"), ()),
+    "banana": (("banana",), ()),
+    "apple": (("apple",), ("charger", "phone")),
+    "soda_can": (("soda can", "cola can", "coke can", "fanta can", "drink can",
+                  "aluminium can", "aluminum can", "beverage can", "soft drink",
+                  "soda", "cola"), ()),
+    "water_bottle": (("water bottle", "bottled water", "plastic bottle"), ()),
+    "coffee_cup": (("coffee cup", "paper cup", "disposable cup", "takeaway cup",
+                    "to-go cup", "coffee mug", "mug", "cup of coffee"), ()),
+    "pizza_slice": (("pizza",), ()),
+    "cardboard_box": (("cardboard box", "corrugated box", "shipping box", "carton"), ()),
+    "keyboard": (("keyboard",), ()),
+    "usbc_charger": (("usb charger", "usb-c charger", "usbc charger", "wall charger",
+                      "phone charger", "usb power adapter", "power adapter", "wall adapter",
+                      "usb wall", "charger"), ("laptop", "cable", "power bank")),
+    "laptop_charger": (("laptop charger", "laptop power", "power adapter", "ac adapter",
+                        "power brick", "power supply", "laptop adapter"),
+                       ("usb-c charger", "usbc charger", "wall charger", "phone charger")),
+    "mouse": (("mouse",), ()),
+    "earbuds": (("earbud", "ear bud", "earphone", "headphone", "in-ear"), ()),
+    "phone_cracked": (("phone", "smartphone"), ("charger", "cable", "case")),
+    "power_bank": (("power bank", "portable charger", "battery pack", "portable battery"), ()),
+    "hdmi_cable": (("hdmi",), ()),
+}
+UNKNOWN_ANSWERS = ("unknown", "unknown object", "unidentified object")
+# What the scale would read for the objects the catalog does not contain, by file stem. The
+# mass goes up in the data block, so a USB stick has to arrive at 10 g and not at a default.
+OFFCATALOG_MASS_G = {
+    "usb_flash_drive": 10.0, "pen": 11.0, "aa_battery": 24.0, "notebook": 200.0,
+}
+
+
+def lenient_match(item: str, answer: str) -> bool:
+    """Does this answer name the thing in the photograph, in any reasonable wording."""
+    said = answer.strip().lower()
+    good, bad = ACCEPT.get(item, ((), ()))
+    if any(word in said for word in bad):
+        return False
+    return any(word in said for word in good)
 
 
 # What one photograph produced -------------------------------------------------
@@ -79,6 +126,9 @@ class Row:
     confidence: float | None = None
     top_candidates: str = ""
     correct: bool = False
+    exact: bool = False
+    said_unknown: bool = False
+    confidently_wrong: bool = False
     would_ask: bool = False
     best_label: str = ""
     best_p: float | None = None
@@ -92,6 +142,7 @@ class Row:
     cached_tokens: int | None = None
     cost_microusd: int | None = None
     visible_text: str = ""
+    description: str = ""
     error: str = ""
 
 
@@ -105,11 +156,11 @@ class Config:
 
     @property
     def tag(self) -> str:
-        return f"{self.effort}_{self.service_tier}_{self.max_px}_{self.detail}"
+        return f"{self.model}_{self.effort}_{self.service_tier}_{self.max_px}_{self.detail}"
 
     @property
     def title(self) -> str:
-        return (f"effort {self.effort}, tier {self.service_tier}, "
+        return (f"model {self.model}, effort {self.effort}, tier {self.service_tier}, "
                 f"crop {self.max_px} px, detail {self.detail}")
 
 
@@ -268,7 +319,19 @@ def decide(vision: VisionResult, mass_g: float, priors: dict[str, MassPrior],
 # The run ----------------------------------------------------------------------
 
 
-def photographs(per_item: int, only: tuple[str, ...]) -> list[dict[str, Any]]:
+def photographs(per_item: int, only: tuple[str, ...],
+                files: tuple[str, ...] = ()) -> list[dict[str, Any]]:
+    """The manifest's photographs, or a list of files named on the command line.
+
+    The file list is how an object the catalog does not contain gets measured: it has no
+    manifest row, so there is nothing to match against and the free label is the whole
+    result.
+    """
+    if files:
+        return [{"file": Path(name).name, "item": "offcatalog", "expected_label": "n/a",
+                 "mass_g": OFFCATALOG_MASS_G.get(Path(name).stem, 100.0),
+                 "path": str(Path(name) if Path(name).is_absolute() else REPO / name)}
+                for name in files]
     manifest = json.loads((REAL / "manifest.json").read_text(encoding="utf-8"))
     rows = [row for row in manifest if row["item"] != "background"]
     if only:
@@ -285,21 +348,27 @@ def photographs(per_item: int, only: tuple[str, ...]) -> list[dict[str, Any]]:
 
 
 def run(config: Config, per_item: int, repeat: int, only: tuple[str, ...],
-        bg_name: str, save_crops: bool, sprite_px: int = 0) -> list[Row]:
+        bg_name: str, save_crops: bool, sprite_px: int = 0, files: tuple[str, ...] = (),
+        timeout_s: float = 0.0) -> list[Row]:
     settings = get_settings()
+    if timeout_s:
+        settings = settings.model_copy(update={"llm_timeout_s": timeout_s})
     labels, priors = catalog_context()
     provider = BenchProvider(settings, config)
     bg = background(bg_name)
     crops = REPORTS / "crops"
     crops.mkdir(parents=True, exist_ok=True)
     rows: list[Row] = []
-    for shot in photographs(per_item, only):
-        source = REAL / shot["file"] if sprite_px else REAL / "sprites" / shot["file"]
+    for shot in photographs(per_item, only, files):
+        if shot.get("path"):
+            source = Path(shot["path"])
+        else:
+            source = REAL / shot["file"] if sprite_px else REAL / "sprites" / shot["file"]
         result = crop_for(source, bg, SLOT, sprite_px)
         crop = shrink(result.jpeg, config.max_px)
         if save_crops:
             (crops / shot["file"]).write_bytes(crop)
-        mass = MASS_G.get(shot["item"], 100.0)
+        mass = float(shot.get("mass_g") or MASS_G.get(shot["item"], 100.0))
         context = IdentifyContext(
             event_id=0, mass_g=mass, mass_err_g=MASS_ERR_G,
             timeout_s=settings.llm_timeout_s, catalog_labels=labels[:MAX_CONTEXT_LABELS],
@@ -330,9 +399,15 @@ def run(config: Config, per_item: int, repeat: int, only: tuple[str, ...],
                 f"{c.label} {c.p:.2f}" for c in vision.candidates[:3]
             )
             row.visible_text = vision.visible_text[:60]
+            row.description = vision.description[:80]
             row.best_label, row.best_p = best, round(best_p, 3)
             row.margin, row.would_ask = round(margin, 3), would_ask
-            row.correct = best.strip().lower() == shot["expected_label"].strip().lower()
+            expected = shot["expected_label"].strip().lower()
+            row.exact = best.strip().lower() == expected
+            row.correct = row.exact or lenient_match(shot["item"], best)
+            row.said_unknown = vision.label.strip().lower() in UNKNOWN_ANSWERS
+            row.confidently_wrong = (not row.correct and not row.said_unknown
+                                     and (row.confidence or 0.0) >= 0.8)
             if usage is not None:
                 row.model_ms = usage.latency_ms
                 row.tokens_in, row.tokens_out = usage.tokens_in, usage.tokens_out
@@ -356,11 +431,16 @@ class Summary:
     calls: int = 0
     failures: int = 0
     accuracy: float = 0.0
+    exact_accuracy: float = 0.0
+    unknowns: int = 0
+    confidently_wrong: int = 0
+    over_4s: int = 0
     ask_rate: float = 0.0
     median_model_ms: float = 0.0
     p90_model_ms: float = 0.0
     median_total_ms: float = 0.0
     mean_tokens_in: float = 0.0
+    mean_tokens_out: float = 0.0
     mean_cached: float = 0.0
     mean_cost_microusd: float = 0.0
     wrong: list[str] = field(default_factory=list)
@@ -381,6 +461,10 @@ def summarise(config: Config, rows: list[Row]) -> Summary:
     if not good:
         return out
     out.accuracy = sum(r.correct for r in good) / len(good)
+    out.exact_accuracy = sum(r.exact for r in good) / len(good)
+    out.unknowns = sum(r.said_unknown for r in good)
+    out.confidently_wrong = sum(r.confidently_wrong for r in good)
+    out.over_4s = sum(1 for r in good if (r.model_ms or 0) > 4000)
     out.ask_rate = sum(r.would_ask for r in good) / len(good)
     model_ms = [float(r.model_ms) for r in good if r.model_ms is not None]
     out.median_model_ms = statistics.median(model_ms) if model_ms else 0.0
@@ -389,6 +473,8 @@ def summarise(config: Config, rows: list[Row]) -> Summary:
     out.median_total_ms = statistics.median(total_ms) if total_ms else 0.0
     tokens = [float(r.tokens_in) for r in good if r.tokens_in is not None]
     out.mean_tokens_in = sum(tokens) / len(tokens) if tokens else 0.0
+    out_tokens = [float(r.tokens_out) for r in good if r.tokens_out is not None]
+    out.mean_tokens_out = sum(out_tokens) / len(out_tokens) if out_tokens else 0.0
     cached = [float(r.cached_tokens) for r in good if r.cached_tokens is not None]
     out.mean_cached = sum(cached) / len(cached) if cached else 0.0
     costs = [float(r.cost_microusd) for r in good if r.cost_microusd is not None]
@@ -413,6 +499,10 @@ def write_md(path: Path, config: Config, rows: list[Row], summary: Summary) -> N
              "",
              "| Measure | Value |", "|---|---|",
              f"| Accuracy | {summary.accuracy:.1%} |",
+             f"| Exact label match | {summary.exact_accuracy:.1%} |",
+             f"| Answered unknown | {summary.unknowns} |",
+             f"| Confidently wrong | {summary.confidently_wrong} |",
+             f"| Calls over 4 s | {summary.over_4s} |",
              f"| Ask rate | {summary.ask_rate:.1%} |",
              f"| Median model call | {summary.median_model_ms:.0f} ms |",
              f"| p90 model call | {summary.p90_model_ms:.0f} ms |",
@@ -420,11 +510,13 @@ def write_md(path: Path, config: Config, rows: list[Row], summary: Summary) -> N
              f"| Mean cached input tokens | {summary.mean_cached:.0f} |",
              f"| Mean cost per call | {summary.mean_cost_microusd:.0f} microUSD |",
              "",
-             "| File | Expected | Answered | p | Margin | Ask | Model ms | Tokens in | Cost uUSD |",
-             "|---|---|---|---|---|---|---|---|---|"]
+             ("| File | Expected | Returned | Answered | p | Margin | Ask | Model ms "
+              "| Tokens in | Cost uUSD |"),
+             "|---|---|---|---|---|---|---|---|---|---|"]
     for row in rows:
         lines.append(
-            f"| {row.file} | {row.expected} | {row.best_label or row.error} | "
+            f"| {row.file} | {row.expected} | {row.returned} | "
+            f"{row.best_label or row.error} | "
             f"{row.best_p if row.best_p is not None else ''} | "
             f"{row.margin if row.margin is not None else ''} | "
             f"{'yes' if row.would_ask else 'no'} | {row.model_ms or ''} | "
@@ -449,22 +541,32 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--tag", default="", help="overrides the output file name")
     parser.add_argument("--sprite-px", type=int, default=0,
                         help="composite the item at this size instead of 220 px")
+    parser.add_argument("--model", default="", help="overrides LLM_VISION_MODEL for this run")
+    parser.add_argument("--timeout", type=float, default=0.0,
+                        help="seconds per call, instead of LLM_TIMEOUT_S")
+    parser.add_argument("--out-dir", default="lane-k",
+                        help="folder under briefs/reports to write into")
+    parser.add_argument("--files", default="",
+                        help="comma separated image paths, for objects with no manifest row")
     parser.add_argument("--no-crops", action="store_true")
     return parser
 
 
 def main(argv: list[str] | None = None) -> int:
+    global REPORTS
     args = build_parser().parse_args(argv)
     settings = get_settings()
     if settings.llm_provider.strip().lower() != "openai" or not settings.openai_api_key:
         print("this bench needs LLM_PROVIDER=openai and a key in the repo root .env")
         return 2
+    REPORTS = REPORTS_ROOT / args.out_dir
     config = Config(effort=args.effort, service_tier=args.service_tier, max_px=args.max_px,
-                    detail=args.detail, model=settings.llm_vision_model)
+                    detail=args.detail, model=args.model or settings.llm_vision_model)
     only = tuple(part.strip() for part in args.only.split(",") if part.strip())
+    files = tuple(part.strip() for part in args.files.split(",") if part.strip())
     print(f"bench {config.title}, repeat {args.repeat}, per item {args.per_item}")
     rows = run(config, args.per_item, args.repeat, only, args.background,
-               not args.no_crops, args.sprite_px)
+               not args.no_crops, args.sprite_px, files, args.timeout)
     if not rows:
         print("no photographs matched")
         return 1
@@ -476,7 +578,10 @@ def main(argv: list[str] | None = None) -> int:
     spend = sum(r.cost_microusd or 0 for r in rows)
     print(f"\n{config.title}")
     print(f"  calls {summary.calls} ({summary.failures} failed)")
-    print(f"  accuracy {summary.accuracy:.1%}  ask rate {summary.ask_rate:.1%}")
+    print(f"  accuracy {summary.accuracy:.1%} (exact {summary.exact_accuracy:.1%})  "
+          f"ask rate {summary.ask_rate:.1%}")
+    print(f"  unknown {summary.unknowns}, confidently wrong {summary.confidently_wrong}, "
+          f"over 4 s {summary.over_4s}")
     print(f"  model call median {summary.median_model_ms:.0f} ms, "
           f"p90 {summary.p90_model_ms:.0f} ms")
     print(f"  tokens in {summary.mean_tokens_in:.0f} (cached {summary.mean_cached:.0f}), "
@@ -485,7 +590,7 @@ def main(argv: list[str] | None = None) -> int:
           f"{'found' if price else 'missing, cost is blank'}")
     for line in summary.wrong:
         print(f"  wrong: {line}")
-    print(f"  written to briefs/reports/lane-k/bench_{tag}.csv and .md")
+    print(f"  written to briefs/reports/{args.out_dir}/bench_{tag}.csv and .md")
     (REPORTS / f"summary_{tag}.json").write_text(json.dumps(asdict(summary), indent=1),
                                                  encoding="utf-8")
     return 0

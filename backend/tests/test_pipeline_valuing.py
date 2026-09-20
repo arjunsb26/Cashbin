@@ -50,7 +50,9 @@ class SlowEstimator:
         self.last_call: CallUsage | None = None
         self.calls = 0
 
-    def estimate(self, label: str, vision: object, mass_g: float) -> ValueEstimate:
+    def estimate(
+        self, label: str, vision: object, mass_g: float, crop: bytes | None = None
+    ) -> ValueEstimate:
         self.calls += 1
         time.sleep(self.delay_s)
         return an_estimate(label)

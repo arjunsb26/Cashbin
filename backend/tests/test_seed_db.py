@@ -37,10 +37,10 @@ def test_seeding_twice_leaves_the_same_row_counts(settings: Settings) -> None:
         counts_after_second = _counts(session)
 
     assert counts_after_first == counts_after_second
-    assert first.inserted == 42
+    assert first.inserted == 62
     assert first.updated == 0
     assert second.inserted == 0
-    assert second.updated == 42
+    assert second.updated == 62
 
 
 def test_the_catalog_lands_with_its_mix_and_flags(settings: Settings) -> None:
@@ -131,8 +131,8 @@ def test_placeholder_rows_upsert_rather_than_duplicate(settings: Settings) -> No
         second = seed_all(session, allow_placeholders=True)
         catalog, assets = _counts(session)
     assert second.inserted == 0
-    assert second.updated == 42
-    assert (catalog, assets) == (30, 12)
+    assert second.updated == 62
+    assert (catalog, assets) == (50, 12)
 
 
 def test_an_empty_database_is_reported_as_empty(settings: Settings) -> None:
@@ -174,7 +174,7 @@ def test_a_seeded_catalog_is_served_by_the_api(settings: Settings, client: TestC
     with session_scope() as session:
         seed_all(session)
     items = client.get("/api/catalog").json()["items"]
-    assert len(items) == 30
+    assert len(items) == 50
     labels = [item["label"] for item in items]
     assert labels == sorted(labels)
     bagel = next(item for item in items if item["label"] == "bagel")

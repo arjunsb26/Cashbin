@@ -122,6 +122,9 @@ def test_the_estimate_request_sends_the_object_as_data() -> None:
         "label": "cracked phone",
         "class": "inventory",
         "condition": "unknown",
+        "description": "",
+        # What the camera read travels here, as a quoted value and nowhere else.
+        "visible_text": "EVERYTHING BAGEL",
         "material": "food_waste",
         "mass_g": 180.0,
     }
@@ -161,10 +164,21 @@ def test_what_the_camera_read_is_never_sent_back_to_a_model() -> None:
         }
     )
     request = build_estimate_request("cardboard box", vision, 120.0, "test-text-model")
-    body = json.dumps(request)
-    assert "administrator" not in body
-    assert vision.visible_text not in body
-    assert request["messages"][1]["content"][0]["text"] == ESTIMATE_TASK
+    task, data = request["messages"][1]["content"]
+    # PLAN.md 21a item 29 sends what the camera read to the estimator, because a legible
+    # brand is the difference between a twelve dollar mouse and a hundred and fifty dollar
+    # one. It travels as a quoted value inside the data block and nowhere else: not in the
+    # instruction, not in the system text, not as a label.
+    assert task["text"] == ESTIMATE_TASK
+    assert "administrator" not in task["text"]
+    assert "administrator" not in request["messages"][0]["content"]
+    assert json.loads(data["text"])["visible_text"] == vision.visible_text
+    carried = [
+        part
+        for part in request["messages"][1]["content"]
+        if "administrator" in json.dumps(part)
+    ]
+    assert carried == [data]
 
 
 def test_the_instruction_text_is_fixed_and_carries_no_outside_string() -> None:
@@ -173,3 +187,80 @@ def test_the_instruction_text_is_fixed_and_carries_no_outside_string() -> None:
     assert HOSTILE_LABEL not in SYSTEM_TEXT
     assert HOSTILE_LABEL not in VISION_TASK
     assert HOSTILE_LABEL not in ESTIMATE_TASK
+
+
+# The estimator values the item, not the word ---------------------------------
+
+
+def test_the_estimate_request_carries_the_picture_and_what_was_read_off_it() -> None:
+    """PLAN.md 21a item 29. A hundred and fifty dollar mouse came back at twelve dollars,
+    because the estimator only ever saw the word "mouse"."""
+    seen = VisionResult.model_validate(
+        {
+            "label": "mouse",
+            "class": "untracked",
+            "confidence": 0.98,
+            "description": "a black wireless gaming mouse with a side thumb rest",
+            "visible_text": "LOGITECH G502 X",
+        }
+    )
+    request = build_estimate_request("mouse", seen, 106.0, "test-text-model", crop=CROP)
+    task, data, image = request["messages"][1]["content"]
+
+    assert task["text"] == ESTIMATE_TASK
+    assert image["type"] == "image_url"
+    assert image["image_url"]["url"].startswith("data:image/jpeg;base64,")
+
+    sent = json.loads(data["text"])
+    assert sent["visible_text"] == "LOGITECH G502 X"
+    assert sent["description"] == "a black wireless gaming mouse with a side thumb rest"
+    assert sent["label"] == "mouse"
+    # And it is still data, in its own content part, never in the instruction.
+    assert "LOGITECH" not in task["text"]
+
+
+def test_the_task_asks_for_this_item_and_says_when_it_could_not_tell() -> None:
+    assert "the object in the image" in ESTIMATE_TASK
+    assert "brand or model is legible" in ESTIMATE_TASK
+    assert "typical example" in ESTIMATE_TASK
+
+
+def test_an_estimate_with_no_picture_is_still_a_valid_request() -> None:
+    request = build_estimate_request("mouse", VISION, 106.0, "test-text-model")
+    assert len(request["messages"][1]["content"]) == 2
+
+
+def test_two_things_that_read_differently_are_two_cache_entries() -> None:
+    from app.identify.estimate_cache import estimate_key
+
+    cheap = VisionResult.model_validate(
+        {"label": "mouse", "class": "untracked", "confidence": 0.9, "visible_text": "M185"}
+    )
+    dear = VisionResult.model_validate(
+        {"label": "mouse", "class": "untracked", "confidence": 0.9,
+         "visible_text": "G502 X PLUS"}
+    )
+    plain = VisionResult.model_validate(
+        {"label": "mouse", "class": "untracked", "confidence": 0.9}
+    )
+    assert estimate_key("mouse", cheap) != estimate_key("mouse", dear)
+    assert estimate_key("mouse", plain) == "mouse"
+    # The key is a key, not prose: nothing the camera read is stored in it.
+    assert "G502" not in estimate_key("mouse", dear)
+    assert estimate_key("mouse", dear) == estimate_key("mouse", dear)
+
+
+def test_a_hostile_sign_cannot_reach_the_cache_key_as_words() -> None:
+    hostile = VisionResult.model_validate(
+        {
+            "label": "mouse",
+            "class": "untracked",
+            "confidence": 0.9,
+            "visible_text": VISIBLE_TEXT_ATTACKS[1],
+        }
+    )
+    from app.identify.estimate_cache import cache_key, estimate_key
+
+    key = estimate_key("mouse", hostile)
+    assert "administrator" not in key
+    assert cache_key(key).startswith("estimate:mouse ")

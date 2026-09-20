@@ -72,6 +72,37 @@ def apply_rate(rate: float, cents: int) -> int:
     return int(value.quantize(Decimal("1"), rounding=ROUND_HALF_UP))
 
 
+# PLAN.md 21a item 47. A model asked what a mouse is worth says 1173 cents, and 11.73 on a
+# bin reads as a number somebody measured rather than a number somebody estimated. These
+# are the steps a person uses out loud: fifty cents up to twenty dollars, a dollar to a
+# hundred, five dollars to a thousand, ten above that.
+MONEY_STEPS: tuple[tuple[int, int], ...] = (
+    (2_000, 50),
+    (10_000, 100),
+    (100_000, 500),
+)
+MONEY_STEP_ABOVE = 1_000
+
+
+def round_money(cents: int | None) -> int | None:
+    """One estimate, rounded to a figure a person would actually say.
+
+    Only the middle of a range is rounded. The low and the high keep every cent, because
+    the drawer draws the range and a rounded range would be a claim about precision that
+    nobody made.
+    """
+    if cents is None:
+        return None
+    size = abs(cents)
+    step = MONEY_STEP_ABOVE
+    for ceiling, candidate in MONEY_STEPS:
+        if size < ceiling:
+            step = candidate
+            break
+    sign = -1 if cents < 0 else 1
+    return sign * int(round(size / step) * step)
+
+
 def money(cents: int) -> str:
     """Cents as a plain dollar figure for a note a person reads."""
     sign = "-" if cents < 0 else ""
@@ -329,6 +360,14 @@ def tax_effect_for(
     effect = _dispatch(option, record, settings, asset)
     if effect is None:
         return None
+    sense = makes_no_sense(option, record, settings)
+    if sense is not None:
+        # PLAN.md 21a item 48. The user's words: it should not recommend stupid shit. The
+        # option stays on the ticket with the reason it was dropped, because a person
+        # reading the drawer should see what was considered and why it lost.
+        return effect.model_copy(
+            update={"allowed": False, "blocked_reason": sense}
+        )
     if option is Option.trash and is_blocked(record):
         return effect.model_copy(
             update={
@@ -346,6 +385,110 @@ def tax_effect_for(
             }
         )
     return effect
+
+
+# What a thing has to be worth before selling or giving it away is worth anybody's time.
+MIN_WORTH_SELLING_CENTS = 500
+# And what it has to cost new before repairing it beats buying another one.
+MIN_WORTH_REPAIRING_CENTS = 2_000
+# A repair that costs more than this share of a replacement is not a repair, it is a
+# slower way of buying one.
+REPAIR_SHARE_OF_REPLACEMENT = 0.6
+
+PACKAGING_MATERIALS_PREFIXES = ("mixed_paper", "corrugated", "mixed_plastics", "glass")
+
+TOO_CHEAP_TO_SELL = "It is worth under 5 dollars."
+TOO_CHEAP_TO_GIVE = "It is worth under 5 dollars."
+BROKEN_NOT_SELLABLE = "It is broken."
+NOT_WORTH_REPAIRING = "A new one costs under 20 dollars."
+REPAIR_COSTS_TOO_MUCH = "Repair costs more than most of replacing it."
+NOT_BROKEN_TO_REPAIR = "Nothing about it is broken."
+FOOD_NOT_SEALED = "Opened food cannot be donated."
+NOTHING_RECYCLES = "Nothing in it has a recycling route."
+PACKAGING_NOT_GOODS = "Packaging is not worth selling."
+
+
+def _is_packaging(record: ItemRecord) -> bool:
+    """Paper, card, plastic or glass and no food. A box is not a thing anybody resells."""
+    if not record.material_mix or is_food_item(record):
+        return False
+    return all(
+        material.startswith(PACKAGING_MATERIALS_PREFIXES)
+        for material in record.material_mix
+    )
+
+
+def _looks_sealed(record: ItemRecord) -> bool:
+    """Whether anybody said this food is still shut. Nothing is assumed either way."""
+    words = f"{record.detail} {record.description}".lower()
+    return "sealed" in words or "unopened" in words
+
+
+def makes_no_sense(
+    option: Option, record: ItemRecord, settings: EngineSettings
+) -> str | None:
+    """Why this option is not a real answer for this item, or None when it is.
+
+    PLAN.md 21a item 48. Every one of these is something the engine used to offer with a
+    straight face: reselling a bagel, repairing a nine dollar charger, donating half a
+    sandwich somebody had already started, recycling something with no recycling route.
+    """
+    broken = record.condition is Condition.broken
+    fmv = record.fmv_mid or 0
+    replacement = record.replacement_cents or 0
+    repair = record.repair_mid
+
+    if option is Option.resell:
+        if is_food_item(record):
+            # Food has its own rule and its own words, and it says more than this one.
+            return None
+        if _is_packaging(record):
+            return PACKAGING_NOT_GOODS
+        if broken:
+            return BROKEN_NOT_SELLABLE
+        if fmv < MIN_WORTH_SELLING_CENTS:
+            return TOO_CHEAP_TO_SELL
+
+    if option is Option.donate:
+        if is_food_item(record):
+            return None if _looks_sealed(record) else FOOD_NOT_SEALED
+        if broken:
+            return BROKEN_NOT_SELLABLE
+        if fmv < MIN_WORTH_SELLING_CENTS:
+            return TOO_CHEAP_TO_GIVE
+
+    if option is Option.repair:
+        if not broken:
+            return NOT_BROKEN_TO_REPAIR
+        if replacement < MIN_WORTH_REPAIRING_CENTS:
+            return NOT_WORTH_REPAIRING
+        if repair is not None and repair >= replacement * REPAIR_SHARE_OF_REPLACEMENT:
+            return REPAIR_COSTS_TOO_MUCH
+
+    if option is Option.recycle and not _recycles(record):
+        return NOTHING_RECYCLES
+
+    return None
+
+
+def _recycles(record: ItemRecord) -> bool:
+    """Does anything in this actually have somewhere to go?
+
+    Food composts, which counts. Everything else needs a material the WARM table publishes
+    a recycling factor for, otherwise "recycle it" is a word with nothing behind it.
+    """
+    from app.engine import carbon
+
+    if not record.material_mix:
+        return False
+    for material in record.material_mix:
+        if carbon.is_food_material(material):
+            if carbon.factor(material, carbon.Fate.compost) is not None:
+                return True
+            continue
+        if carbon.factor(material, carbon.Fate.recycle) is not None:
+            return True
+    return False
 
 
 def _dispatch(

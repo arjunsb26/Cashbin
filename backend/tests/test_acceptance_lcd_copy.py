@@ -20,7 +20,7 @@ from app.engine.records import ItemClass as EngineClass
 from app.engine.records import ItemRecord as EngineRecord
 from app.engine.records import Option
 from app.notify import lcd
-from app.pipeline import ADVICE, BINNED, BLOCKED_ADVICE, BLOCKED_ONLY, advice_line
+from app.pipeline import BINNED, BLOCKED_ADVICE, BLOCKED_ONLY, FINE_TO_BIN, advice_line
 from app.schemas import LCD_BIG_MAX, LCD_LINE_MAX
 
 # Marks and words no line the bin draws may carry. CLAUDE.md "Writing" and "What users see".
@@ -43,10 +43,10 @@ BANNED_WORDS = (
 
 def every_line_two() -> list[str]:
     """Every line 2 the pipeline can compose, from the three tables it composes them from."""
-    lines = list(ADVICE.values())
-    lines += list(BLOCKED_ADVICE.values())
+    lines = list(BLOCKED_ADVICE.values())
     lines.append(BLOCKED_ONLY)
-    lines += list(BINNED.values())
+    lines.append(FINE_TO_BIN)
+    lines.append(BINNED[EngineClass.fixed_asset])
     return lines
 
 
@@ -91,17 +91,19 @@ def test_the_composer_only_ever_returns_one_of_those_lines() -> None:
                 assert line in known, f"{cls} {best} blocked={blocked} gave {line!r}"
 
 
-def test_the_binned_line_names_what_happened_to_the_books() -> None:
-    """When binning is the best it can do, the line says what the toss did, not what to do."""
-    assert advice_line(record(), ranking(Option.trash), blocked=False) == (
-        "Written off as waste"
-    )
+def test_the_binned_line_says_the_bin_was_the_right_place() -> None:
+    """PLAN.md 21a item 37. Nothing to argue about, so the bin does not argue.
+
+    A tagged asset is the exception: it coming off the register is the news on that
+    ticket, and worth more than telling somebody the bin was acceptable.
+    """
+    assert advice_line(record(), ranking(Option.trash), blocked=False) == FINE_TO_BIN
+    assert advice_line(
+        record(**{"class": EngineClass.untracked}), ranking(Option.trash), blocked=False
+    ) == FINE_TO_BIN
     assert advice_line(
         record(**{"class": EngineClass.fixed_asset}), ranking(Option.trash), blocked=False
     ) == "Removed from books"
-    assert advice_line(
-        record(**{"class": EngineClass.untracked}), ranking(Option.trash), blocked=False
-    ) == "Nothing on the books"
 
 
 def test_a_blocked_bin_says_the_bin_is_closed_and_what_to_do_instead() -> None:
@@ -139,3 +141,51 @@ def test_a_label_a_person_writes_in_capitals_is_drawn_in_capitals() -> None:
     assert title_for("") == ""
     for label in ("usb-c charger", "hdmi cable", "cardboard box medium"):
         assert len(title_for(label)) <= LCD_LINE_MAX
+
+
+# When the bin is allowed to just be a bin ------------------------------------
+
+
+def _ranking_saving(option: Option | None, saved: int) -> Ranking:
+    return Ranking(
+        best_option=option,
+        greenest_option=option,
+        saved_if_followed_cents=saved,
+        tone="amber",
+    )
+
+
+def test_a_bagel_worth_three_cents_more_donated_is_fine_to_bin() -> None:
+    """PLAN.md 21a item 37. The user's words: if something is trash just say it is trash."""
+    line = advice_line(record(), _ranking_saving(Option.donate, 3), blocked=False)
+    assert line == FINE_TO_BIN
+
+
+def test_a_mouse_worth_fifteen_dollars_resold_says_so() -> None:
+    line = advice_line(record(), _ranking_saving(Option.resell, 1500), blocked=False)
+    assert line == "Resell it, not trash"
+
+
+def test_a_blocked_bin_always_names_the_option() -> None:
+    """A phone may not go in the bin whatever the money says."""
+    line = advice_line(record(), _ranking_saving(Option.repair, 0), blocked=True)
+    assert line == "Repair it, not trash"
+
+
+def test_the_threshold_is_a_setting() -> None:
+    saving = _ranking_saving(Option.resell, 250)
+    assert advice_line(record(), saving, blocked=False, speak_up_cents=100) == (
+        "Resell it, not trash"
+    )
+    assert advice_line(record(), saving, blocked=False, speak_up_cents=500) == FINE_TO_BIN
+
+
+def test_the_bin_winning_outright_is_fine_to_bin_too() -> None:
+    assert advice_line(record(), _ranking_saving(Option.trash, 0), blocked=False) == (
+        FINE_TO_BIN
+    )
+    assert advice_line(record(), _ranking_saving(None, 0), blocked=False) == FINE_TO_BIN
+
+
+def test_every_line_the_bin_can_draw_still_fits() -> None:
+    assert len(FINE_TO_BIN) <= 20
