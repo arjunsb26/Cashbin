@@ -26,6 +26,7 @@ from sqlalchemy.orm import Session
 from app import models
 from app.engine import carbon
 from app.engine.options import summarise
+from app.engine.tax import money
 from app.engine.records import AssetInfo, EngineSettings, Option
 from app.engine.records import AssetStatus as EngineAssetStatus
 from app.engine.records import ItemClass as EngineItemClass
@@ -671,15 +672,15 @@ def check_ledger_balance(session: Session, entries: Sequence[Any]) -> CloseCheck
     if balanced:
         detail = (
             f"{_plural(len(entries), 'entry', 'entries')}, every one balanced. "
-            f"The trial balance shows {debit_total} cents on each side."
+            f"Debits and credits both total ${money(debit_total)}."
         )
     elif unbalanced:
         listed = ", ".join(str(entry_id) for entry_id in unbalanced[:10])
         detail = f"{len(unbalanced)} entries do not balance on their own: {listed}."
     else:
         detail = (
-            f"The trial balance does not agree: {debit_total} cents of debits against "
-            f"{credit_total} cents of credits."
+            f"The trial balance does not agree: ${money(debit_total)} of debits against "
+            f"${money(credit_total)} of credits."
         )
 
     return CloseCheck(
