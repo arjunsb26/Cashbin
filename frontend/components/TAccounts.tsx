@@ -12,9 +12,12 @@ import { Button, EmptyState, SectionTitle } from "./ui";
 export function TAccounts({
   entries,
   difference,
+  names,
 }: {
   entries: JournalEntryRead[];
   difference: string;
+  /** Account code to account name, where the read that carries them was made. */
+  names?: Map<string, string>;
 }) {
   const [asTable, setAsTable] = useState(false);
   const book = entries.filter((e) => e.basis === "book");
@@ -37,11 +40,11 @@ export function TAccounts({
       </SectionTitle>
 
       {asTable ? (
-        <JournalTable entries={entries} />
+        <JournalTable entries={entries} names={names} />
       ) : (
         <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
-          <TColumn title="Book" entries={book} />
-          <TColumn title="Tax" entries={tax} />
+          <TColumn title="Book" entries={book} names={names} />
+          <TColumn title="Tax" entries={tax} names={names} />
         </div>
       )}
 
@@ -51,11 +54,22 @@ export function TAccounts({
 }
 
 /** The account name where the ledger gives one, the code where it does not. */
-export function accountWords(line: { account: string; account_name?: string | null }): string {
-  return line.account_name ?? line.account;
+export function accountWords(
+  line: { account: string; account_name?: string | null },
+  names?: Map<string, string>,
+): string {
+  return line.account_name ?? names?.get(line.account) ?? line.account;
 }
 
-function TColumn({ title, entries }: { title: string; entries: JournalEntryRead[] }) {
+function TColumn({
+  title,
+  entries,
+  names,
+}: {
+  title: string;
+  entries: JournalEntryRead[];
+  names?: Map<string, string>;
+}) {
   if (entries.length === 0) {
     return (
       <div>
@@ -75,13 +89,18 @@ function TColumn({ title, entries }: { title: string; entries: JournalEntryRead[
         return (
           <div key={entry.id}>
             <p className="border-b border-ink pb-1 text-body">{entry.memo}</p>
+            {lines.length === 0 ? (
+              <p className="pt-2 text-body text-ink-soft">
+                This memo moves nothing, so it has no lines.
+              </p>
+            ) : (
             <div className="grid grid-cols-2">
               <ul className="m-0 list-none border-r border-ink p-0 pr-3 pt-2">
                 {lines
                   .filter((_, i) => sides[i] === "debit")
                   .map((line) => (
                     <li key={line.id} className="flex justify-between gap-3 py-1 text-body">
-                      <span className="min-w-0 truncate">{accountWords(line)}</span>
+                      <span className="min-w-0 truncate">{accountWords(line, names)}</span>
                       <span>{formatMoney(line.debit_cents ?? 0)}</span>
                     </li>
                   ))}
@@ -91,13 +110,16 @@ function TColumn({ title, entries }: { title: string; entries: JournalEntryRead[
                   .filter((_, i) => sides[i] === "credit")
                   .map((line) => (
                     <li key={line.id} className="flex justify-between gap-3 py-1 text-body">
-                      <span className="min-w-0 truncate">{accountWords(line)}</span>
+                      <span className="min-w-0 truncate">{accountWords(line, names)}</span>
                       <span>{formatMoney(line.credit_cents ?? 0)}</span>
                     </li>
                   ))}
               </ul>
             </div>
-            <p className="pt-1 text-caption text-ink-soft">Debits left, credits right.</p>
+            )}
+            {lines.length > 0 ? (
+              <p className="pt-1 text-caption text-ink-soft">Debits left, credits right.</p>
+            ) : null}
           </div>
         );
       })}
@@ -105,7 +127,13 @@ function TColumn({ title, entries }: { title: string; entries: JournalEntryRead[
   );
 }
 
-export function JournalTable({ entries }: { entries: JournalEntryRead[] }) {
+export function JournalTable({
+  entries,
+  names,
+}: {
+  entries: JournalEntryRead[];
+  names?: Map<string, string>;
+}) {
   return (
     <table className="ledger green-bar w-full border-collapse text-body">
       <thead>
@@ -127,7 +155,7 @@ export function JournalTable({ entries }: { entries: JournalEntryRead[] }) {
           );
           return lines.map((line, i) => (
             <tr key={line.id} className="h-row border-b border-rule">
-              <td>{accountWords(line)}</td>
+              <td>{accountWords(line, names)}</td>
               <td className="text-ink-soft">{entry.memo}</td>
               <td className="text-right">
                 {sides[i] === "debit" ? formatMoney(line.debit_cents ?? 0) : ""}

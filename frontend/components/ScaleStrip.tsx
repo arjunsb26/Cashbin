@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef } from "react";
-import { formatCount } from "@/lib/format";
+import { asSentence, formatCount } from "@/lib/format";
 
 /**
  * The live trace, drawn on a canvas so it stays smooth. Colours are read from the
@@ -97,7 +97,9 @@ export function ScaleStrip({
             ? "Connecting to the bin."
             : connected
               ? "Bin connected"
-              : (detail ?? "Bin offline. Reconnecting.")}
+              : detail
+                ? asSentence(detail)
+                : "Bin offline. Reconnecting."}
         </p>
       </div>
     </div>

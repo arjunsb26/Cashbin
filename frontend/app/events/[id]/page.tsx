@@ -1,8 +1,8 @@
 "use client";
 
 import { use } from "react";
-import { useEvent } from "@/lib/api";
-import { bookVsTax, evidenceBundle } from "@/lib/derive";
+import { useEvent, useJournal } from "@/lib/api";
+import { accountNames, bookVsTax, evidenceBundle } from "@/lib/derive";
 import { formatDate, formatTime } from "@/lib/format";
 import { EvidenceBody } from "@/components/EvidenceBody";
 import { TAccounts } from "@/components/TAccounts";
@@ -19,6 +19,8 @@ import {
 export default function EventPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
   const event = useEvent(Number(id));
+  const journal = useJournal();
+  const names = accountNames(journal.data?.entries);
 
   if (event.isPending) {
     return (
@@ -69,6 +71,7 @@ export default function EventPage({ params }: { params: Promise<{ id: string }> 
       <TAccounts
         entries={detail.entries ?? []}
         difference={bookVsTax(detail.item_record?.class ?? detail.event.class)}
+        names={names}
       />
 
       {corrections.length > 0 ? (

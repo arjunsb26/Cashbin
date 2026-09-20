@@ -5,13 +5,16 @@ import { useClose, useEvents, useRunClose } from "@/lib/api";
 import {
   checkName,
   checkNumbers,
+  checkProse,
   closeReport,
+  noteBlocks,
   type CheckNumber,
   type CloseReport,
 } from "@/lib/derive";
 import {
   formatCount,
   formatDate,
+  formatGrams,
   formatMass,
   formatMoney,
   formatOption,
@@ -342,7 +345,7 @@ function Total({ cents }: { cents: number }) {
 }
 
 function checkValue(number: CheckNumber): string {
-  if (number.kind === "grams") return formatMass(number.value);
+  if (number.kind === "grams") return formatGrams(number.value);
   if (number.kind === "cents") return formatMoney(number.value);
   return formatCount(number.value);
 }
@@ -356,10 +359,9 @@ function CheckRow({
 }) {
   const tone = check.result === "pass" ? "kept" : check.result === "warn" ? "caution" : "red";
   const word = check.result === "pass" ? "Pass" : check.result === "warn" ? "Warn" : "Fail";
-  // The mass check writes its own balance, exactly as DESIGN.md draws it, so the
-  // numbers are not printed a second time underneath it.
-  const balance = (check.detail ?? "").indexOf("\n") >= 0;
-  const numbers = balance ? [] : checkNumbers(check);
+  const prose = checkProse(check);
+  const numbers = checkNumbers(check);
+  const note = noteBlocks(investigation);
 
   return (
     <li className="border-b border-rule py-3">
@@ -370,9 +372,7 @@ function CheckRow({
           {word}
         </span>
       </div>
-      {check.detail ? (
-        <p className="whitespace-pre-line pt-1 text-body text-ink-soft">{check.detail}</p>
-      ) : null}
+      {prose ? <p className="whitespace-pre-line pt-1 text-body text-ink-soft">{prose}</p> : null}
       {numbers.length > 0 ? (
         <dl className="m-0 grid max-w-[420px] grid-cols-[minmax(0,1fr)_120px] gap-y-1 pt-2">
           {numbers.map((n) => (
@@ -383,9 +383,13 @@ function CheckRow({
           ))}
         </dl>
       ) : null}
-      {investigation ? (
-        <div className={cx("mt-3 border-l-2 border-red-ink pl-3")}>
-          <p className="whitespace-pre-line text-body">{investigation}</p>
+      {note.length > 0 ? (
+        <div className={cx("mt-3 flex flex-col gap-1 border-l-2 border-red-ink pl-3")}>
+          {note.map((block, i) => (
+            <p key={i} className={block.kind === "heading" ? "text-section" : "text-body"}>
+              {block.text}
+            </p>
+          ))}
         </div>
       ) : null}
     </li>

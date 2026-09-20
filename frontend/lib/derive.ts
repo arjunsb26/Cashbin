@@ -111,6 +111,25 @@ export function finalIdentification(
   return finals[finals.length - 1] ?? rows[rows.length - 1] ?? null;
 }
 
+/**
+ * What the vision call saw, with its own answer in the list.
+ *
+ * The candidate list is the alternatives it weighed, so the label it settled on is
+ * not in it. A bar chart headed "from the photo alone" that leaves out the winner
+ * is a lie, so the winner goes back in at its own confidence.
+ */
+export function visionCandidates(
+  identification: IdentificationRead | null | undefined,
+): VisionCandidate[] {
+  const rows = identification?.candidates ?? [];
+  const label = identification?.label;
+  const merged =
+    label && !rows.some((row) => row.label === label)
+      ? [{ label, p: identification?.confidence ?? 0 }, ...rows]
+      : [...rows];
+  return merged.sort((a, b) => b.p - a.p);
+}
+
 /** The posterior arrives as a map. The bars want it sorted and capped. */
 export function posteriorCandidates(
   posterior: { [k: string]: number } | null | undefined,
@@ -121,6 +140,38 @@ export function posteriorCandidates(
     .sort((a, b) => b.p - a.p)
     .slice(0, limit);
 }
+
+/**
+ * The question a ticket is waiting on, rebuilt from what has been read.
+ *
+ * `ask.opened` only reaches a dashboard that was already open. A page opened or
+ * reloaded while a ticket is waiting has to work the question out of the ticket
+ * itself, or the question disappears and nobody answers it.
+ */
+export function askFromDetail(detail: EventDetail | null | undefined): AskView | null {
+  if (!detail || detail.event.status !== "asking") return null;
+  const identification = finalIdentification(detail.identifications);
+  const posterior = posteriorCandidates(identification?.posterior);
+  const candidates = (posterior.length > 0 ? posterior : (identification?.candidates ?? [])).slice(
+    0,
+    4,
+  );
+  if (candidates.length === 0) return null;
+  return {
+    type: "ask.opened",
+    event_id: detail.event.id,
+    crop_url: detail.event.crop_url ?? null,
+    candidates,
+  };
+}
+
+/** The same shape the socket sends, with the candidate list left as a plain array. */
+export type AskView = {
+  type: "ask.opened";
+  event_id: number;
+  crop_url: string | null;
+  candidates: { label: string; p: number }[];
+};
 
 // The weight trace ---------------------------------------------------------
 
@@ -247,7 +298,7 @@ export function formulaFor(detail: EventDetail): FormulaStep[] {
     });
     steps.push({
       label: "Difference",
-      expression: `${cents((record.book_value_cents ?? 0) - (record.tax_basis_cents ?? 0))} the books lose that the return does not`,
+      expression: `The books lose ${cents((record.book_value_cents ?? 0) - (record.tax_basis_cents ?? 0))} more than the return does`,
     });
     return steps;
   }
@@ -327,7 +378,7 @@ export function evidenceBundle(detail: EventDetail): EvidenceBundle {
     crop_url: detail.event.crop_url ?? null,
     trace: traceView(detail.trace),
     identification,
-    candidates: identification?.candidates ?? [],
+    candidates: visionCandidates(identification),
     posterior: posteriorCandidates(identification?.posterior),
     formula: formulaFor(detail),
     rule_ids: [...ruleIds],
@@ -336,6 +387,25 @@ export function evidenceBundle(detail: EventDetail): EvidenceBundle {
     mass_g: detail.event.mass_g ?? null,
     mass_err_g: detail.event.mass_err_g ?? null,
   };
+}
+
+/**
+ * Account code to account name.
+ *
+ * The journal read names every account; the single event read sends the code
+ * alone. Taking the names from the journal keeps one source for them, rather
+ * than a second copy of the chart of accounts living in the dashboard.
+ */
+export function accountNames(
+  entries: JournalEntryRead[] | null | undefined,
+): Map<string, string> {
+  const names = new Map<string, string>();
+  for (const entry of entries ?? []) {
+    for (const line of entry.lines ?? []) {
+      if (line.account_name) names.set(line.account, line.account_name);
+    }
+  }
+  return names;
 }
 
 // The close report ---------------------------------------------------------
@@ -520,6 +590,43 @@ const CHECK_NUMBER_WORDS: { [k: string]: string } = {
 };
 
 export type CheckNumber = { label: string; value: number; kind: "grams" | "cents" | "count" };
+
+/**
+ * A check writes its balance as padded text, which only lines up in a monospace
+ * face, and the dashboard has none. The numbers are on the check as numbers, so
+ * the balance is drawn from those and only the prose under it is printed.
+ */
+export function checkProse(check: CloseCheck): string {
+  const detail = check.detail ?? "";
+  const split = detail.indexOf("\n\n");
+  if (split < 0) return detail.includes("\n") ? "" : detail;
+  return detail.slice(split + 2).trim();
+}
+
+/**
+ * The investigator writes markdown. The page is not a markdown reader, so the
+ * note comes back as the lines it is made of, with the markers taken off.
+ */
+export type NoteBlock = { kind: "heading" | "text"; text: string };
+
+export function noteBlocks(markdown: string | null | undefined): NoteBlock[] {
+  if (!markdown) return [];
+  return markdown
+    .split(/\n{2,}/)
+    .map((block) => block.trim())
+    .filter((block) => block.length > 0)
+    .map((block) => {
+      const heading = /^#{1,6}\s+/.test(block);
+      const text = block
+        .replace(/^#{1,6}\s+/, "")
+        .replace(/\*\*(.+?)\*\*/g, "$1")
+        .replace(/`(.+?)`/g, "$1")
+        .replace(/\s*\n\s*/g, " ")
+        .trim();
+      return { kind: heading ? ("heading" as const) : ("text" as const), text };
+    })
+    .filter((block) => block.text.length > 0);
+}
 
 export function checkNumbers(check: CloseCheck): CheckNumber[] {
   return Object.entries(check.numbers ?? {})

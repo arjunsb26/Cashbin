@@ -1,7 +1,11 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
+  accountNames,
+  checkProse,
+  noteBlocks,
   asEstimateSource,
+  askFromDetail,
   bestOption,
   bookVsTax,
   checkName,
@@ -17,6 +21,7 @@ import {
   ticketFigure,
   traceView,
   trashBlocked,
+  visionCandidates,
 } from "./derive.ts";
 import type {
   CloseRead,
@@ -408,4 +413,110 @@ test("the class and the book against tax sentence are said in plain words", () =
   assert.equal(classWords(null), null);
   assert.ok(bookVsTax("inventory").includes("cost of goods sold"));
   assert.ok(bookVsTax(null).includes("no entry"));
+});
+
+test("a waiting ticket rebuilds its own question after a reload", () => {
+  const ask = askFromDetail(
+    detail({
+      event: event({ status: "asking", label: null, crop_url: "/media/3/crop.jpg" }),
+      identifications: [
+        {
+          id: 1,
+          event_id: 1,
+          method: "cloud",
+          label: "usb cable",
+          confidence: 0.44,
+          candidates: [{ label: "usb cable", p: 0.44 }],
+          posterior: { "usb-c charger": 0.52, "usb cable": 0.33 },
+          is_final: false,
+        },
+      ],
+    }),
+  );
+  assert.ok(ask);
+  assert.equal(ask.event_id, 1);
+  assert.equal(ask.crop_url, "/media/3/crop.jpg");
+  assert.deepEqual(
+    ask.candidates.map((c) => c.label),
+    ["usb-c charger", "usb cable"],
+  );
+});
+
+test("a ticket that is not waiting has no question", () => {
+  assert.equal(askFromDetail(detail()), null);
+  assert.equal(askFromDetail(null), null);
+  assert.equal(
+    askFromDetail(detail({ event: event({ status: "asking" }), identifications: [] })),
+    null,
+  );
+});
+
+test("the label the vision call settled on is in its own bar chart", () => {
+  const rows = visionCandidates({
+    id: 1,
+    event_id: 1,
+    method: "cloud",
+    label: "usb-c charger",
+    confidence: 0.78,
+    candidates: [
+      { label: "laptop charger", p: 0.16 },
+      { label: "power bank", p: 0.04 },
+    ],
+  });
+  assert.deepEqual(
+    rows.map((r) => r.label),
+    ["usb-c charger", "laptop charger", "power bank"],
+  );
+  assert.deepEqual(visionCandidates(null), []);
+});
+
+test("account names come from the read that carries them", () => {
+  const names = accountNames([
+    {
+      id: 1,
+      posted_at: "2026-09-19T14:24:00",
+      memo: "x",
+      basis: "book",
+      lines: [
+        { id: 1, entry_id: 1, account: "1500", account_name: "Fixed Assets" },
+        { id: 2, entry_id: 1, account: "1300", account_name: null },
+      ],
+    },
+  ]);
+  assert.equal(names.get("1500"), "Fixed Assets");
+  assert.equal(names.get("1300"), undefined);
+  assert.equal(accountNames(undefined).size, 0);
+});
+
+test("a balance block is left to the numbers, and the prose under it is kept", () => {
+  const check = {
+    id: "mass_conservation",
+    result: "pass" as const,
+    detail: [
+      "Scale reads  2,412 g",
+      "Tickets sum to  2,398 g",
+      "",
+      "The tare is the last bag change.",
+    ].join("\n"),
+    numbers: { difference_g: 14 },
+  };
+  assert.equal(checkProse(check), "The tare is the last bag change.");
+  assert.equal(checkProse({ id: "x", result: "pass", detail: "One line." }), "One line.");
+  assert.equal(checkProse({ id: "x", result: "pass" }), "");
+});
+
+test("the investigation note comes back without its markers", () => {
+  const blocks = noteBlocks(
+    [
+      "## Unresolved asks is worth a look",
+      "",
+      "1 ticket is **still** waiting",
+      "on a person.",
+    ].join("\n"),
+  );
+  assert.deepEqual(blocks, [
+    { kind: "heading", text: "Unresolved asks is worth a look" },
+    { kind: "text", text: "1 ticket is still waiting on a person." },
+  ]);
+  assert.deepEqual(noteBlocks(null), []);
 });

@@ -247,3 +247,22 @@ const STATUS_WORDS: Record<string, string> = {
 export function formatStatus(status: string): string {
   return STATUS_WORDS[status] ?? status;
 }
+
+/**
+ * A line the backend wrote about a device, set as a sentence. The backend is
+ * terse ("the bin disconnected"); the screen is not the log.
+ */
+export function asSentence(text: string): string {
+  const trimmed = text.trim();
+  if (trimmed.length === 0) return "";
+  const capitalised = trimmed.charAt(0).toUpperCase() + trimmed.slice(1);
+  return /[.!?]$/.test(capitalised) ? capitalised : `${capitalised}.`;
+}
+
+/**
+ * Always grams, whatever the size. The mass check is a balance to the gram, and
+ * rounding it into kilograms would hide the difference it exists to show.
+ */
+export function formatGrams(grams: number): string {
+  return `${whole.format(grams)}${THIN_SPACE}g`;
+}

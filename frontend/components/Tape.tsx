@@ -96,7 +96,9 @@ function TapeRow({
         <span className="text-caption text-ink-soft">{formatTime(event.created_at)}</span>
         {blocked ? <span className="text-caption text-red-ink">blocked</span> : null}
         <span className={cx("w-20 text-right", figure.cents < 0 && "text-red-ink")}>
-          {pending || !figure.known ? (
+          {event.kind !== "toss" ? (
+            <span className="text-caption text-ink-soft">no entry</span>
+          ) : pending || !figure.known ? (
             <span className="text-caption text-ink-soft">{pending ? "pending" : "no entry"}</span>
           ) : (
             formatMoney(figure.cents)

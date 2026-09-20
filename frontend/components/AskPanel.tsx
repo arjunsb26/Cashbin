@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import type { UiAskOpened } from "@/lib/types";
+import type { AskView } from "@/lib/derive";
 import { formatProbability, readLabel } from "@/lib/format";
 import { imageSrc, useAnswerAsk } from "@/lib/api";
 import { CropFrame } from "./CropFrame";
@@ -11,7 +11,7 @@ import { Button, Field, Input, cx } from "./ui";
  * The ask takes over the ticket body. Keys 1 to 4 answer it.
  * Free text is read into a small object first, and the page shows what it understood.
  */
-export function AskPanel({ ask }: { ask: UiAskOpened }) {
+export function AskPanel({ ask }: { ask: AskView }) {
   const [answered, setAnswered] = useState<string | null>(null);
   const [typing, setTyping] = useState(false);
   const [raw, setRaw] = useState("");

@@ -310,28 +310,30 @@ export function OptionTable({
                 <tr
                   key={option.option}
                   className={cx(
-                    "h-row border-b border-rule",
+                    "border-b border-rule",
+                    option.allowed ? "h-row" : "align-top",
                     isBest && "border-l-2 border-l-kept",
                     !option.allowed && "text-red-ink",
                   )}
                 >
-                  <td className={cx(!option.allowed && "line-through")}>
-                    {formatOption(option.option)}
+                  <td>
+                    <span className={cx(!option.allowed && "line-through")}>
+                      {formatOption(option.option)}
+                    </span>
                     {isBest ? <span className="pl-2 text-caption text-kept">best</span> : null}
                     {option.needs_human_review ? (
                       <span className="pl-2 text-caption text-caution">review</span>
                     ) : null}
+                    {!option.allowed && option.blocked_reason ? (
+                      <span className="block text-caption">{option.blocked_reason}</span>
+                    ) : null}
                   </td>
-                  <td className="text-right">
-                    {option.allowed ? (
-                      <Money
-                        cents={option.net_after_tax_cents}
-                        eventId={eventId}
-                        focus={`${option.option} after tax`}
-                      />
-                    ) : (
-                      <span className="text-caption">{option.blocked_reason}</span>
-                    )}
+                  <td className={cx("text-right", !option.allowed && "line-through")}>
+                    <Money
+                      cents={option.net_after_tax_cents}
+                      eventId={eventId}
+                      focus={`${option.option} after tax`}
+                    />
                   </td>
                   <td className="text-right">
                     <Co2

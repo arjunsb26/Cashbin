@@ -1,6 +1,7 @@
 "use client";
 
 import { useEventDetails, useSummary } from "@/lib/api";
+import { askFromDetail, type AskView } from "@/lib/derive";
 import { useLive } from "@/lib/live";
 import { formatCount, formatMoney, formatPercent, massParts } from "@/lib/format";
 import { AskPanel } from "@/components/AskPanel";
@@ -23,7 +24,18 @@ export default function LivePage() {
   const live = useLive();
   const tape = live.tape.slice(0, TAPE_ROWS);
   const details = useEventDetails(tape);
-  const ticket = live.ticket;
+  // A question outranks the next toss. While one is open it holds the ticket, so a
+  // toss landing seven seconds later cannot carry an unanswered ask off the screen.
+  const waiting = tape.find((e) => e.status === "asking") ?? null;
+  const open = live.ask;
+  const ask: AskView | null =
+    open && tape.some((e) => e.id === open.event_id)
+      ? { ...open, type: "ask.opened", crop_url: open.crop_url ?? null }
+      : askFromDetail(waiting ? details.get(waiting.id) : null);
+  const asked = ask ? (tape.find((e) => e.id === ask.event_id) ?? null) : null;
+  const ticket = asked
+    ? { event: asked, phase: "weighing" as const, arrival: 0 }
+    : live.ticket;
   const ticketDetail = ticket ? (details.get(ticket.event.id) ?? null) : null;
   const totals = summary.data;
 
@@ -91,9 +103,7 @@ export default function LivePage() {
               phase={ticket.phase}
               arrival={ticket.arrival}
             >
-              {live.ask && live.ask.event_id === ticket.event.id ? (
-                <AskPanel ask={live.ask} />
-              ) : undefined}
+              {asked && ask ? <AskPanel ask={ask} /> : undefined}
             </Ticket>
           ) : (
             <EmptyState title="No ticket on the scale. Toss something in the bin, or run the simulator." />

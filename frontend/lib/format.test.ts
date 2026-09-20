@@ -19,6 +19,8 @@ import {
   formatMethod,
   formatStatus,
   formatEstimateSource,
+  asSentence,
+  formatGrams,
 } from "./format.ts";
 
 const THIN = " ";
@@ -163,4 +165,15 @@ test("every estimate source has words, and an unknown one has none", () => {
   assert.equal(formatEstimateSource("human"), "confirmed by a person");
   assert.equal(formatEstimateSource("a new one"), null);
   assert.equal(formatEstimateSource(null), null);
+});
+
+test("a terse device line is set as a sentence", () => {
+  assert.equal(asSentence("the bin disconnected"), "The bin disconnected.");
+  assert.equal(asSentence("Reconnecting."), "Reconnecting.");
+  assert.equal(asSentence("   "), "");
+});
+
+test("the mass check stays in grams so a gram of difference still shows", () => {
+  assert.equal(formatGrams(2412), `2,412${THIN}g`);
+  assert.equal(formatGrams(0.7), `1${THIN}g`);
 });

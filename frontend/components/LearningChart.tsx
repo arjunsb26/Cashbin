@@ -53,6 +53,14 @@ export function LearningChart({ rounds }: { rounds: RoundRead[] }) {
   const cost = line((r) => r.cost_per_event_microusd, yCost);
   const last = rounds[rounds.length - 1];
 
+  const dot = (
+    value: number | null | undefined,
+    cx: number,
+    scale: (v: number) => number,
+    r: number,
+    fill: string,
+  ) => (value === null || value === undefined ? null : <circle cx={cx} cy={scale(value)} r={r} fill={fill} />);
+
   return (
     <div ref={host}>
       <svg
@@ -107,17 +115,14 @@ export function LearningChart({ rounds }: { rounds: RoundRead[] }) {
           strokeDasharray="4 3"
         />
 
-        {rounds.map((round, i) =>
-          round.first_try_accuracy === null || round.first_try_accuracy === undefined ? null : (
-            <circle
-              key={round.id}
-              cx={x(i)}
-              cy={yPercent(round.first_try_accuracy)}
-              r={2.5}
-              fill="var(--ink)"
-            />
-          ),
-        )}
+        {/* A dot on every point, so a first round with one measurement still reads. */}
+        {rounds.map((round, i) => (
+          <g key={round.id}>
+            {dot(round.first_try_accuracy, x(i), yPercent, 2.5, "var(--ink)")}
+            {dot(round.ask_rate, x(i), yPercent, 2, "var(--ink-soft)")}
+            {dot(round.cost_per_event_microusd, x(i), yCost, 2, "var(--ink-soft)")}
+          </g>
+        ))}
 
         {last ? (
           <>

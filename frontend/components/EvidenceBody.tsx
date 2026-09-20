@@ -30,7 +30,7 @@ export function EvidenceBody({ evidence }: { evidence: EvidenceBundle }) {
             label={`Crop for ${evidence.title}`}
             size={96}
           />
-          <div className="flex-1">
+          <div className="min-w-0 flex-1">
             {evidence.trace ? (
               <TraceChart trace={evidence.trace} />
             ) : (
