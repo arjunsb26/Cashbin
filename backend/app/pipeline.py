@@ -24,7 +24,8 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
-from collections.abc import Callable
+import time
+from collections.abc import Callable, Sequence
 from datetime import UTC, date, datetime
 
 from sqlalchemy import delete, select
@@ -34,7 +35,8 @@ from app import models
 from app.api.assets import to_asset_info
 from app.api.events import _summary as event_summary
 from app.config import Settings
-from app.detect.crop import FramePick
+from app.detect.crop import CropParams, Frame, FramePick, crop_item, pick_frames
+from app.detect.steps import Step
 from app.engine import options as engine_options
 from app.engine import records as engine_records
 from app.engine.records import (
@@ -50,12 +52,13 @@ from app.engine.records import (
     OptionScore,
 )
 from app.engine.tax import money, tax_effect_for
-from app.identify import estimate_cache
+from app.identify import early, estimate_cache
 from app.identify.embed import Embedder, get_embedder
 from app.identify.memory import MemoryIndex, get_memory
 from app.identify.pipeline import (
     IdentifyDeps,
     Providers,
+    build_context,
     build_providers,
     identify_event,
     set_on_final,
@@ -214,6 +217,35 @@ def to_catalog_item(row: models.CatalogItem) -> CatalogItem:
     )
 
 
+def _early_crop(frames: Sequence[Frame], opened_ms: float, at_ms: float) -> bytes | None:
+    """Cut the new thing out of the picture taken a moment after the step opened.
+
+    `pick_frames` works off a step, and at this point there is no step: the detector will
+    not know whether this was a toss for another second. A stand-in carrying the two stamps
+    it reads is enough, and keeps one frame picking rule for the early call and the real one.
+    """
+    if not frames:
+        return None
+    stand_in = Step(
+        kind="toss",
+        t_open_ms=opened_ms,
+        t_settle_ms=at_ms,
+        mass_g=0.0,
+        mass_err_g=0.0,
+        baseline_before_g=0.0,
+        baseline_after_g=0.0,
+    )
+    params = CropParams()
+    picked = pick_frames(frames, stand_in, params)
+    if picked.before is None or picked.after is None:
+        return None
+    try:
+        return crop_item(picked.before.jpeg, picked.after.jpeg, params).jpeg
+    except (ValueError, RuntimeError):
+        log.warning("the early crop did not come out, this toss waits for its settle")
+        return None
+
+
 def frame_bytes(frames: FramePick) -> list[bytes]:
     """The frames the QR reader gets: the after frame, then the peak frame.
 
@@ -262,6 +294,12 @@ class VisionRecorder:
             self.seen.pop(next(iter(self.seen)))
         return result
 
+    def remember(self, event_id: int, result: VisionResult) -> None:
+        """File an answer that was produced before the event had an id."""
+        self.seen[event_id] = result
+        while len(self.seen) > self.keep:
+            self.seen.pop(next(iter(self.seen)))
+
     def of(self, event_id: int) -> VisionResult | None:
         """What the model said about this event, if a model was asked at all."""
         return self.seen.get(event_id)
@@ -290,6 +328,7 @@ class PipelineDeps:
         self.embedder = embedder
         self.memory = memory
         self.vision = vision
+        self._ingest: IngestState | None = None
         self.identify = IdentifyDeps(
             session_factory=session_factory,
             providers=providers,
@@ -310,7 +349,9 @@ class PipelineDeps:
         knowing anything about the engine.
         """
         ingest.on_event = self.on_event
+        ingest.on_step_open = self.on_step_open
         ingest.current_round_id = self.current_round_id
+        self._ingest = ingest
         set_on_final(self.finalise_event)
 
     def current_round_id(self) -> int | None:
@@ -325,6 +366,68 @@ class PipelineDeps:
             return int(current.id) if current is not None else None
         finally:
             session.close()
+
+    # Stage zero: the model starts while the scale is still settling ---------
+
+    def on_step_open(self, opened_ms: float, baseline_g: float) -> None:
+        """Start the vision call the moment the weight moves, not when it stops moving.
+
+        PLAN.md section 7 waits `settle_ms` before it will call a step a step, and the
+        model takes seconds more after that. The two do not have to be in a row: the item
+        is in the picture as soon as it lands. This starts the call and `app.identify.early`
+        holds it until identification asks. Nothing is written anywhere until the event row
+        exists, so an aborted step leaves no trace but a log line.
+        """
+        ingest = self._ingest
+        if ingest is None or not self.settings.identify_at_step_open:
+            return
+        if not len(ingest.frames):
+            # No camera has sent anything, so there is no early picture to take and the
+            # toss is a weight and nothing else. PLAN.md rule 6: that is a real event.
+            log.debug("no frames in the ring, the step at %.0f ms waits for its settle",
+                      opened_ms)
+            return
+        early.start(opened_ms, self._early_vision(ingest, opened_ms, baseline_g))
+
+    async def _early_vision(
+        self, ingest: IngestState, opened_ms: float, baseline_g: float
+    ) -> early.EarlyResult:
+        """Wait for the item to be in shot, cut it out, and ask the model about it."""
+        delay_ms = float(self.settings.identify_open_delay_ms)
+        if delay_ms > 0:
+            await asyncio.sleep(delay_ms / 1000.0)
+        frames = ingest.frames.snapshot()
+        mass_g = max(0.0, ingest.latest_g - baseline_g)
+        crop = await asyncio.to_thread(_early_crop, frames, opened_ms, opened_ms + delay_ms)
+        if crop is None:
+            log.info(
+                "no usable frame %.0f ms after the step opened, this toss waits for its settle",
+                delay_ms,
+            )
+            return None, None
+        session = self.session_factory()
+        try:
+            context = build_context(
+                session,
+                event_id=0,
+                mass_g=mass_g,
+                mass_err_g=0.0,
+                settings=self.settings,
+                # The scale has not settled, so the mass in the data block is what the
+                # scale read a moment after the item landed. Say so rather than let the
+                # model read a settled figure into it.
+                hints={"mass": "measured before the scale settled"},
+            )
+        finally:
+            session.close()
+        started = time.perf_counter()
+        answer = await asyncio.to_thread(self.providers.vision.identify, crop, context)
+        log.info(
+            "the early vision call answered in %d ms about %.0f g",
+            int((time.perf_counter() - started) * 1000),
+            mass_g,
+        )
+        return answer, crop
 
     # Stage one: a step becomes an identification ---------------------------
 

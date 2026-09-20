@@ -20,6 +20,7 @@ from typing import Any
 from pydantic import BaseModel, ValidationError
 
 from app.config import Settings
+from app.detect.crop import downscale_jpeg
 from app.identify.cost import cost_microusd, price_for
 from app.identify.estimate_cache import read_estimate, write_estimate
 from app.identify.openai_request import build_estimate_request, build_vision_request
@@ -57,6 +58,7 @@ class _Adapter:
     def _parse(self, request: dict[str, Any], model: str, shape: type[BaseModel]) -> Any:
         parsed: Any = None
         tokens: tuple[int | None, int | None] = (None, None)
+        cached: int | None = None
         latency_ms: int | None = None
         for attempt in (1, 2):
             started = time.perf_counter()
@@ -67,6 +69,7 @@ class _Adapter:
             usage = getattr(reply, "usage", None)
             tokens = (getattr(usage, "prompt_tokens", None),
                       getattr(usage, "completion_tokens", None))
+            cached = self._cached_tokens(usage)
             try:
                 parsed = shape.model_validate_json(reply.choices[0].message.content or "")
                 break
@@ -78,9 +81,20 @@ class _Adapter:
             latency_ms=latency_ms, cost_microusd=cost_microusd(tokens[0], tokens[1], price),
             price_known=price is not None,
         )
-        log.info("openai model=%s tokens_in=%s tokens_out=%s latency_ms=%s",
-                 model, tokens[0], tokens[1], latency_ms)
+        log.info(
+            "openai model=%s tier=%s effort=%s tokens_in=%s cached_in=%s tokens_out=%s "
+            "latency_ms=%s",
+            model, request.get("service_tier", "default"), request.get("reasoning_effort"),
+            tokens[0], cached, tokens[1], latency_ms,
+        )
         return parsed
+
+    @staticmethod
+    def _cached_tokens(usage: Any) -> int | None:
+        """How much of the prompt the host billed at the cached rate, when it says."""
+        details = getattr(usage, "prompt_tokens_details", None)
+        value = getattr(details, "cached_tokens", None)
+        return int(value) if isinstance(value, int) else None
 
 
 class OpenAIVisionProvider(_Adapter):
@@ -88,7 +102,16 @@ class OpenAIVisionProvider(_Adapter):
 
     def identify(self, crop: bytes, context: IdentifyContext) -> VisionResult:
         model = self.settings.llm_vision_model
-        request = build_vision_request(crop, context, model, self.settings.llm_vision_effort)
+        picture = downscale_jpeg(
+            crop, self.settings.vision_image_max_px, self.settings.vision_image_quality
+        )
+        request = build_vision_request(
+            picture,
+            context,
+            model,
+            self.settings.llm_vision_effort,
+            self.settings.llm_service_tier,
+        )
         parsed = self._parse(request, model, VisionResult)
         if parsed is None:
             return VisionResult.model_validate(
@@ -111,7 +134,11 @@ class OpenAIEstimatorProvider(_Adapter):
             return cached
         model, effort = self.settings.llm_text_model, self.settings.llm_text_effort
         parsed = self._parse(
-            build_estimate_request(key, vision, mass_g, model, effort), model, ValueEstimate
+            build_estimate_request(
+                key, vision, mass_g, model, effort, self.settings.llm_service_tier
+            ),
+            model,
+            ValueEstimate,
         )
         if parsed is None:
             raise ValueError("the estimator returned nothing this code could read")

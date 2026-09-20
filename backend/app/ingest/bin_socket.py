@@ -152,9 +152,28 @@ class BinSession:
                 CHANNEL_UI,
             )
 
+        self.deps.latest_g = message.g
+        was_open = self.detector.is_open
         step = self.detector.push(Sample(t_ms=t_ms, g=message.g))
+        if not was_open and self.detector.is_open:
+            self.on_step_open(t_ms)
         if step is not None:
             self.on_step(step)
+
+    def on_step_open(self, t_ms: float) -> None:
+        """A candidate step has started. Nothing is known about it yet except when.
+
+        The detector will not call it a step until the weight has been stable for
+        `settle_ms`, and the identification after that costs seconds more. The picture is
+        already good, so the glue is told now and starts the model while the scale finishes.
+        """
+        baseline = self.detector.baseline_g or 0.0
+        log.info("%s step opened at %.0f ms over a baseline of %.1f g", self.source, t_ms,
+                 baseline)
+        try:
+            self.deps.on_step_open(t_ms, baseline)
+        except Exception:
+            log.exception("the step-open hook failed, the toss falls back to the settle")
 
     def on_step(self, step: Step) -> None:
         """Build the event off the read loop, so the weight stream keeps flowing.

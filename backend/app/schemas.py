@@ -185,6 +185,11 @@ LcdBig: TypeAlias = Annotated[
 LcdColour: TypeAlias = Literal["green", "amber", "red", "neutral"]
 Probability: TypeAlias = Annotated[float, Field(ge=0.0, le=1.0)]
 
+# How hard the host is asked to think, and which queue it is asked to use. Both lists are
+# the installed SDK's own, so a value that would be a 400 cannot be set.
+ReasoningEffort: TypeAlias = Literal["none", "minimal", "low", "medium", "high"]
+ServiceTier: TypeAlias = Literal["auto", "default", "flex", "scale", "priority", "fast"]
+
 FLAG_ELECTRONICS = "electronics"
 FLAG_BATTERY = "battery"
 
@@ -835,6 +840,11 @@ class SettingsRead(ApiModel):
     memory_max_dist: float
     round_size: int
     llm_timeout_s: float
+    # Added after the first real run, so they carry a default and an older client that does
+    # not know them still validates.
+    llm_service_tier: ServiceTier = "fast"
+    llm_vision_effort: ReasoningEffort = "none"
+    llm_text_effort: ReasoningEffort = "low"
 
 
 class SettingsUpdate(ApiModel):
@@ -851,6 +861,9 @@ class SettingsUpdate(ApiModel):
     memory_max_dist: float | None = Field(default=None, ge=0.0, le=2.0)
     round_size: int | None = Field(default=None, gt=0)
     llm_timeout_s: float | None = Field(default=None, gt=0.0)
+    llm_service_tier: ServiceTier | None = None
+    llm_vision_effort: ReasoningEffort | None = None
+    llm_text_effort: ReasoningEffort | None = None
 
 
 class DeviceTareResponse(ApiModel):

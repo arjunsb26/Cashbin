@@ -17,6 +17,7 @@ import logging
 from app.db import session_scope
 from app.detect.crop import CropParams, CropResult, FramePick, crop_item, pick_frames
 from app.detect.steps import Step
+from app.identify import early
 from app.ingest import media
 from app.ingest.state import IngestState
 from app.models import CropQuality, Event, EventKind, EventStatus
@@ -53,6 +54,14 @@ async def create_event_from_step(step: Step, deps: IngestState) -> int:
     """
     kind = _KINDS[step.kind]
     event_id = _insert_event(step, kind, deps)
+    # The early vision call, if there was one, was keyed by when the step opened. Now that
+    # the row exists it belongs to an event, and nothing is written before this point. A bag
+    # going out or an item coming back identifies nothing, so its call is dropped instead.
+    if kind is EventKind.toss:
+        if early.claim(step.t_open_ms, event_id):
+            log.info("event %d picked up the vision call started when the step opened", event_id)
+    else:
+        early.discard(step.t_open_ms, f"the step turned out to be a {kind.value}")
 
     picked, crop = _save_media(event_id, step, deps)
 

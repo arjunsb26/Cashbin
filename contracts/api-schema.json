@@ -2237,8 +2237,42 @@
         "disposal_fee_cents": {
           "type": "integer"
         },
+        "llm_service_tier": {
+          "default": "fast",
+          "enum": [
+            "auto",
+            "default",
+            "flex",
+            "scale",
+            "priority",
+            "fast"
+          ],
+          "type": "string"
+        },
+        "llm_text_effort": {
+          "default": "low",
+          "enum": [
+            "none",
+            "minimal",
+            "low",
+            "medium",
+            "high"
+          ],
+          "type": "string"
+        },
         "llm_timeout_s": {
           "type": "number"
+        },
+        "llm_vision_effort": {
+          "default": "none",
+          "enum": [
+            "none",
+            "minimal",
+            "low",
+            "medium",
+            "high"
+          ],
+          "type": "string"
         },
         "memory_max_dist": {
           "type": "number"
@@ -2333,11 +2367,66 @@
           ],
           "default": null
         },
+        "llm_service_tier": {
+          "anyOf": [
+            {
+              "enum": [
+                "auto",
+                "default",
+                "flex",
+                "scale",
+                "priority",
+                "fast"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "llm_text_effort": {
+          "anyOf": [
+            {
+              "enum": [
+                "none",
+                "minimal",
+                "low",
+                "medium",
+                "high"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
         "llm_timeout_s": {
           "anyOf": [
             {
               "exclusiveMinimum": 0.0,
               "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "llm_vision_effort": {
+          "anyOf": [
+            {
+              "enum": [
+                "none",
+                "minimal",
+                "low",
+                "medium",
+                "high"
+              ],
+              "type": "string"
             },
             {
               "type": "null"

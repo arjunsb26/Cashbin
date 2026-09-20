@@ -71,17 +71,25 @@ def strict_schema(model: type[BaseModel], drop: tuple[str, ...] = ()) -> dict[st
 
 
 def _request(model: str, effort: str, task: str, payload: dict[str, Any], name: str,
-             schema: dict[str, Any], strict: bool, image: bytes | None = None
-             ) -> dict[str, Any]:
-    """One request body. Outside strings go in the data block and nowhere else."""
+             schema: dict[str, Any], strict: bool, image: bytes | None = None,
+             service_tier: str = "") -> dict[str, Any]:
+    """One request body. Outside strings go in the data block and nowhere else.
+
+    Order matters for the bill as well as for the rule. The fixed instruction text comes
+    first and the per toss data comes last, so the host can charge the shared prefix at the
+    cached rate. The data block's own keys are sorted, which puts the catalog and the asset
+    tags, the same on every toss, ahead of the mass, which is not.
+    """
     content: list[dict[str, Any]] = [
         {"type": "text", "text": task},
         {"type": "text", "text": json.dumps(payload, ensure_ascii=True, sort_keys=True)},
     ]
     if image is not None:
         url = "data:image/jpeg;base64," + base64.b64encode(image).decode("ascii")
+        # The model is classifying an object, not reading fine print, so it is told to
+        # look at the picture cheaply. The full size crop stays on disk for the drawer.
         content.append({"type": "image_url", "image_url": {"url": url, "detail": "low"}})
-    return {
+    body: dict[str, Any] = {
         "model": model,
         "messages": [
             {"role": "system", "content": SYSTEM_TEXT},
@@ -93,10 +101,15 @@ def _request(model: str, effort: str, task: str, payload: dict[str, Any], name: 
         },
         "reasoning_effort": effort,
     }
+    # "default" is what an ordinary request already is, so asking for it would only give a
+    # host that does not know the parameter something to refuse.
+    if service_tier and service_tier != "default":
+        body["service_tier"] = service_tier
+    return body
 
 
 def build_vision_request(crop: bytes, context: IdentifyContext, model: str,
-                         effort: str = "low") -> dict[str, Any]:
+                         effort: str = "low", service_tier: str = "") -> dict[str, Any]:
     """The exact body sent for an identification."""
     payload = {
         "catalog_labels": list(context.catalog_labels),
@@ -106,11 +119,13 @@ def build_vision_request(crop: bytes, context: IdentifyContext, model: str,
         "hints": dict(context.hints),
     }
     schema = strict_schema(VisionResult, drop=("provider", "model"))
-    return _request(model, effort, VISION_TASK, payload, "vision_result", schema, True, crop)
+    return _request(
+        model, effort, VISION_TASK, payload, "vision_result", schema, True, crop, service_tier
+    )
 
 
 def build_estimate_request(label: str, vision: VisionResult, mass_g: float, model: str,
-                           effort: str = "low") -> dict[str, Any]:
+                           effort: str = "low", service_tier: str = "") -> dict[str, Any]:
     """The exact body sent for a value estimate. The object travels as data, same as above."""
     payload = {
         "label": normalise_label(label),
@@ -122,4 +137,7 @@ def build_estimate_request(label: str, vision: VisionResult, mass_g: float, mode
     # A material mix is an open set of keys, which strict mode cannot express, so this one
     # asks for the schema without the strict flag and lets pydantic be the wall.
     schema = strict_schema(ValueEstimate, drop=("provider", "model"))
-    return _request(model, effort, ESTIMATE_TASK, payload, "value_estimate", schema, False)
+    return _request(
+        model, effort, ESTIMATE_TASK, payload, "value_estimate", schema, False,
+        service_tier=service_tier,
+    )

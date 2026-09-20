@@ -10,6 +10,9 @@ Two of the fields are seams for other lanes and default to doing nothing:
   coordinator. Ingest never calls identification, the engine or the ledger itself.
 - `current_round_id` answers which round an event belongs to. Lane C owns rounds, so
   until then it answers None and the column stays empty.
+- `on_step_open` is where the early vision call hangs. The detector knows a step has
+  started about a second before it knows what it weighs, and the picture is good long
+  before that, so the glue starts the model then rather than after the settle.
 """
 
 from __future__ import annotations
@@ -53,6 +56,11 @@ class EventHook(Protocol):
     ) -> None: ...
 
 
+def no_step_open(opened_ms: float, baseline_g: float) -> None:
+    """The default step-open hook. Nothing starts early until a pipeline is attached."""
+    log.debug("no pipeline attached, the step at %.0f ms waits for its settle", opened_ms)
+
+
 async def no_pipeline(
     event_id: int,
     crop: bytes | None,
@@ -86,7 +94,11 @@ class IngestState:
         self.frames = frames or FrameRing()
         self.recorder = recorder
         self.on_event: EventHook = no_pipeline
+        self.on_step_open: Callable[[float, float], None] = no_step_open
         self.current_round_id: Callable[[], int | None] = no_round
+        # The most recent reading off the scale, so the early call can say roughly how
+        # heavy the thing is while the weight is still settling.
+        self.latest_g = 0.0
         # Exactly one bin connection is current. A second one replaces it.
         self.bin_current: object | None = None
         self.phone_count = 0

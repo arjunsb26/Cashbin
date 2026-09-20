@@ -24,7 +24,7 @@ from sqlalchemy.orm import Session
 
 from app.config import Settings, get_settings
 from app.db import get_session_factory
-from app.identify import qr
+from app.identify import early, qr
 from app.identify.embed import Embedder, get_embedder, to_bytes
 from app.identify.memory import DEFAULT_K, MemoryIndex, Neighbour, get_memory
 from app.identify.priors import MassPrior, fuse
@@ -362,6 +362,10 @@ async def identify_event(
     active.bus.publish(lcd.thinking(), CHANNEL_BIN)
     started = time.perf_counter()
 
+    # Whatever the step-open hook started for this toss. Taking it here rather than at the
+    # cloud stage means a QR tag or a remembered exemplar cancels it on the way out.
+    pending = early.take(event_id)
+
     session = active.session_factory()
     try:
         event = session.get(Event, event_id)
@@ -418,15 +422,14 @@ async def identify_event(
                 return await _finalise(session, event, row, active, started)
 
         # 3. The cloud call, in a thread, under the timeout. Any failure goes to the ask.
-        context = IdentifyContext(
+        context = build_context(
+            session,
             event_id=event_id,
-            mass_g=float(mass_g or 0.0),
-            mass_err_g=float(mass_err_g or 0.0),
-            timeout_s=settings.llm_timeout_s,
-            catalog_labels=facts.labels[:MAX_CONTEXT_LABELS],
-            asset_tags=_asset_tags(session),
+            mass_g=mass_g,
+            mass_err_g=mass_err_g,
+            settings=settings,
         )
-        vision = await _call_vision(active, crop or b"", context)
+        vision = await _vision_answer(active, pending, event_id, crop, context)
         method = IdentifyMethod.stub if active.providers.name == "stub" else IdentifyMethod.cloud
         usage = getattr(active.providers.vision, "last_call", None)
         if vision is None:
@@ -496,6 +499,8 @@ async def identify_event(
     finally:
         session.commit()
         session.close()
+        if pending is not None:
+            pending.cancel("the answer came from somewhere else")
 
 
 _NO_PRIOR = MassPrior(mean_g=0.0, var=0.0, n=0)
@@ -531,6 +536,61 @@ def _distribution(vision: VisionResult) -> dict[str, float]:
         dist[name] = max(dist.get(name, 0.0), float(candidate.p))
     total = sum(dist.values())
     return {label: p / total for label, p in dist.items()} if total > 1.0 else dist
+
+
+def build_context(
+    session: Session,
+    *,
+    event_id: int,
+    mass_g: float | None,
+    mass_err_g: float | None,
+    settings: Settings,
+    hints: dict[str, str] | None = None,
+) -> IdentifyContext:
+    """What a provider is allowed to know about one toss. Every field is code built."""
+    facts = catalog_facts(session)
+    return IdentifyContext(
+        event_id=event_id,
+        mass_g=float(mass_g or 0.0),
+        mass_err_g=float(mass_err_g or 0.0),
+        timeout_s=settings.llm_timeout_s,
+        catalog_labels=facts.labels[:MAX_CONTEXT_LABELS],
+        asset_tags=_asset_tags(session),
+        hints=dict(hints or {}),
+    )
+
+
+def remember_vision(provider: object, event_id: int, vision: VisionResult) -> None:
+    """Tell the glue's recorder what the model said, when the call had no event id yet.
+
+    The early call runs before the event row exists, so it cannot key the answer by event.
+    The second half of the pipeline reads the condition and the material off that record,
+    so the answer is filed here instead. A provider with no recorder simply has no method.
+    """
+    keep = getattr(provider, "remember", None)
+    if callable(keep):
+        keep(event_id, vision)
+
+
+async def _vision_answer(
+    deps: IdentifyDeps,
+    pending: early.Pending | None,
+    event_id: int,
+    crop: bytes | None,
+    context: IdentifyContext,
+) -> VisionResult | None:
+    """The model's answer: the call that is already running, or a fresh one."""
+    if pending is not None:
+        answer, _looked_at = await pending.result(deps.settings.llm_timeout_s)
+        if answer is not None:
+            remember_vision(deps.providers.vision, event_id, answer)
+            log.info(
+                "event %s was answered by the call that started when the step opened",
+                event_id,
+            )
+            return answer
+        log.info("the early call for event %s gave nothing, asking now", event_id)
+    return await _call_vision(deps, crop or b"", context)
 
 
 async def _call_vision(
@@ -657,6 +717,7 @@ __all__ = [
     "Outcome",
     "Providers",
     "ask_candidates",
+    "build_context",
     "build_providers",
     "catalog_facts",
     "get_deps",
@@ -664,6 +725,7 @@ __all__ = [
     "identify_event",
     "mass_fit_scores",
     "open_ask",
+    "remember_vision",
     "reset_identify",
     "reset_providers",
     "set_on_final",
