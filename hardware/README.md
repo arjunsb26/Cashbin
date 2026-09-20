@@ -231,3 +231,47 @@ python3 bridge.py --url ws://127.0.0.1:8000/ws/bin --source serial --serial-port
 ```
 
 Same protocol, same screens, no board specific calls anywhere in the path.
+
+## 10. A webcam instead of a phone
+
+The bin needs an eye over it. A phone on a stand is the plan, and a webcam plugged into
+the laptop does the same job with no second device and no certificate to accept.
+`webcam_client.py` is the phone page rewritten as a script: it opens the camera, sends
+about eight JPEG frames a second to the same `/ws/phone` socket, and prints every result
+and ask the backend sends back.
+
+See which cameras this laptop has:
+
+```
+uv run --project backend python hardware/webcam_client.py --list
+```
+
+Then point one at the bin and leave it running:
+
+```
+uv run --project backend python hardware/webcam_client.py --camera 0
+uv run --project backend python hardware/webcam_client.py --camera 0 --preview
+```
+
+`--preview` opens a small window showing exactly what is being sent, captioned with the
+last result, which is how you aim it. It is off by default. `scripts/demo_up.py` starts
+this client itself, so during the demo you never run it by hand.
+
+From another machine, use the secure origin and skip verification, because the
+certificate is self signed:
+
+```
+python hardware/webcam_client.py --url wss://192.168.137.1:8443/ws/phone --insecure
+```
+
+Notes worth knowing:
+
+- Capture comes from `opencv-python-headless`, which this repo already installs. That
+  build has no window support, so the preview is drawn with tkinter from the standard
+  library. Nothing new to install. If you would rather have the OpenCV window, swap the
+  headless build for the full `opencv-python` locally; do not add it to `pyproject.toml`.
+- Unplugging the camera is not fatal. The client says so once and retries the open every
+  two seconds, and the socket reconnects with backoff while it waits.
+- An index that opens is not always the camera you want. On this laptop index 0 is the
+  built in webcam, index 1 is a virtual camera from OBS and index 2 is the infrared
+  sensor, which returns a black frame. `--list` shows the resolution of each.
