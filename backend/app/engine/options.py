@@ -56,9 +56,16 @@ def score_one(
 
     net = effect.cash_cents + effect.tax_effect_cents
     if option is Option.repair and record.replacement_cents is not None:
-        net += record.replacement_cents
+        # PLAN.md 21a item 55. What a repair is worth is the mended item, capped at what
+        # buying another one would have cost. Adding the bare replacement priced a 10.00
+        # phone at 300.00 of avoided spend and put 150.00 into the headline saving.
+        worth = record.replacement_cents
+        if record.fmv_mid is not None:
+            worth = min(record.fmv_mid, record.replacement_cents)
+        net += worth
         notes.append(
-            f"Repairing avoids buying a replacement at {tax.money(record.replacement_cents)}."
+            f"Repairing leaves something worth {tax.money(worth)}, against a replacement "
+            f"at {tax.money(record.replacement_cents)}."
         )
 
     if option is Option.trash and _looks_like_equipment(record, settings):

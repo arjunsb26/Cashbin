@@ -407,6 +407,13 @@ TOO_CHEAP_TO_GIVE = "It is worth under 5 dollars."
 BROKEN_NOT_SELLABLE = "It is broken."
 NOT_WORTH_REPAIRING = "A new one costs under 20 dollars."
 REPAIR_COSTS_TOO_MUCH = "Repair costs more than most of replacing it."
+# PLAN.md 21a item 55. A cracked phone worth 10.00 with a 150.00 repair quote used to come
+# back as "repair it, best", because the row was priced off the replacement rather than off
+# what the thing would be worth once it was fixed. Both halves of that are wrong: a thing
+# worth under 20 dollars is not worth a repair bill, and a repair that costs more than the
+# mended item is worth is a donation to the repair shop.
+TOO_CHEAP_TO_REPAIR = "It is worth under 20 dollars."
+REPAIR_COSTS_MORE_THAN_IT_IS_WORTH = "Repair costs more than it is worth fixed."
 NOT_BROKEN_TO_REPAIR = "Nothing about it is broken."
 FOOD_NOT_SEALED = "Opened food cannot be donated."
 NOTHING_RECYCLES = "Nothing in it has a recycling route."
@@ -518,6 +525,11 @@ def makes_no_sense(
             return NOT_WORTH_REPAIRING
         if repair is not None and repair >= replacement * REPAIR_SHARE_OF_REPLACEMENT:
             return REPAIR_COSTS_TOO_MUCH
+        # PLAN.md 21a item 55. Worth more fixed than the fix costs, or it is not a repair.
+        if fmv < MIN_WORTH_REPAIRING_CENTS:
+            return TOO_CHEAP_TO_REPAIR
+        if repair is not None and repair >= fmv:
+            return REPAIR_COSTS_MORE_THAN_IT_IS_WORTH
 
     if option is Option.recycle and not _recycles(record):
         return NOTHING_RECYCLES
