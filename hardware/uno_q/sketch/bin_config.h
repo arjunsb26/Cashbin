@@ -12,8 +12,8 @@
 // Display driver. Set exactly one to 1. A 240x320 SPI panel is almost always one of
 // these two, and they share the Adafruit GFX drawing calls, so only the constructor
 // and the init call differ.
-#define USE_ILI9341 1
-#define USE_ST7789 0
+#define USE_ILI9341 0
+#define USE_ST7789 1
 
 // Set to 1 once Arduino App Lab's RPC names are confirmed on the board. See the
 // NEEDS_HARDWARE_CHECK block at the bottom of binbooks_bin.ino. With this at 0 the
