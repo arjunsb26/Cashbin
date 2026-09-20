@@ -1,0 +1,27 @@
+# The demo run, on photographs instead of drawn shapes. The same five steps as demo.yaml,
+# in the same order, with the same masses, so the two runs are comparable line for line.
+# Images are the 220 px sprites under sim/assets/real/sprites, which is the size an item
+# is composited at inside the phone's 640 px frame. Run it with
+# `--assets sim/assets/real`, which is where the bin background lives too.
+name: demo_real
+sigma: 0.8
+steps:
+  - kind: toss
+    label: bagel
+    mass_g: 95
+    image: sprites/bagel_1.jpg
+  - kind: toss
+    label: keyboard
+    mass_g: 780
+    image: sprites/keyboard_1.jpg
+    tag: BB-0002
+  - kind: toss
+    label: usb-c charger
+    mass_g: 62
+    image: sprites/usbc_charger_1.jpg
+  - kind: toss
+    label: phone
+    mass_g: 172
+    image: sprites/phone_cracked_1.jpg
+  - kind: bag_change
+    label: bag out

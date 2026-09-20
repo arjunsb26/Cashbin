@@ -1,0 +1,148 @@
+# Thirty tosses over real photographs, built to answer three questions in one run.
+#
+# Block A and block C are twelve distinct items, cold. Block B repeats block A and block D
+# repeats block C, same photograph, same order, so each item lands back in the slot it had
+# and the crop is the same picture: that is the free-on-the-second-toss case. Block E is a
+# second, different photograph of six of those items, which is the case a real bin actually
+# meets, and the one worth measuring. A bag goes out between blocks so the slots reset and
+# the crop of a later toss is not the removal of an earlier sprite.
+#
+# Run with `--assets sim/assets/real`. Answer every ask through POST /api/corrections.
+name: bench
+sigma: 0.9
+steps:
+  # Block A, cold, six distinct items
+  - kind: toss
+    label: bagel
+    mass_g: 95.0
+    image: sprites/bagel_1.jpg
+  - kind: toss
+    label: banana
+    mass_g: 118.0
+    image: sprites/banana_1.jpg
+  - kind: toss
+    label: soda can
+    mass_g: 15.0
+    image: sprites/soda_can_1.jpg
+  - kind: toss
+    label: keyboard
+    mass_g: 780.0
+    image: sprites/keyboard_1.jpg
+  - kind: toss
+    label: usb-c charger
+    mass_g: 62.0
+    image: sprites/usbc_charger_1.jpg
+  - kind: toss
+    label: mouse
+    mass_g: 95.0
+    image: sprites/mouse_1.jpg
+  - kind: bag_change
+    label: bag out
+  # Block B, block A again, same photograph
+  - kind: toss
+    label: bagel
+    mass_g: 95.0
+    image: sprites/bagel_1.jpg
+  - kind: toss
+    label: banana
+    mass_g: 118.0
+    image: sprites/banana_1.jpg
+  - kind: toss
+    label: soda can
+    mass_g: 15.0
+    image: sprites/soda_can_1.jpg
+  - kind: toss
+    label: keyboard
+    mass_g: 780.0
+    image: sprites/keyboard_1.jpg
+  - kind: toss
+    label: usb-c charger
+    mass_g: 62.0
+    image: sprites/usbc_charger_1.jpg
+  - kind: toss
+    label: mouse
+    mass_g: 95.0
+    image: sprites/mouse_1.jpg
+  - kind: bag_change
+    label: bag out
+  # Block C, cold, six more items
+  - kind: toss
+    label: coffee cup with lid
+    mass_g: 40.0
+    image: sprites/coffee_cup_1.jpg
+  - kind: toss
+    label: pizza slice
+    mass_g: 112.0
+    image: sprites/pizza_slice_1.jpg
+  - kind: toss
+    label: earbuds
+    mass_g: 55.0
+    image: sprites/earbuds_1.jpg
+  - kind: toss
+    label: hdmi cable
+    mass_g: 140.0
+    image: sprites/hdmi_cable_1.jpg
+  - kind: toss
+    label: power bank
+    mass_g: 210.0
+    image: sprites/power_bank_1.jpg
+  - kind: toss
+    label: laptop charger
+    mass_g: 320.0
+    image: sprites/laptop_charger_1.jpg
+  - kind: bag_change
+    label: bag out
+  # Block D, block C again, same photograph
+  - kind: toss
+    label: coffee cup with lid
+    mass_g: 40.0
+    image: sprites/coffee_cup_1.jpg
+  - kind: toss
+    label: pizza slice
+    mass_g: 112.0
+    image: sprites/pizza_slice_1.jpg
+  - kind: toss
+    label: earbuds
+    mass_g: 55.0
+    image: sprites/earbuds_1.jpg
+  - kind: toss
+    label: hdmi cable
+    mass_g: 140.0
+    image: sprites/hdmi_cable_1.jpg
+  - kind: toss
+    label: power bank
+    mass_g: 210.0
+    image: sprites/power_bank_1.jpg
+  - kind: toss
+    label: laptop charger
+    mass_g: 320.0
+    image: sprites/laptop_charger_1.jpg
+  - kind: bag_change
+    label: bag out
+  # Block E, a second photograph of six of the same objects
+  - kind: toss
+    label: bagel
+    mass_g: 96.0
+    image: sprites/bagel_2.jpg
+  - kind: toss
+    label: banana
+    mass_g: 121.0
+    image: sprites/banana_2.jpg
+  - kind: toss
+    label: soda can
+    mass_g: 15.4
+    image: sprites/soda_can_2.jpg
+  - kind: toss
+    label: keyboard
+    mass_g: 778.0
+    image: sprites/keyboard_2.jpg
+  - kind: toss
+    label: usb-c charger
+    mass_g: 63.0
+    image: sprites/usbc_charger_2.jpg
+  - kind: toss
+    label: mouse
+    mass_g: 94.0
+    image: sprites/mouse_2.jpg
+  - kind: bag_change
+    label: bag out
