@@ -94,6 +94,8 @@ EXPORTED: tuple[str, ...] = (
     "CatalogListResponse",
     "TrialBalanceRow",
     "JournalResponse",
+    "RuleRead",
+    "RulesResponse",
     "RoundRead",
     "RoundListResponse",
     "SummaryResponse",

@@ -800,6 +800,25 @@ class CloseRead(ApiModel):
     report: dict[str, Any] = Field(default_factory=dict)
 
 
+class RuleRead(ApiModel):
+    """One tax rule as the evidence drawer shows it.
+
+    The words and the link come from `tax_rules.yaml`, which is the only copy of either.
+    DESIGN.md 4.2 asks the drawer for the rule in plain language with its citation as a link,
+    so retyping the text into a client would be a second copy that drifts.
+    """
+
+    id: str
+    title: str
+    plain_text: str
+    citation_url: str | None = None
+    needs_human_review: bool = False
+
+
+class RulesResponse(ApiModel):
+    rules: list[RuleRead] = Field(default_factory=list)
+
+
 class SettingsRead(ApiModel):
     """Only the keys /api/settings may change. Nothing here is a secret."""
 

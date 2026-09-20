@@ -2062,6 +2062,52 @@
       ],
       "type": "object"
     },
+    "RuleRead": {
+      "description": "One tax rule as the evidence drawer shows it.\n\nThe words and the link come from `tax_rules.yaml`, which is the only copy of either.\nDESIGN.md 4.2 asks the drawer for the rule in plain language with its citation as a link,\nso retyping the text into a client would be a second copy that drifts.",
+      "properties": {
+        "citation_url": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "id": {
+          "type": "string"
+        },
+        "needs_human_review": {
+          "default": false,
+          "type": "boolean"
+        },
+        "plain_text": {
+          "type": "string"
+        },
+        "title": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "title",
+        "plain_text"
+      ],
+      "type": "object"
+    },
+    "RulesResponse": {
+      "properties": {
+        "rules": {
+          "items": {
+            "$ref": "#/$defs/RuleRead"
+          },
+          "type": "array"
+        }
+      },
+      "type": "object"
+    },
     "ScreenAsk": {
       "properties": {
         "l1": {
@@ -3117,6 +3163,12 @@
     },
     "RoundRead": {
       "$ref": "#/$defs/RoundRead"
+    },
+    "RuleRead": {
+      "$ref": "#/$defs/RuleRead"
+    },
+    "RulesResponse": {
+      "$ref": "#/$defs/RulesResponse"
     },
     "ScreenAsk": {
       "$ref": "#/$defs/ScreenAsk"

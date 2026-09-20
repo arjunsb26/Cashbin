@@ -16,7 +16,18 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 
-from app.api import assets, close, corrections, events, journal, metrics, settings, setup, sim
+from app.api import (
+    assets,
+    close,
+    corrections,
+    events,
+    journal,
+    metrics,
+    rules,
+    settings,
+    setup,
+    sim,
+)
 from app.config import APP_VERSION, REPO_DIR, Settings, get_settings
 from app.db import dispose_db, init_db, session_scope, table_names
 from app.ingest import bin_socket, phone_socket, ui_socket
@@ -193,6 +204,7 @@ def create_app(active: Settings | None = None) -> FastAPI:
     app.include_router(corrections.router)
     app.include_router(assets.router)
     app.include_router(journal.router)
+    app.include_router(rules.router)
     app.include_router(metrics.router)
     app.include_router(close.router)
     app.include_router(settings.router)

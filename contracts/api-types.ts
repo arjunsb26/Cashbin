@@ -103,6 +103,8 @@ export interface BinBooksContracts {
   PhoneResult?: PhoneResult;
   RoundListResponse?: RoundListResponse;
   RoundRead?: RoundRead;
+  RuleRead?: RuleRead;
+  RulesResponse?: RulesResponse;
   ScreenAsk?: ScreenAsk;
   ScreenIdle?: ScreenIdle;
   ScreenOffline?: ScreenOffline;
@@ -728,6 +730,30 @@ export interface RoundRead {
   n_corrected_after_confident?: number;
   n_events?: number;
   started_at: string;
+}
+/**
+ * One tax rule as the evidence drawer shows it.
+ *
+ * The words and the link come from `tax_rules.yaml`, which is the only copy of either.
+ * DESIGN.md 4.2 asks the drawer for the rule in plain language with its citation as a link,
+ * so retyping the text into a client would be a second copy that drifts.
+ *
+ * This interface was referenced by `BinBooksContracts`'s JSON-Schema
+ * via the `definition` "RuleRead".
+ */
+export interface RuleRead {
+  citation_url?: string | null;
+  id: string;
+  needs_human_review?: boolean;
+  plain_text: string;
+  title: string;
+}
+/**
+ * This interface was referenced by `BinBooksContracts`'s JSON-Schema
+ * via the `definition` "RulesResponse".
+ */
+export interface RulesResponse {
+  rules?: RuleRead[];
 }
 /**
  * This interface was referenced by `BinBooksContracts`'s JSON-Schema
