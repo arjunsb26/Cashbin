@@ -14,6 +14,13 @@ import {
   formatMicroUsd,
   formatProbability,
   readLabel,
+  formatTag,
+  formatOption,
+  formatMethod,
+  formatStatus,
+  formatEstimateSource,
+  asSentence,
+  formatGrams,
 } from "./format.ts";
 
 const THIN = " ";
@@ -134,4 +141,39 @@ test("an entry with no amount still puts its lines on the right side", () => {
     ]),
     ["debit", "credit"],
   );
+});
+
+test("a tag reads uppercase and the stored value is untouched", () => {
+  const stored = "bb-0002";
+  assert.equal(formatTag(stored), "BB-0002");
+  assert.equal(stored, "bb-0002");
+  assert.equal(formatTag("  bb-0013  "), "BB-0013");
+  assert.equal(formatTag(""), "");
+});
+
+test("an option and a method read the way a person says them", () => {
+  assert.equal(formatOption("resell"), "Resell");
+  assert.equal(formatOption("something new"), "something new");
+  assert.equal(formatMethod("qr"), "Read the asset tag");
+  assert.equal(formatStatus("asking"), "Asking");
+});
+
+test("every estimate source has words, and an unknown one has none", () => {
+  assert.equal(formatEstimateSource("catalog"), "from the catalog");
+  assert.equal(formatEstimateSource("register"), "from the register");
+  assert.equal(formatEstimateSource("model_estimate"), "estimated by the model");
+  assert.equal(formatEstimateSource("human"), "confirmed by a person");
+  assert.equal(formatEstimateSource("a new one"), null);
+  assert.equal(formatEstimateSource(null), null);
+});
+
+test("a terse device line is set as a sentence", () => {
+  assert.equal(asSentence("the bin disconnected"), "The bin disconnected.");
+  assert.equal(asSentence("Reconnecting."), "Reconnecting.");
+  assert.equal(asSentence("   "), "");
+});
+
+test("the mass check stays in grams so a gram of difference still shows", () => {
+  assert.equal(formatGrams(2412), `2,412${THIN}g`);
+  assert.equal(formatGrams(0.7), `1${THIN}g`);
 });

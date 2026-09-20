@@ -3,7 +3,8 @@
 import * as Dialog from "@radix-ui/react-dialog";
 import { X } from "lucide-react";
 import Link from "next/link";
-import { useEvidenceQuery } from "@/lib/api";
+import { useEvent } from "@/lib/api";
+import { evidenceBundle } from "@/lib/derive";
 import { useEvidence } from "./Providers";
 import { EvidenceBody } from "./EvidenceBody";
 import { Skeleton } from "./ui";
@@ -11,7 +12,8 @@ import { Skeleton } from "./ui";
 /** The one side panel in the product, because it has to sit beside the number it explains. */
 export function EvidenceDrawer() {
   const { request, close } = useEvidence();
-  const query = useEvidenceQuery(request?.eventId ?? null);
+  const query = useEvent(request?.eventId ?? null);
+  const evidence = query.data ? evidenceBundle(query.data) : null;
 
   return (
     <Dialog.Root open={request !== null} onOpenChange={(open) => (open ? null : close())}>
@@ -24,7 +26,7 @@ export function EvidenceDrawer() {
           <div className="flex items-start justify-between gap-3">
             <div>
               <Dialog.Title className="text-title">
-                {query.data ? query.data.title : "Where this number came from"}
+                {evidence ? evidence.title : "Where this number came from"}
               </Dialog.Title>
               {request ? (
                 <p className="pt-1 text-caption text-ink-soft">
@@ -55,12 +57,12 @@ export function EvidenceDrawer() {
             </p>
           ) : null}
 
-          {query.data ? <EvidenceBody evidence={query.data} /> : null}
+          {evidence ? <EvidenceBody evidence={evidence} /> : null}
 
-          {query.data ? (
+          {evidence ? (
             <Link
               className="mt-2 text-body underline underline-offset-2"
-              href={`/events/${query.data.event_id}`}
+              href={`/events/${evidence.event_id}`}
               onClick={close}
             >
               Open the full ticket

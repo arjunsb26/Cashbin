@@ -41,6 +41,35 @@ Newest first. Each lane writes under its own heading.
   plain HTTP on port 8000 rather than the self-signed 8443, hello first, and the five
   second ping timeout. Every JSON example above it is untouched.
 
+## 2026-09-19, lane d part 2: the dashboard on the real backend
+
+- `frontend/lib/types.ts` no longer restates a backend field. Every wire type is
+  re-exported from `contracts/api-types.ts`, and the socket union is built from the
+  generated `Ui*` interfaces so `message.type` narrows.
+- New `frontend/lib/derive.ts`: the shapes the screens make out of the contract,
+  as pure functions with 25 unit tests. The ticket figure, the estimate lines and
+  their sources, the weight trace and its shaded step, the evidence bundle, the
+  close report out of its open totals map, and the check names.
+- The product name now comes from the root `brand.json`. `frontend/brand.json` is
+  gone, and `pnpm check:brand` fails the build if the name is written out anywhere
+  under `/frontend`.
+- Every hook points at a real route: `/api/summary`, `/api/events`,
+  `/api/events/{id}`, `/api/journal` (entries and the trial balance in one read),
+  `/api/assets`, `/api/metrics/rounds` (rounds and what it learned),
+  `/api/settings`, `/api/close/latest`, `/api/setup`.
+- Writes are wired: answering an ask and correcting a label post `CorrectionCreate`,
+  "Void ticket" posts to `/api/events/{id}/void`, thresholds patch `/api/settings`
+  with `tone_co2e_kg` alongside them, "Run close" posts a `CloseRequest` over the
+  period the tickets cover, and "Start new round" is back on Learning.
+- `lib/live.ts` consumes `UiMessage` exactly. The scale strip draws `UiWeight`, a
+  ticket arrives on `event.created` with mass only and completes on `event.updated`,
+  asks open and resolve, the header totals are written straight from
+  `metrics.updated`, and the bin and phone lines come from `device.status`.
+- Tags display uppercase through `formatTag`, and the stored value stays lowercase.
+- The evidence drawer names the provider and model that served an identification,
+  and every estimate says where it came from.
+- Recharts is gone from the dependencies.
+
 ## 2026-09-19, lane f: period close and the investigator
 
 - `backend/app/ledger/close.py` runs a period close over the tables: write-offs by

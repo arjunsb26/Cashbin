@@ -1,5 +1,5 @@
 {
-  "name": "binbooks-dashboard",
+  "name": "dashboard",
   "private": true,
   "version": "0.1.0",
   "scripts": {
@@ -10,6 +10,7 @@
     "typecheck": "tsc --noEmit",
     "test": "node --test lib/*.test.ts",
     "check:hex": "node scripts/check-hex.mjs",
+    "check:brand": "node scripts/check-brand.mjs",
     "screenshots": "node scripts/screenshots.mjs"
   },
   "dependencies": {
@@ -23,8 +24,7 @@
     "next": "15.5.4",
     "qrcode": "^1.5.4",
     "react": "19.1.0",
-    "react-dom": "19.1.0",
-    "recharts": "^2.15.1"
+    "react-dom": "19.1.0"
   },
   "devDependencies": {
     "@fontsource/ibm-plex-sans": "^5.1.1",

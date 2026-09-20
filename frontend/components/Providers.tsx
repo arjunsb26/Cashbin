@@ -27,7 +27,15 @@ export function Providers({ children }: { children: ReactNode }) {
     () =>
       new QueryClient({
         defaultOptions: {
-          queries: { retry: false, refetchOnWindowFocus: false, staleTime: 5000 },
+          // One retry, because a read that lost a connection once is not an
+          // outage, and an error panel that a reload would have cleared teaches
+          // the room the wrong thing during a demo.
+          queries: {
+            retry: 1,
+            retryDelay: 400,
+            refetchOnWindowFocus: false,
+            staleTime: 5000,
+          },
         },
       }),
   );

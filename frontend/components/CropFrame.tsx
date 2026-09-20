@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import { ImageOff } from "lucide-react";
 import { cx } from "./ui";
 
@@ -18,7 +19,10 @@ export function CropFrame({
   size?: number;
   className?: string;
 }) {
-  if (src) {
+  const [failed, setFailed] = useState(false);
+  useEffect(() => setFailed(false), [src]);
+
+  if (src && !failed) {
     return (
       // eslint-disable-next-line @next/next/no-img-element
       <img
@@ -26,6 +30,7 @@ export function CropFrame({
         alt={label}
         width={size}
         height={size}
+        onError={() => setFailed(true)}
         className={cx("border border-rule object-cover", className)}
         style={{ width: size, height: size }}
       />
