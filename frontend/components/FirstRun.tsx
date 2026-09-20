@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { Check, Copy } from "lucide-react";
-import { FIRST_RUN_STEPS, FIRST_RUN_TITLE, SIMULATOR_COMMAND } from "@/lib/copy";
+import { FIRST_RUN_STEPS, FIRST_RUN_TITLE } from "@/lib/copy";
 import { cx } from "./ui";
 
 /**
@@ -27,7 +27,7 @@ export function FirstRun() {
           </li>
         ))}
       </ol>
-      <CommandBox command={SIMULATOR_COMMAND} />
+      {null}
     </div>
   );
 }
