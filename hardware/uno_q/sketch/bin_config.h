@@ -20,7 +20,60 @@
 // sketch talks over the serial link instead, which needs no board-specific API.
 #define USE_APP_LAB_RPC 0
 
+// Where the weight comes from ----------------------------------------------
+//
+// WEIGHT_SOURCE_HX711   a load cell through an HX711 amplifier, two digital pins, the
+//                       amplifier does the conversion and hands over raw counts
+// WEIGHT_SOURCE_ANALOG  a load gauge that puts out a plain analog voltage, one analog
+//                       pin, the board's own ADC does the conversion
+//
+// The bin we are building has the analog kind, so that is the default. The HX711 path is
+// kept whole because it costs nothing to keep and it is the commoner part, so a
+// replacement bought in a hurry will probably be one.
+#define WEIGHT_SOURCE_HX711 0
+#define WEIGHT_SOURCE_ANALOG 1
+
+#define WEIGHT_SOURCE WEIGHT_SOURCE_ANALOG
+
+// The analog load gauge ----------------------------------------------------
+//
+// NEEDS_HARDWARE_CHECK: which analog pin does the gauge's output go to? A0 through A5 on
+// the UNO Q's header. Nothing else in the sketch names a pin.
+#define ANALOG_WEIGHT_PIN A0
+
+// The ADC resolution to ask the core for, in bits. The UNO Q's STM32U585 converter does
+// 12 bits, and the core's analogReadResolution takes the number and scales for it. Asking
+// for more than the hardware has costs nothing and gains nothing, so 12 is the answer
+// here rather than a bigger number that would only be padded with zeroes.
+//
+// NEEDS_HARDWARE_CHECK: confirm on the board that analogReadResolution(12) sticks, by
+// checking that `calibrate` reports counts above 1023. If it reports 0 to 1023 the core
+// fell back to 10 bits, which is not fatal: take the two calibration points again at
+// whatever resolution it gives and the arithmetic below still works.
+#define ANALOG_READ_BITS 12
+
+// How many readings to average per reported value. The gauge is noisy in a way the HX711
+// is not, because there is no instrumentation amplifier in front of it, so eight samples
+// are averaged here. Eight reads take well under a millisecond and the loop reports every
+// 50 ms, so this costs nothing anybody can see.
+#define ANALOG_AVERAGE_OF 8
+
+// Two-point linear calibration, from the procedure in hardware/README.md section 5.
+//
+//   grams = (counts - ANALOG_ZERO_COUNTS) / ANALOG_COUNTS_PER_GRAM
+//
+// ANALOG_ZERO_COUNTS is what the empty bin reads. ANALOG_COUNTS_PER_GRAM is how much the
+// reading moves per gram, found by putting a known mass in and dividing the change by it.
+// Both are placeholders and the bin reads nonsense until they are measured.
+//
+// NEEDS_HARDWARE_CHECK: run `calibrate` twice, empty and with a known mass, and put the
+// two numbers here.
+#define ANALOG_ZERO_COUNTS 0.0f
+#define ANALOG_COUNTS_PER_GRAM 1.0f
+
 // Load cell amplifier ------------------------------------------------------
+//
+// Only read when WEIGHT_SOURCE is WEIGHT_SOURCE_HX711.
 //
 // NEEDS_HARDWARE_CHECK: which two pins is the HX711 wired to? Any two digital pins
 // work, the library bit-bangs the protocol. DT is the data line out of the amplifier,
