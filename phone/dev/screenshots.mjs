@@ -90,6 +90,17 @@ async function main() {
   await shot(page, "2-live");
   await page.click("#statusPill");
 
+  // 2b. adding a toss by hand, the control the backend only offers with its dev
+  // tools on. Escape closes it again, so the rest of the run starts from rest.
+  await page.waitForSelector("#addToss:not([hidden])");
+  await page.click("#addToss");
+  await page.waitForSelector('#addSheet[data-open="true"]');
+  await wait(400);
+  await shot(page, "11-add-toss");
+  await page.keyboard.press("Escape");
+  await page.waitForSelector('#addSheet[data-open="false"]');
+  await wait(400);
+
   // 3. a result
   await post("/api/dev/send", {
     type: "result",
@@ -179,6 +190,20 @@ async function main() {
   await page.click("#askOptions button");
   await page.waitForSelector('#askSheet[data-open="false"]');
   console.log("tapped a candidate");
+
+  // 6b. the hand added toss all the way through, so the mock logs the body and
+  // the ticket comes back over the socket like any other.
+  await page.click("#addToss");
+  await page.waitForSelector('#addSheet[data-open="true"]');
+  await page.fill("#addInput", "212");
+  await page.click("#addSend");
+  await page.waitForSelector('#addSheet[data-open="false"]');
+  await page.waitForSelector('#resultSheet[data-open="true"]', { timeout: 6000 });
+  await wait(400);
+  await shot(page, "12-add-toss-result");
+  const addedMass = await page.textContent("#resultMass");
+  if (!addedMass.startsWith("212")) throw new Error(`the added toss came back reading ${addedMass}`);
+  console.log(`the added toss came back as a ticket reading ${addedMass}`);
 
   await context.close();
 

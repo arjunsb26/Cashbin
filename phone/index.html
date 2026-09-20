@@ -41,6 +41,8 @@
       <p class="error" id="cameraError" hidden></p>
       <p class="learned" id="learnedLine" hidden></p>
 
+      <button type="button" class="add-toss" id="addToss" hidden>Add a toss</button>
+
       <section
         class="sheet"
         id="resultSheet"
@@ -85,6 +87,33 @@
             <button type="button" class="button button--primary" id="askSend" disabled>Send answer</button>
           </div>
           <p class="ask__note" id="askNote" hidden></p>
+        </div>
+      </section>
+
+      <section class="sheet" id="addSheet" data-open="false" data-tone="neutral" aria-label="Add a toss">
+        <div class="sheet__band"></div>
+        <div class="sheet__body">
+          <h1 class="section-title">Add a toss</h1>
+          <div class="field">
+            <label class="field__label" for="addInput">Weight in grams</label>
+            <span class="field__hint">About how much it weighs. The camera picture from right now is the photo.</span>
+            <input
+              class="field__input"
+              id="addInput"
+              type="text"
+              inputmode="numeric"
+              autocomplete="off"
+              autocorrect="off"
+              spellcheck="false"
+              maxlength="6"
+              value="150"
+            />
+          </div>
+          <p class="add__note" id="addNote" hidden></p>
+          <div class="add__actions">
+            <button type="button" class="button add__cancel" id="addCancel">Cancel</button>
+            <button type="button" class="button button--primary add__send" id="addSend">Add</button>
+          </div>
         </div>
       </section>
     </section>

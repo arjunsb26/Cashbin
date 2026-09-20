@@ -2,6 +2,28 @@
 
 Newest first. Each lane writes under its own heading.
 
+## 2026-09-20, lane n: add a toss from the phone
+
+- The phone page can make a toss by itself now, so a ticket can be raised without the
+  scale and without a laptop terminal. A small "Add a toss" button sits at the foot of the
+  live camera view, and tapping it opens a sheet in the same shape as the result sheet:
+  the label "Weight in grams", the hint that the camera picture from right now is the
+  photo, a numeric box that starts at 150, then Cancel and Add. Enter sends, Escape closes.
+- The button is drawn only when the backend still answers `POST /api/sim/expect`. The page
+  asks once at load with an empty body; a 404 leaves the button out of the page entirely,
+  so the demo build shows nothing here, not a disabled control. Anything else, including a
+  complaint about the empty body, counts as the route being there.
+- Add posts `{"mass_g": <number>}` to `POST /api/sim/toss` and closes. The ticket comes
+  back over the socket like any other toss. A 409 keeps the sheet open and shows the
+  sentence the backend sent; any other failure says the toss did not go in.
+- The weight is read into a number on the page before it is sent: digits and at most one
+  point, above zero, at or below 100000. Nothing else leaves the box.
+- The mock backend in `phone/dev/mock_server.py` now answers both routes, logs the posted
+  body and sends back a ticket carrying the weight that was typed, so the whole path can be
+  driven without the real backend. The screenshot run captures the sheet open
+  (`11-add-toss.png`) and the ticket that comes back from a hand added toss
+  (`12-add-toss-result.png`), and asserts the ticket reads the weight that was typed.
+
 ## 2026-09-19, lane l: a webcam camera and a one-command launcher
 
 - `hardware/webcam_client.py` makes any webcam the eye over the bin. It speaks the same

@@ -17,6 +17,8 @@ const TOOLTIP_MS = 4000;
 const BACKOFF_MIN_MS = 500;
 const BACKOFF_MAX_MS = 8000;
 const LABEL_MAX = 40;
+const MASS_DEFAULT = "150";
+const MASS_MAX_G = 100000;
 
 const TONES = ["green", "amber", "red", "neutral"];
 
@@ -51,6 +53,12 @@ const askInput = el("askInput");
 const askReadBack = el("askReadBack");
 const askSend = el("askSend");
 const askNote = el("askNote");
+const addToss = el("addToss");
+const addSheet = el("addSheet");
+const addInput = el("addInput");
+const addNote = el("addNote");
+const addSend = el("addSend");
+const addCancel = el("addCancel");
 
 /* ---- state ---- */
 
@@ -75,6 +83,7 @@ let answering = false;
 let heldResult = null;
 let heldTimer = 0;
 let wakeLock = null;
+let adding = false;
 
 const canvas = document.createElement("canvas");
 const context = canvas.getContext("2d", { alpha: false });
@@ -575,6 +584,108 @@ function setAskDisabled(disabled) {
   if (!disabled) onLabelInput();
 }
 
+/* ---- adding a toss by hand ----
+   A way to make a ticket without the scale or a laptop terminal. The control is
+   drawn only when the backend still has its simulator routes mounted, so the
+   demo build shows nothing at all here, not a disabled button. */
+
+async function checkDevTools() {
+  try {
+    const res = await fetch("/api/sim/expect", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: "{}",
+    });
+    // The route is gone in the demo build. Any other answer, including a
+    // complaint about the empty body, means the route is there.
+    if (res.status === 404) return;
+  } catch (err) {
+    return;
+  }
+  addToss.hidden = false;
+}
+
+/* The weight is read into a number before it goes anywhere: digits and at most
+   one point, above zero, at or below the cap. Nothing else leaves this page. */
+function readMass(raw) {
+  const cleaned = String(raw == null ? "" : raw).replace(/[^0-9.]/g, "");
+  const parts = cleaned.split(".");
+  const joined = parts.length > 2 ? parts[0] + "." + parts.slice(1).join("") : cleaned;
+  const value = Number.parseFloat(joined);
+  if (!isFinite(value) || value <= 0 || value > MASS_MAX_G) return null;
+  return value;
+}
+
+function openAdd() {
+  if (addToss.hidden) return;
+  closeResult();
+  adding = false;
+  addInput.value = MASS_DEFAULT;
+  hide(addNote);
+  setAddDisabled(false);
+  openSheet(addSheet);
+  addInput.focus();
+  addInput.select();
+}
+
+function closeAdd() {
+  closeSheet(addSheet);
+}
+
+function setAddDisabled(disabled) {
+  addSend.disabled = disabled;
+  addCancel.disabled = disabled;
+  addInput.disabled = disabled;
+}
+
+async function sendToss() {
+  if (adding) return;
+  const mass = readMass(addInput.value);
+  if (mass === null) {
+    show(addNote, "Type the weight in grams, above zero.");
+    addInput.focus();
+    return;
+  }
+  adding = true;
+  setAddDisabled(true);
+  hide(addNote);
+
+  let res;
+  try {
+    res = await fetch("/api/sim/toss", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ mass_g: mass }),
+    });
+  } catch (err) {
+    adding = false;
+    setAddDisabled(false);
+    show(addNote, "The toss did not go in. Try again.");
+    return;
+  }
+
+  if (!res.ok) {
+    let sentence = "";
+    if (res.status === 409) {
+      try {
+        const body = await res.json();
+        sentence = text(body && body.detail, 160);
+      } catch (err) {
+        sentence = "";
+      }
+    }
+    adding = false;
+    setAddDisabled(false);
+    show(addNote, sentence || "The toss did not go in. Try again.");
+    return;
+  }
+
+  adding = false;
+  setAddDisabled(false);
+  closeAdd();
+  // The ticket comes back over the socket, the same way a real toss does.
+}
+
 /* ---- wake lock ---- */
 
 async function requestWakeLock() {
@@ -603,6 +714,20 @@ askCrop.addEventListener("error", () => {
 askCrop.addEventListener("load", () => {
   askCrop.hidden = false;
 });
+addToss.addEventListener("click", openAdd);
+addSend.addEventListener("click", sendToss);
+addCancel.addEventListener("click", closeAdd);
+addInput.addEventListener("keydown", (event) => {
+  if (event.key === "Enter") {
+    event.preventDefault();
+    sendToss();
+  }
+});
+document.addEventListener("keydown", (event) => {
+  if (event.key !== "Escape" || addSheet.dataset.open !== "true" || adding) return;
+  event.preventDefault();
+  closeAdd();
+});
 
 document.addEventListener("visibilitychange", () => {
   if (document.visibilityState === "visible" && cameraRunning) requestWakeLock();
@@ -610,8 +735,10 @@ document.addEventListener("visibilitychange", () => {
 
 closeSheet(resultSheet);
 closeSheet(askSheet);
+closeSheet(addSheet);
 setThemeColour();
 loadBrand();
+checkDevTools();
 
 if (!window.isSecureContext) {
   show(startError, "This page must be opened over HTTPS. Browsers keep the camera off on an insecure connection.");
