@@ -89,8 +89,54 @@ export function Register() {
         <EmptyState title="No assets in this view. Add one, or clear the filter." />
       ) : null}
 
+      {/* One card per asset on a phone, every column present. The table starts
+          at the md breakpoint, where seven columns have room. */}
       {rows.length > 0 ? (
-        <div className="overflow-x-auto">
+        <ul className="m-0 flex list-none flex-col gap-3 p-0 md:hidden">
+          {rows.map((asset) => (
+            <li key={asset.id} className="border border-rule bg-surface p-3">
+              <div className="flex items-baseline justify-between gap-3">
+                <span className="text-body">{asset.description}</span>
+                <span className="font-condensed text-body text-ink-soft">{formatTag(asset.tag)}</span>
+              </div>
+              <p className="flex items-center gap-2 pt-1 text-caption text-ink-soft">
+                <StatusDot tone={STATUS_TONES[asset.status]} />
+                {STATUS_WORDS[asset.status]}, in service {formatDate(asset.in_service_date)}
+              </p>
+              <dl className="m-0 grid grid-cols-3 gap-2 pt-2">
+                <div>
+                  <dt className="text-caption text-ink-soft">Cost</dt>
+                  <dd className="m-0 text-body">
+                    <Money cents={asset.cost_cents} eventId={asset.disposed_event_id} focus="cost" />
+                  </dd>
+                </div>
+                <div>
+                  <dt className="text-caption text-ink-soft">Book value</dt>
+                  <dd className="m-0 text-body">
+                    <Money
+                      cents={asset.book_value_cents ?? 0}
+                      eventId={asset.disposed_event_id}
+                      focus="book value"
+                    />
+                  </dd>
+                </div>
+                <div>
+                  <dt className="text-caption text-ink-soft">Tax basis</dt>
+                  <dd className="m-0 text-body">
+                    <Money
+                      cents={asset.tax_basis_cents ?? 0}
+                      eventId={asset.disposed_event_id}
+                      focus="tax basis"
+                    />
+                  </dd>
+                </div>
+              </dl>
+            </li>
+          ))}
+        </ul>
+      ) : null}
+      {rows.length > 0 ? (
+        <div className="hidden overflow-x-auto md:block">
           <table className="ledger green-bar w-full min-w-[860px] border-collapse text-body">
             <thead>
               <tr className="border-b border-rule text-caption text-ink-soft">

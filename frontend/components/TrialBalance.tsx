@@ -46,6 +46,7 @@ function TrialBalance({
   const credits = rows.reduce((sum, r) => sum + (r.credit_cents ?? 0), 0);
   return (
     <div className="overflow-x-auto">
+      <p className="pb-2 text-caption text-ink-soft sm:hidden">Swipe sideways for the credit column.</p>
       <table className="ledger green-bar w-full min-w-[420px] max-w-[720px] border-collapse text-body">
         <thead>
           <tr className="border-b border-rule text-caption text-ink-soft">

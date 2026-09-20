@@ -7,7 +7,7 @@ import { entrySides, formatDate } from "@/lib/format";
 import type { JournalBasis } from "@/lib/types";
 import { accountWords } from "./TAccounts";
 import { Money } from "./Figure";
-import { EmptyState, ErrorState, Select, Skeleton } from "./ui";
+import { EmptyState, ErrorState, Select, Skeleton, cx } from "./ui";
 
 /** The journal as a ruled tape of entries, book and tax side by side. */
 export function Journal() {
@@ -43,8 +43,64 @@ export function Journal() {
       {journal.data && entries.length === 0 ? (
         <EmptyState title="No entries in this view yet. They post as tickets are finalised." />
       ) : null}
+      {/* A phone gets one card per entry with every column in it, because a
+          seven column table at 390 px either scrolls sideways or drops columns,
+          and both hide half the entry. The table starts at the md breakpoint. */}
       {entries.length > 0 ? (
-        <div className="overflow-x-auto">
+        <ul className="m-0 flex list-none flex-col gap-3 p-0 md:hidden">
+          {entries.map((entry) => {
+            const lines = entry.lines ?? [];
+            const sides = entrySides(
+              lines.map((l) => ({
+                debit_cents: l.debit_cents ?? 0,
+                credit_cents: l.credit_cents ?? 0,
+              })),
+            );
+            return (
+              <li key={entry.id} className="border border-rule bg-surface p-3">
+                <div className="flex items-baseline justify-between gap-3">
+                  <span className="text-caption text-ink-soft">
+                    {formatDate(entry.posted_at)}, {entry.basis === "book" ? "book" : "tax memo"}
+                  </span>
+                  {entry.event_id ? (
+                    <Link
+                      className="text-caption underline underline-offset-2"
+                      href={`/events/${entry.event_id}`}
+                    >
+                      Ticket {entry.event_id}
+                    </Link>
+                  ) : null}
+                </div>
+                {entry.memo ? <p className="pt-1 text-body">{entry.memo}</p> : null}
+                <ul className="m-0 list-none p-0 pt-2">
+                  {lines.map((line, i) => (
+                    <li
+                      key={line.id}
+                      className="flex items-baseline justify-between gap-3 border-t border-rule py-1.5"
+                    >
+                      <span className={cx("text-body", sides[i] === "credit" && "pl-4")}>
+                        {accountWords(line)}
+                      </span>
+                      <span className="whitespace-nowrap text-body">
+                        <span className="text-caption text-ink-soft">
+                          {sides[i] === "debit" ? "Debit " : "Credit "}
+                        </span>
+                        <Money
+                          cents={sides[i] === "debit" ? (line.debit_cents ?? 0) : (line.credit_cents ?? 0)}
+                          eventId={entry.event_id}
+                          focus={sides[i] === "debit" ? "debit" : "credit"}
+                        />
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              </li>
+            );
+          })}
+        </ul>
+      ) : null}
+      {entries.length > 0 ? (
+        <div className="hidden overflow-x-auto md:block">
           <table className="ledger green-bar w-full min-w-[840px] border-collapse text-body">
             <thead>
               <tr className="border-b border-rule text-caption text-ink-soft">

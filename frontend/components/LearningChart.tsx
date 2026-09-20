@@ -22,7 +22,9 @@ export function LearningChart({ rounds }: { rounds: RoundRead[] }) {
     // The drawing needs 480 units for the labels at the right ends of the lines to
     // sit beside their lines rather than on top of them. Below that the svg scales
     // itself down through the viewBox instead of running off the side of a phone.
-    const measure = () => setWidth(Math.max(element.clientWidth, 480));
+    // A phone gets a narrower drawing with a shorter label gutter, so the chart
+    // shrinks to about four fifths rather than to a stamp.
+    const measure = () => setWidth(Math.max(element.clientWidth, element.clientWidth < 480 ? 360 : 480));
     measure();
     const observer = new ResizeObserver(measure);
     observer.observe(element);
@@ -31,7 +33,7 @@ export function LearningChart({ rounds }: { rounds: RoundRead[] }) {
 
   const height = 280;
   const padLeft = 40;
-  const padRight = 150;
+  const padRight = width < 480 ? 118 : 150;
   const padTop = 16;
   const padBottom = 32;
   const plotWidth = width - padLeft - padRight;

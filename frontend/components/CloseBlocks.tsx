@@ -62,6 +62,7 @@ export function Rollforward({ block }: { block: RollforwardBlock }) {
         </p>
       ) : (
         <div className="overflow-x-auto">
+          <p className="pb-2 text-caption text-ink-soft md:hidden">Swipe sideways for the rest of the columns.</p>
           <table className="ledger green-bar w-full min-w-[640px] border-collapse text-body">
             <thead>
               <tr className="border-b border-rule text-caption text-ink-soft">
@@ -140,6 +141,7 @@ export function Reconciliation({ block }: { block: ReconciliationBlock }) {
         </p>
       ) : (
         <div className="overflow-x-auto">
+          <p className="pb-2 text-caption text-ink-soft md:hidden">Swipe sideways for the rest of the columns.</p>
           <table className="ledger green-bar w-full min-w-[620px] border-collapse text-body">
             <thead>
               <tr className="border-b border-rule text-caption text-ink-soft">
