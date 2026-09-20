@@ -320,7 +320,7 @@ export default function KitPage() {
         <div className="flex flex-wrap items-start gap-6 pt-6">
           <Ticket event={charger.event} detail={charger} />
           <Ticket event={asking.event} detail={asking} phase="weighing">
-            <AskPanel ask={fixtures.ASK} />
+            <AskPanel ask={fixtures.ASK} onDismiss={() => undefined} />
           </Ticket>
         </div>
         <div className="pt-6">
