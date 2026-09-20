@@ -2,6 +2,41 @@
 
 Newest first. Each lane writes under its own heading.
 
+## 2026-09-20, lane m: the UX pass after the first real use
+
+- The laptop layout reads a step larger. Body 16, secondary 14, section titles 17, header
+  totals 36 Condensed, the ticket figure 72 Condensed, the ticket sheet 640 px and the
+  ruled row 44 px, all from `app/tokens.css` under a 1024 px breakpoint. The 390 px layout
+  is untouched, so the phone still carries DESIGN.md section 2 as written.
+- The Live page fills its height. Under the current ticket the three tosses before it print
+  as compact tickets, the tape column ends in a round total with a hand drawn accuracy bar
+  when the tape is shorter than the column, and the scale strip is 120 px tall with a time
+  axis reading thirty seconds back to now and the mass written over every detected step.
+- Colour carries a little more meaning. The ticket takes a 4 px top band in the engine's
+  tone, the two totals that are money and mass kept out of the ground carry a tone dot, the
+  best option row is filled with a kept tint rather than marked with a rule, and a question
+  tints the ticket header in caution. Two tint tokens were added; no new hues, no gradients.
+- Every ticket says which of the three classes it is and why, in one line under the label.
+  "book loss" and "tax basis" and their neighbours explain themselves on hover, from one
+  copy file that the ticket, the drawer, the register and the kit all read.
+- A first run opens on a three step card with the simulator command in a box that copies,
+  and wraps rather than hiding its own second half.
+- Connecting, not answering and bin offline are three different states with three different
+  sentences, and skeletons never stand for more than ten seconds without one.
+- The evidence drawer reads the rule in plain words with its citation, the tape reads what
+  was actually posted, and the option table's carbon column reads CO2e avoided.
+- Window shortcuts stand aside for anything typed into an input, textarea, select or
+  contenteditable, the "Something else" box takes focus when it appears, and a half typed
+  label survives the panel being taken off the screen and put back.
+- An ask has a way out. "Not now" and Escape wave the question off without posting
+  anything: the ticket stays in the tape marked asking, so the close still counts it.
+  When the payload carries the model's own sentence, the ask prints it as "Looks like".
+- "Add a toss" on the Live page opens a dialog asking for a weight and posts it to the
+  simulator, for a demo with no bin on the desk. It is not rendered at all unless the
+  backend answers the simulator route, so the demo build never shows it.
+- An empty scale reads 0 g rather than -0 g, and the trace stays inside its own column
+  when the layout settles.
+
 ## 2026-09-19, lane l: a webcam camera and a one-command launcher
 
 - `hardware/webcam_client.py` makes any webcam the eye over the bin. It speaks the same
