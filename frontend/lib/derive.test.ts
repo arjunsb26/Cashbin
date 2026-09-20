@@ -19,6 +19,7 @@ import {
   mediaSrc,
   posteriorCandidates,
   co2eAvoided,
+  sameTreatment,
   tapeAmount,
   ticketTone,
   ticketFigure,
@@ -360,7 +361,15 @@ const CLOSE: CloseRead = {
     sustainability: { kg_to_landfill: 0.107, cheapest_equals_greenest_pct: 75 },
     ghost_assets: { rows: [{ tag: "bb-0006", description: "Desk monitor 24 inch" }] },
   },
-  checks: [{ id: "mass_conservation", result: "fail", detail: "x", numbers: { difference_g: 14 } }],
+  checks: [
+    {
+      id: "mass_conservation",
+      title: "Mass conservation",
+      result: "fail",
+      detail: "x",
+      numbers: { difference_g: 14 },
+    },
+  ],
   report: {},
 };
 
@@ -392,13 +401,18 @@ test("a close with an empty report does not throw", () => {
 });
 
 test("a check is named, and an unnamed one reads as words", () => {
-  assert.equal(checkName({ id: "mass_conservation", result: "pass" }), "Mass conservation");
-  assert.equal(checkName({ id: "new_check_here", result: "pass" }), "New check here");
+  assert.equal(checkName({ id: "mass_conservation", title: "", result: "pass" }), "Mass conservation");
+  assert.equal(checkName({ id: "new_check_here", title: "", result: "pass" }), "New check here");
+  assert.equal(
+    checkName({ id: "mass_conservation", title: "What the close calls it", result: "pass" }),
+    "What the close calls it",
+  );
 });
 
 test("only the numbers a check has words for are printed", () => {
   const numbers = checkNumbers({
     id: "mass_conservation",
+    title: "Mass conservation",
     result: "fail",
     numbers: { difference_g: 14, tolerance_g: 21, internal_thing: 1 },
   });
@@ -494,6 +508,7 @@ test("account names come from the read that carries them", () => {
 test("a balance block is left to the numbers, and the prose under it is kept", () => {
   const check = {
     id: "mass_conservation",
+    title: "Mass conservation",
     result: "pass" as const,
     detail: [
       "Scale reads  2,412 g",
@@ -504,8 +519,8 @@ test("a balance block is left to the numbers, and the prose under it is kept", (
     numbers: { difference_g: 14 },
   };
   assert.equal(checkProse(check), "The tare is the last bag change.");
-  assert.equal(checkProse({ id: "x", result: "pass", detail: "One line." }), "One line.");
-  assert.equal(checkProse({ id: "x", result: "pass" }), "");
+  assert.equal(checkProse({ id: "x", title: "", result: "pass", detail: "One line." }), "One line.");
+  assert.equal(checkProse({ id: "x", title: "", result: "pass" }), "");
 });
 
 test("the investigation note comes back without its markers", () => {
@@ -598,4 +613,25 @@ test("the tape prints what the journal posted where the backend says so", () => 
   const posted = { ...keyboard, posted_cents: -1750 } as typeof keyboard;
   assert.equal(tapeAmount(posted, null).cents, -1750);
   assert.equal(tapeAmount(posted, null).known, true);
+});
+
+test("the key that says how it decided is never a candidate", () => {
+  const posterior = { "usb-c charger": 0.5, "hdmi cable": 0.4, same_treatment: 1 };
+  const bars = posteriorCandidates(posterior);
+  assert.deepEqual(
+    bars.map((row) => row.label),
+    ["usb-c charger", "hdmi cable"],
+  );
+  assert.equal(sameTreatment(posterior), true);
+  assert.equal(sameTreatment({ "usb-c charger": 1 }), false);
+  assert.equal(sameTreatment(null), false);
+});
+
+test("an untracked ticket with no estimate yet is not worth zero", () => {
+  const untracked = event({ id: 9, class: "untracked", status: "identified", label: "power bank" });
+  const waiting = { event_id: 9, label: "power bank", class: "untracked" as const, mass_g: 180 };
+  assert.equal(ticketFigure(untracked, waiting).known, false);
+  const valued = { ...waiting, fmv: { mid: 1200, source: "model_estimate" as const } };
+  assert.equal(ticketFigure(untracked, valued).known, true);
+  assert.equal(ticketFigure(untracked, valued).cents, 1200);
 });

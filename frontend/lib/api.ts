@@ -17,7 +17,7 @@ import type {
   JournalResponse,
   RoundListResponse,
   RoundRead,
-  RuleRead,
+  RulesResponse,
   SettingsRead,
   SettingsUpdate,
   SetupResponse,
@@ -76,10 +76,9 @@ const source = MOCK
       settings: () => get<SettingsRead>("/api/settings"),
       close: () => getOrNull<CloseRead>("/api/close/latest"),
       setup: () => get<SetupResponse>("/api/setup").then((body) => body.items ?? []),
-      // The rules route is newer than this screen. A backend without it answers
-      // 404, and the drawer then prints the rule's code on its own, as it did.
-      rules: () =>
-        getOrNull<{ rules?: RuleRead[] }>("/api/rules").then((body) => body?.rules ?? []),
+      // A backend older than the rules route answers 404, and the drawer then
+      // prints the rule's code on its own, as it did before the route existed.
+      rules: () => getOrNull<RulesResponse>("/api/rules").then((body) => body?.rules ?? []),
     };
 
 /**

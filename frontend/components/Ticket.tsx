@@ -93,6 +93,9 @@ export function Ticket({
   const sort = classLine(record?.class ?? event.class, tag ? formatTag(tag) : null);
   const counted = useCountUp(figure.cents, arrival, phase === "identified" && arrival > 0);
   const identified = phase === "identified" && event.label !== null;
+  // The money leaves the critical path, so a ticket can be labelled seconds
+  // before it is valued. Until it is, the sheet prints the mass, not a false zero.
+  const priced = identified && figure.known;
   const options = detail?.options ?? [];
   const mass = event.mass_g ?? 0;
   // An open question is amber whatever the options say, because the answer is
@@ -161,14 +164,20 @@ export function Ticket({
               className={cx(
                 "font-condensed leading-none",
                 compact ? "text-total" : "text-figure",
-                isNegativeCents(figure.cents) && "text-red-ink",
+                priced && isNegativeCents(figure.cents) && "text-red-ink",
               )}
             >
-              {identified ? formatMoney(counted, { symbol: true }) : formatMass(mass)}
+              {priced ? formatMoney(counted, { symbol: true }) : formatMass(mass)}
             </span>
             <span className="pb-2 text-body text-ink-soft">
-              {identified ? <Term>{figure.caption}</Term> : "on the scale"}
-              {identified && figure.estimate ? (
+              {priced ? (
+                <Term>{figure.caption}</Term>
+              ) : identified ? (
+                "on the scale, being valued"
+              ) : (
+                "on the scale"
+              )}
+              {priced && figure.estimate ? (
                 <span className="pl-1">{ESTIMATE_MARKER}</span>
               ) : null}
             </span>
@@ -185,9 +194,11 @@ export function Ticket({
             <OptionTable eventId={event.id} options={options} />
           ) : (
             <p className="pt-4 text-caption text-ink-soft">
-              {identified
-                ? "No options were scored for this one."
-                : "The mass is in. The label and the options land next."}
+              {!identified
+                ? "The mass is in. The label and the options land next."
+                : !priced
+                  ? "The label is in. The money and the options land next."
+                  : "No options were scored for this one."}
             </p>
           )}
         </>

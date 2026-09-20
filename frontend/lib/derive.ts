@@ -64,8 +64,15 @@ export function ticketFigure(
     return { cents: -cost, caption: "waste expense", estimate, known: record != null };
   }
   if (itemClass === "untracked") {
-    const fmv = record?.fmv?.mid ?? 0;
-    return { cents: fmv, caption: "resale value", estimate, known: record != null };
+    // The estimate leaves the critical path, so a ticket can be labelled and
+    // classed with no value yet. Nothing on the books is not the same as zero.
+    const fmv = record?.fmv?.mid ?? null;
+    return {
+      cents: fmv ?? 0,
+      caption: "resale value",
+      estimate,
+      known: record != null && fmv != null,
+    };
   }
   return { cents: 0, caption: "nothing on the books", estimate, known: false };
 }
@@ -82,7 +89,7 @@ export function tapeAmount(
   event: EventSummary,
   record: ItemRecordRead | null | undefined,
 ): TicketFigure {
-  const posted = (event as { posted_cents?: unknown }).posted_cents;
+  const posted = event.posted_cents;
   if (typeof posted === "number") {
     const figure = ticketFigure(event, record);
     return { ...figure, cents: posted, known: true };
@@ -171,8 +178,7 @@ export function ticketTone(
  * form where it has it; where it does not, flipping the sign is the same figure.
  */
 export function co2eAvoided(option: OptionScoreRead): number | null {
-  const sent = (option as { kg_co2e_avoided?: unknown }).kg_co2e_avoided;
-  if (typeof sent === "number") return sent;
+  if (option.kg_co2e_avoided != null) return option.kg_co2e_avoided;
   if (option.kg_co2e == null) return null;
   return -option.kg_co2e;
 }
@@ -216,9 +222,30 @@ export function posteriorCandidates(
   limit = 4,
 ): VisionCandidate[] {
   return Object.entries(posterior ?? {})
+    .filter(([label]) => !isMarker(label))
     .map(([label, p]) => ({ label, p }))
     .sort((a, b) => b.p - a.p)
     .slice(0, limit);
+}
+
+/**
+ * The posterior map carries the odd key that says how the decision was made
+ * rather than what the thing was. A validated label is letters, digits, spaces
+ * and hyphens, so a key with an underscore in it is never a label and is never
+ * drawn as a bar or offered as an answer.
+ */
+function isMarker(key: string): boolean {
+  return key.includes("_");
+}
+
+/**
+ * True when the decision was made because the top two answers come out the same
+ * in the books, which is why a ticket that looks uncertain did not ask.
+ */
+export function sameTreatment(
+  posterior: { [k: string]: number } | null | undefined,
+): boolean {
+  return Object.keys(posterior ?? {}).includes("same_treatment");
 }
 
 /**
@@ -331,6 +358,8 @@ export type EvidenceBundle = {
   identification: IdentificationRead | null;
   candidates: VisionCandidate[];
   posterior: VisionCandidate[];
+  /** True when the top two answers come out the same in the books. */
+  same_treatment: boolean;
   formula: FormulaStep[];
   rule_ids: string[];
   human_confirmed: boolean;
@@ -460,6 +489,7 @@ export function evidenceBundle(detail: EventDetail): EvidenceBundle {
     identification,
     candidates: visionCandidates(identification),
     posterior: posteriorCandidates(identification?.posterior),
+    same_treatment: sameTreatment(identification?.posterior),
     formula: formulaFor(detail),
     rule_ids: [...ruleIds],
     human_confirmed: byHand || (detail.corrections ?? []).length > 0,
@@ -632,7 +662,8 @@ export function closeReport(read: CloseRead): CloseReport {
 
 /**
  * A check is identified by a key, and the statement needs a name for it.
- * An id nobody has named reads as words rather than as a key.
+ * The close names its own checks, so that name wins. The map behind it is what
+ * an older close, which sent the key alone, still reads as.
  */
 const CHECK_NAMES: { [k: string]: string } = {
   mass_conservation: "Mass conservation",
@@ -643,6 +674,7 @@ const CHECK_NAMES: { [k: string]: string } = {
 };
 
 export function checkName(check: CloseCheck): string {
+  if (check.title) return check.title;
   const known = CHECK_NAMES[check.id];
   if (known) return known;
   const words = check.id.replace(/[_-]+/g, " ").trim();

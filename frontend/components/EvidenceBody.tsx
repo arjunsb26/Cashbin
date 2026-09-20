@@ -67,6 +67,12 @@ export function EvidenceBody({ evidence }: { evidence: EvidenceBundle }) {
                 Served by {id.provider}, model {id.model}.
               </p>
             ) : null}
+            {evidence.same_treatment ? (
+              <p className="text-caption text-ink-soft">
+                Two answers were close, and the books do the same thing with either,
+                so nobody was asked.
+              </p>
+            ) : null}
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               {evidence.candidates.length > 0 ? (
                 <ProbabilityBars title="From the photo alone" candidates={evidence.candidates} />
