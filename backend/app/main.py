@@ -24,6 +24,7 @@ from app.api import (
     events,
     journal,
     metrics,
+    review,
     rules,
     settings,
     setup,
@@ -260,6 +261,7 @@ def create_app(active: Settings | None = None) -> FastAPI:
     app.include_router(rules.router)
     app.include_router(metrics.router)
     app.include_router(close.router)
+    app.include_router(review.router)
     app.include_router(settings.router)
     app.include_router(setup.router)
     if conf.dev_tools:

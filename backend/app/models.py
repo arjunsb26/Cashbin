@@ -92,6 +92,22 @@ class CropQuality(enum.StrEnum):
     low = "low"
 
 
+class ReviewKind(enum.StrEnum):
+    """Why a ticket landed in the review queue. Lane P, PLAN.md 21a item 39."""
+
+    donation = "donation"
+    estimate_above_threshold = "estimate_above_threshold"
+    possible_unrecorded_asset = "possible_unrecorded_asset"
+    unresolved_ask = "unresolved_ask"
+    confident_overruled = "confident_overruled"
+
+
+class ReviewStatus(enum.StrEnum):
+    open = "open"
+    approved = "approved"
+    rejected = "rejected"
+
+
 def _enum(python_enum: type[enum.Enum], name: str) -> SAEnum:
     """Store enum values, not member names, so the DB text matches the wire text."""
     return SAEnum(python_enum, name=name, values_callable=lambda e: [m.value for m in e])
@@ -347,6 +363,35 @@ class Close(Base):
     report_json: Mapped[str | None] = mapped_column(Text)
 
 
+class ReviewItem(Base):
+    """One thing a person has to approve or reject before the period is signed off.
+
+    One row per event per kind, so the catch-up pass in the close can run as often
+    as it likes without raising the same question twice.
+    """
+
+    __tablename__ = "review_item"
+    __table_args__ = (UniqueConstraint("event_id", "kind", name="uq_review_item_event_kind"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    kind: Mapped[ReviewKind] = mapped_column(_enum(ReviewKind, "review_kind"), nullable=False)
+    # A ticket that is taken out of the books entirely takes its open questions with it,
+    # so the queue can never point at a ticket that no longer exists.
+    event_id: Mapped[int] = mapped_column(
+        ForeignKey("event.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    asset_id: Mapped[int | None] = mapped_column(ForeignKey("asset.id", ondelete="SET NULL"))
+    amount_cents: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    reason: Mapped[str] = mapped_column(String(240), nullable=False, default="")
+    status: Mapped[ReviewStatus] = mapped_column(
+        _enum(ReviewStatus, "review_status"), nullable=False, default=ReviewStatus.open
+    )
+    decided_by: Mapped[str | None] = mapped_column(String(40))
+    decided_at: Mapped[str | None] = mapped_column(String(32))
+    note: Mapped[str | None] = mapped_column(String(240))
+    created_at: Mapped[str] = mapped_column(String(32), nullable=False, default=utc_now_iso)
+
+
 ALL_TABLES: tuple[str, ...] = (
     "settings",
     "catalog_item",
@@ -361,4 +406,5 @@ ALL_TABLES: tuple[str, ...] = (
     "exemplar",
     "round",
     "close",
+    "review_item",
 )

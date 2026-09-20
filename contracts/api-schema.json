@@ -736,10 +736,32 @@
         "created_at": {
           "type": "string"
         },
+        "form4797": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Form4797Block"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
         "id": {
           "type": "integer"
         },
         "investigation_md": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "memo_md": {
           "anyOf": [
             {
               "type": "string"
@@ -756,9 +778,31 @@
         "period_start": {
           "type": "string"
         },
+        "reconciliation": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ReconciliationBlock"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
         "report": {
           "additionalProperties": true,
           "type": "object"
+        },
+        "rollforward": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/RollforwardBlock"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
         },
         "status": {
           "type": "string"
@@ -1277,6 +1321,90 @@
         "kind",
         "status"
       ],
+      "type": "object"
+    },
+    "Form4797Block": {
+      "properties": {
+        "disclaimer": {
+          "default": "",
+          "type": "string"
+        },
+        "part_ii_line_10_cents": {
+          "default": 0,
+          "type": "integer"
+        },
+        "part_ii_rows": {
+          "items": {
+            "$ref": "#/$defs/Form4797Row"
+          },
+          "type": "array"
+        },
+        "part_iii_recapture_cents": {
+          "default": 0,
+          "type": "integer"
+        },
+        "part_iii_rows": {
+          "items": {
+            "$ref": "#/$defs/Form4797Row"
+          },
+          "type": "array"
+        }
+      },
+      "type": "object"
+    },
+    "Form4797Row": {
+      "properties": {
+        "cost_cents": {
+          "default": 0,
+          "type": "integer"
+        },
+        "date_acquired": {
+          "default": "",
+          "type": "string"
+        },
+        "date_disposed": {
+          "default": "",
+          "type": "string"
+        },
+        "depreciation_allowed_cents": {
+          "default": 0,
+          "type": "integer"
+        },
+        "description": {
+          "default": "",
+          "type": "string"
+        },
+        "gain_or_loss_cents": {
+          "default": 0,
+          "type": "integer"
+        },
+        "gross_proceeds_cents": {
+          "default": 0,
+          "type": "integer"
+        },
+        "line": {
+          "default": "",
+          "type": "string"
+        },
+        "part": {
+          "default": "II",
+          "enum": [
+            "II",
+            "III"
+          ],
+          "type": "string"
+        },
+        "recapture_note": {
+          "default": "",
+          "type": "string"
+        },
+        "rule_ids": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        }
+      },
       "type": "object"
     },
     "HealthResponse": {
@@ -1992,6 +2120,366 @@
         "tone",
         "best_option"
       ],
+      "type": "object"
+    },
+    "ReconciliationBlock": {
+      "description": "The M-1 shape: book loss, less the differences, equals the tax loss.",
+      "properties": {
+        "book_loss_cents": {
+          "default": 0,
+          "type": "integer"
+        },
+        "differences_cents": {
+          "default": 0,
+          "type": "integer"
+        },
+        "rows": {
+          "items": {
+            "$ref": "#/$defs/ReconciliationRow"
+          },
+          "type": "array"
+        },
+        "tax_loss_cents": {
+          "default": 0,
+          "type": "integer"
+        },
+        "ties": {
+          "default": true,
+          "type": "boolean"
+        },
+        "title": {
+          "default": "",
+          "type": "string"
+        }
+      },
+      "type": "object"
+    },
+    "ReconciliationRow": {
+      "description": "One disposed asset, book against tax, with the reason for the gap.",
+      "properties": {
+        "asset_id": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "book_loss_cents": {
+          "default": 0,
+          "type": "integer"
+        },
+        "description": {
+          "default": "",
+          "type": "string"
+        },
+        "difference_cents": {
+          "default": 0,
+          "type": "integer"
+        },
+        "event_id": {
+          "type": "integer"
+        },
+        "reason": {
+          "default": "",
+          "type": "string"
+        },
+        "rule_ids": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "tag": {
+          "default": "",
+          "type": "string"
+        },
+        "tax_loss_cents": {
+          "default": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "event_id"
+      ],
+      "type": "object"
+    },
+    "ReviewDecision": {
+      "description": "Who decided and why. Both fields are outside text, so both are cleaned.",
+      "properties": {
+        "by": {
+          "default": "person",
+          "maxLength": 40,
+          "type": "string"
+        },
+        "note": {
+          "default": "",
+          "maxLength": 240,
+          "type": "string"
+        }
+      },
+      "type": "object"
+    },
+    "ReviewDecisionResponse": {
+      "description": "What the decision did: the item as it now stands, and what it moved.",
+      "properties": {
+        "detail": {
+          "default": "",
+          "type": "string"
+        },
+        "difference_cents": {
+          "default": 0,
+          "type": "integer"
+        },
+        "item": {
+          "$ref": "#/$defs/ReviewItemRead"
+        },
+        "reversing_entry_ids": {
+          "items": {
+            "type": "integer"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "item"
+      ],
+      "type": "object"
+    },
+    "ReviewItemRead": {
+      "description": "One open question, as the Review tab lists it.",
+      "properties": {
+        "amount_cents": {
+          "default": 0,
+          "type": "integer"
+        },
+        "asset_id": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "asset_tag": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "candidates": {
+          "items": {
+            "$ref": "#/$defs/AskCandidate"
+          },
+          "type": "array"
+        },
+        "created_at": {
+          "default": "",
+          "type": "string"
+        },
+        "decided_at": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "decided_by": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "event_id": {
+          "type": "integer"
+        },
+        "id": {
+          "type": "integer"
+        },
+        "kind": {
+          "$ref": "#/$defs/ReviewKind"
+        },
+        "label": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "note": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "reason": {
+          "default": "",
+          "type": "string"
+        },
+        "status": {
+          "$ref": "#/$defs/ReviewStatus"
+        }
+      },
+      "required": [
+        "id",
+        "kind",
+        "status",
+        "event_id"
+      ],
+      "type": "object"
+    },
+    "ReviewKind": {
+      "description": "Why a ticket landed in the review queue. Lane P, PLAN.md 21a item 39.",
+      "enum": [
+        "donation",
+        "estimate_above_threshold",
+        "possible_unrecorded_asset",
+        "unresolved_ask",
+        "confident_overruled"
+      ],
+      "type": "string"
+    },
+    "ReviewListResponse": {
+      "properties": {
+        "items": {
+          "items": {
+            "$ref": "#/$defs/ReviewItemRead"
+          },
+          "type": "array"
+        },
+        "open_count": {
+          "default": 0,
+          "type": "integer"
+        }
+      },
+      "type": "object"
+    },
+    "ReviewStatus": {
+      "enum": [
+        "open",
+        "approved",
+        "rejected"
+      ],
+      "type": "string"
+    },
+    "RollforwardBlock": {
+      "properties": {
+        "period_end": {
+          "default": "",
+          "type": "string"
+        },
+        "period_start": {
+          "default": "",
+          "type": "string"
+        },
+        "rows": {
+          "items": {
+            "$ref": "#/$defs/RollforwardRow"
+          },
+          "type": "array"
+        },
+        "ties": {
+          "default": true,
+          "type": "boolean"
+        },
+        "total": {
+          "$ref": "#/$defs/RollforwardRow"
+        }
+      },
+      "type": "object"
+    },
+    "RollforwardRow": {
+      "description": "One asset's movement through the period, cost and accumulated depreciation.",
+      "properties": {
+        "additions_cents": {
+          "default": 0,
+          "type": "integer"
+        },
+        "asset_id": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "closing_accum_cents": {
+          "default": 0,
+          "type": "integer"
+        },
+        "closing_cost_cents": {
+          "default": 0,
+          "type": "integer"
+        },
+        "closing_nbv_cents": {
+          "default": 0,
+          "type": "integer"
+        },
+        "depreciation_cents": {
+          "default": 0,
+          "type": "integer"
+        },
+        "description": {
+          "default": "",
+          "type": "string"
+        },
+        "disposals_accum_cents": {
+          "default": 0,
+          "type": "integer"
+        },
+        "disposals_cost_cents": {
+          "default": 0,
+          "type": "integer"
+        },
+        "opening_accum_cents": {
+          "default": 0,
+          "type": "integer"
+        },
+        "opening_cost_cents": {
+          "default": 0,
+          "type": "integer"
+        },
+        "opening_nbv_cents": {
+          "default": 0,
+          "type": "integer"
+        },
+        "tag": {
+          "default": "",
+          "type": "string"
+        }
+      },
       "type": "object"
     },
     "RoundListResponse": {
@@ -3268,6 +3756,12 @@
     "EventSummary": {
       "$ref": "#/$defs/EventSummary"
     },
+    "Form4797Block": {
+      "$ref": "#/$defs/Form4797Block"
+    },
+    "Form4797Row": {
+      "$ref": "#/$defs/Form4797Row"
+    },
     "HealthResponse": {
       "$ref": "#/$defs/HealthResponse"
     },
@@ -3321,6 +3815,36 @@
     },
     "PhoneResult": {
       "$ref": "#/$defs/PhoneResult"
+    },
+    "ReconciliationBlock": {
+      "$ref": "#/$defs/ReconciliationBlock"
+    },
+    "ReconciliationRow": {
+      "$ref": "#/$defs/ReconciliationRow"
+    },
+    "ReviewDecision": {
+      "$ref": "#/$defs/ReviewDecision"
+    },
+    "ReviewDecisionResponse": {
+      "$ref": "#/$defs/ReviewDecisionResponse"
+    },
+    "ReviewItemRead": {
+      "$ref": "#/$defs/ReviewItemRead"
+    },
+    "ReviewKind": {
+      "$ref": "#/$defs/ReviewKind"
+    },
+    "ReviewListResponse": {
+      "$ref": "#/$defs/ReviewListResponse"
+    },
+    "ReviewStatus": {
+      "$ref": "#/$defs/ReviewStatus"
+    },
+    "RollforwardBlock": {
+      "$ref": "#/$defs/RollforwardBlock"
+    },
+    "RollforwardRow": {
+      "$ref": "#/$defs/RollforwardRow"
     },
     "RoundListResponse": {
       "$ref": "#/$defs/RoundListResponse"

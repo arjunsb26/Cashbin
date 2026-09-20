@@ -29,6 +29,8 @@ from app.models import (
     ItemClass,
     JournalBasis,
     OptionKind,
+    ReviewKind,
+    ReviewStatus,
     TaxMethod,
 )
 
@@ -836,6 +838,12 @@ class CloseRead(ApiModel):
     checks: list[CloseCheck] = Field(default_factory=list)
     investigation_md: str | None = None
     report: dict[str, Any] = Field(default_factory=dict)
+    # Lane P. The four depth blocks a CFO reads. They are defined at the end of this
+    # file, so CloseRead is rebuilt down there once they exist.
+    rollforward: RollforwardBlock | None = None
+    reconciliation: ReconciliationBlock | None = None
+    form4797: Form4797Block | None = None
+    memo_md: str | None = None
 
 
 class RuleRead(ApiModel):
@@ -953,3 +961,141 @@ UiEventCreated.model_rebuild()
 UiEventUpdated.model_rebuild()
 UiJournalPosted.model_rebuild()
 UiMetricsUpdated.model_rebuild()
+
+
+# Lane P, the review queue and the depth blocks on the close (PLAN.md 21a item 39) ------
+# Appended at the end of the file on purpose, so two lanes editing this file at once do
+# not land on the same lines.
+
+REVIEW_NOTE_MAX = 240
+DECIDED_BY_MAX = 40
+
+
+class ReviewItemRead(ApiModel):
+    """One open question, as the Review tab lists it."""
+
+    id: int
+    kind: ReviewKind
+    status: ReviewStatus
+    event_id: int
+    label: str | None = None
+    asset_id: int | None = None
+    asset_tag: str | None = None
+    amount_cents: int = 0
+    reason: str = ""
+    decided_by: str | None = None
+    decided_at: str | None = None
+    note: str | None = None
+    created_at: str = ""
+    # An unresolved ask carries what the bin was asking, so a person can answer it from
+    # the queue instead of going to find the ticket.
+    candidates: list[AskCandidate] = Field(default_factory=list)
+
+
+class ReviewListResponse(ApiModel):
+    items: list[ReviewItemRead] = Field(default_factory=list)
+    open_count: int = 0
+
+
+class ReviewDecision(ApiModel):
+    """Who decided and why. Both fields are outside text, so both are cleaned."""
+
+    by: str = Field(default="person", max_length=DECIDED_BY_MAX)
+    note: str = Field(default="", max_length=REVIEW_NOTE_MAX)
+
+    @field_validator("by", mode="before")
+    @classmethod
+    def _clean_by(cls, value: Any) -> Any:
+        cleaned = _clean_free_text(value, DECIDED_BY_MAX)
+        return cleaned or "person" if isinstance(cleaned, str) else cleaned
+
+    @field_validator("note", mode="before")
+    @classmethod
+    def _clean_note(cls, value: Any) -> Any:
+        return _clean_free_text(value, REVIEW_NOTE_MAX)
+
+
+class ReviewDecisionResponse(ApiModel):
+    """What the decision did: the item as it now stands, and what it moved."""
+
+    item: ReviewItemRead
+    reversing_entry_ids: list[int] = Field(default_factory=list)
+    difference_cents: int = 0
+    detail: str = ""
+
+
+class RollforwardRow(ApiModel):
+    """One asset's movement through the period, cost and accumulated depreciation."""
+
+    asset_id: int | None = None
+    tag: str = ""
+    description: str = ""
+    opening_cost_cents: int = 0
+    additions_cents: int = 0
+    disposals_cost_cents: int = 0
+    closing_cost_cents: int = 0
+    opening_accum_cents: int = 0
+    depreciation_cents: int = 0
+    disposals_accum_cents: int = 0
+    closing_accum_cents: int = 0
+    opening_nbv_cents: int = 0
+    closing_nbv_cents: int = 0
+
+
+class RollforwardBlock(ApiModel):
+    period_start: str = ""
+    period_end: str = ""
+    rows: list[RollforwardRow] = Field(default_factory=list)
+    total: RollforwardRow = Field(default_factory=RollforwardRow)
+    ties: bool = True
+
+
+class ReconciliationRow(ApiModel):
+    """One disposed asset, book against tax, with the reason for the gap."""
+
+    event_id: int
+    asset_id: int | None = None
+    tag: str = ""
+    description: str = ""
+    book_loss_cents: int = 0
+    tax_loss_cents: int = 0
+    difference_cents: int = 0
+    reason: str = ""
+    rule_ids: list[str] = Field(default_factory=list)
+
+
+class ReconciliationBlock(ApiModel):
+    """The M-1 shape: book loss, less the differences, equals the tax loss."""
+
+    rows: list[ReconciliationRow] = Field(default_factory=list)
+    book_loss_cents: int = 0
+    differences_cents: int = 0
+    tax_loss_cents: int = 0
+    ties: bool = True
+    title: str = ""
+
+
+class Form4797Row(ApiModel):
+    description: str = ""
+    date_acquired: str = ""
+    date_disposed: str = ""
+    gross_proceeds_cents: int = 0
+    cost_cents: int = 0
+    depreciation_allowed_cents: int = 0
+    gain_or_loss_cents: int = 0
+    part: Literal["II", "III"] = "II"
+    line: str = ""
+    rule_ids: list[str] = Field(default_factory=list)
+    recapture_note: str = ""
+
+
+class Form4797Block(ApiModel):
+    part_ii_rows: list[Form4797Row] = Field(default_factory=list)
+    part_iii_rows: list[Form4797Row] = Field(default_factory=list)
+    part_ii_line_10_cents: int = 0
+    part_iii_recapture_cents: int = 0
+    disclaimer: str = ""
+
+
+# CloseRead points forward at the three blocks above, so it is resolved here.
+CloseRead.model_rebuild()

@@ -960,7 +960,22 @@ def run_close(
     `report["investigation"]`. Every number was already fixed before it ran.
     """
     result, rows = compute_close(session, period_start, period_end, settings)
+    catch_up_review(session, rows, settings)
     if investigator is not None and result.needs_investigation:
         investigator(rows, result)
     persist_close(session, result)
     return result
+
+
+def catch_up_review(session: Session, rows: PeriodRows, settings: Any) -> int:
+    """Raise anything the pipeline missed, so the queue is whole before the period closes.
+
+    The pipeline raises a review item when a ticket finishes. A ticket that changed
+    afterwards, or one that was posted before the queue existed, would never reach it,
+    so the close asks the same question of every ticket in the period. Asking twice
+    about the same ticket costs nothing: the table refuses a second copy.
+    """
+    from app.ledger import review
+
+    made = review.create_for_period(session, [event.id for event in rows.tosses], settings)
+    return len(made)
