@@ -4,6 +4,7 @@ import { API_URL, useEventDetails, useRounds, useSummary } from "@/lib/api";
 import { askFromDetail, type AskView } from "@/lib/derive";
 import { useLive, useReach } from "@/lib/live";
 import { formatCount, formatMoney, formatPercent, massParts } from "@/lib/format";
+import { AddToss } from "@/components/AddToss";
 import { AskPanel } from "@/components/AskPanel";
 import { FirstRun } from "@/components/FirstRun";
 import { RoundTotals } from "@/components/RoundTotals";
@@ -105,6 +106,11 @@ export default function LivePage() {
 
       <div className="grid grid-cols-1 gap-8 lg:grid-cols-[var(--ticket-w)_minmax(0,1fr)]">
         <section aria-label="Current ticket">
+          {/* The column's own head. It carries the one control that belongs to the
+              ticket side, and it is empty on a backend with the dev tools off. */}
+          <div className="flex min-h-9 items-center justify-end pb-3 empty:hidden">
+            <AddToss />
+          </div>
           {reach === "connecting" ? (
             <div className="flex w-ticket max-w-full flex-col gap-3 border border-rule bg-surface p-5">
               <Skeleton className="h-[var(--crop-ticket)] w-[var(--crop-ticket)]" />
