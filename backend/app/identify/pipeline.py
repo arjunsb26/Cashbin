@@ -28,6 +28,7 @@ from app.identify import early, qr
 from app.identify import memory as memory_module
 from app.identify.embed import Embedder, get_embedder, to_bytes
 from app.identify.memory import DEFAULT_K, MemoryIndex, Neighbour, get_memory
+from app.identify.openai_request import UNKNOWN_CHOICE
 from app.identify.priors import MassPrior, fuse
 from app.identify.providers import (
     CallUsage,
@@ -464,6 +465,25 @@ async def identify_event(
             return await _ask(session, event, fallback, active, started, row)
 
         vision_dist = _distribution(vision)
+        if str(vision.label) == UNKNOWN_CHOICE:
+            # PLAN.md 21a item 27. The model is allowed to say it does not know, and that
+            # is a question for a person rather than a label for the books.
+            log.info("event %s: the model answered unknown, so a person is asked", event_id)
+            fallback = _neighbour_votes(neighbours) or _mass_fit(facts, mass_g, mass_err_g)
+            row = write_identification(
+                session,
+                event_id=event_id,
+                method=method,
+                label=None,
+                item_class=None,
+                confidence=None,
+                posterior=fallback or None,
+                used_mass_prior=bool(fallback and not neighbours),
+                latency_ms=_elapsed(started),
+                usage=usage,
+            )
+            return await _ask(session, event, fallback, active, started, row)
+
         raw_dist = dict(vision_dist)
         row = write_identification(
             session,

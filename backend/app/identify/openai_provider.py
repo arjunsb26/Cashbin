@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import logging
 import time
+from collections.abc import Callable
 from typing import Any
 
 from pydantic import BaseModel, ValidationError
@@ -23,7 +24,11 @@ from app.config import Settings
 from app.detect.crop import downscale_jpeg
 from app.identify.cost import cost_microusd, price_for
 from app.identify.estimate_cache import read_estimate, write_estimate
-from app.identify.openai_request import build_estimate_request, build_vision_request
+from app.identify.openai_request import (
+    UNKNOWN_CHOICE,
+    build_estimate_request,
+    build_vision_request,
+)
 from app.identify.providers import CallUsage, IdentifyContext
 from app.schemas import ValueEstimate, VisionResult, normalise_label
 
@@ -55,7 +60,13 @@ class _Adapter:
             )
         return self._client
 
-    def _parse(self, request: dict[str, Any], model: str, shape: type[BaseModel]) -> Any:
+    def _parse(
+        self,
+        request: dict[str, Any],
+        model: str,
+        shape: type[BaseModel],
+        allowed: Callable[[Any], bool] | None = None,
+    ) -> Any:
         parsed: Any = None
         tokens: tuple[int | None, int | None] = (None, None)
         cached: int | None = None
@@ -71,10 +82,18 @@ class _Adapter:
                       getattr(usage, "completion_tokens", None))
             cached = self._cached_tokens(usage)
             try:
-                parsed = shape.model_validate_json(reply.choices[0].message.content or "")
-                break
+                candidate = shape.model_validate_json(reply.choices[0].message.content or "")
             except (ValidationError, ValueError):
                 log.warning("openai reply failed validation on attempt %d", attempt)
+                continue
+            if allowed is not None and not allowed(candidate):
+                # The schema said which labels exist. A reply outside it is not an answer,
+                # whatever the host thinks, so it is asked again and then given up on.
+                log.warning("openai answered outside the catalog on attempt %d", attempt)
+                parsed = None
+                continue
+            parsed = candidate
+            break
         price = price_for(model, PROVIDER_NAME)
         tier = str(request.get("service_tier", ""))
         self.last_call = CallUsage(
@@ -115,7 +134,12 @@ class OpenAIVisionProvider(_Adapter):
             self.settings.llm_vision_effort,
             self.settings.llm_service_tier,
         )
-        parsed = self._parse(request, model, VisionResult)
+        known = {*context.catalog_labels, UNKNOWN_CHOICE}
+
+        def in_the_catalog(answer: Any) -> bool:
+            return str(getattr(answer, "label", "")) in known
+
+        parsed = self._parse(request, model, VisionResult, in_the_catalog if known else None)
         if parsed is None:
             return VisionResult.model_validate(
                 {"label": "unknown object", "class": "untracked",
