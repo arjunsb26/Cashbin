@@ -96,6 +96,7 @@ export default function LivePage() {
       <ScaleStrip
         samples={live.samples}
         steps={live.steps}
+        stepMasses={live.stepMasses}
         weight_g={live.weight_g}
         connected={live.bin.connected}
         reach={reach}
