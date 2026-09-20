@@ -250,3 +250,37 @@ def test_the_ticket_read_carries_what_the_camera_saw() -> None:
     assert read_description(old_shape) is None
     assert read_candidates(new_shape) == old_shape
     assert read_description(new_shape) == "a plain bagel"
+
+
+async def test_a_vision_call_that_gave_nothing_offers_no_buttons_at_all(
+    settings: Settings,
+) -> None:
+    """PLAN.md 21a item 36. The screenshot showed laptop charger, power bank and pencil
+    at 33 percent each for a USB stick: three catalog rows that weigh about the same, with
+    nothing behind them. Buttons the bin does not believe are worse than no buttons."""
+    from app.db import session_scope
+    from app.identify.pipeline import Providers, identify_event
+    from app.identify.stub import StubEstimatorProvider
+    from app.notify.bus import CHANNEL_UI
+    from tests.test_identify_pipeline import ScriptedVision
+    from tests.test_identify_support import Listener, make_deps, make_event, setup_db
+
+    setup_db(settings)
+    with session_scope() as session:
+        # A mass every one of those three catalog rows would have fitted.
+        event_id = make_event(session, mass_g=62.0, mass_err_g=40.0).id
+
+    providers = Providers(
+        vision=ScriptedVision(None, error=RuntimeError("the call failed")),
+        estimator=StubEstimatorProvider(),
+        name="stub",
+    )
+    listener = Listener(CHANNEL_UI)
+    outcome = await identify_event(
+        event_id, make_jpeg(), [], 62.0, 40.0, make_deps(settings, providers=providers)
+    )
+
+    assert outcome.final is False
+    assert outcome.candidates == (), "nothing was guessed, so nothing is offered"
+    asked = [m for m in listener.messages() if isinstance(m, UiAskOpened)]
+    assert asked and asked[0].candidates == []

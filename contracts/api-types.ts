@@ -651,10 +651,10 @@ export interface MoneyRange {
  */
 export interface PhoneAsk {
   /**
-   * @minItems 1
    * @maxItems 4
    */
-  candidates:
+  candidates?:
+    | []
     | [AskCandidate]
     | [AskCandidate, AskCandidate]
     | [AskCandidate, AskCandidate, AskCandidate]
@@ -928,10 +928,10 @@ export interface SummaryResponse {
  */
 export interface UiAskOpened {
   /**
-   * @minItems 1
    * @maxItems 4
    */
-  candidates:
+  candidates?:
+    | []
     | [AskCandidate]
     | [AskCandidate, AskCandidate]
     | [AskCandidate, AskCandidate, AskCandidate]

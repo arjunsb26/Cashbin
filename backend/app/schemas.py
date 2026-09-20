@@ -322,7 +322,7 @@ class PhoneResult(WireModel):
 class PhoneAsk(WireModel):
     type: Literal["ask"] = "ask"
     event_id: int
-    candidates: list[AskCandidate] = Field(min_length=1, max_length=4)
+    candidates: list[AskCandidate] = Field(default_factory=list, max_length=4)
     crop_url: str | None = None
     looks_like: str | None = Field(default=None, max_length=DESCRIPTION_MAX)
 
@@ -381,7 +381,9 @@ class UiJournalPosted(WireModel):
 class UiAskOpened(WireModel):
     type: Literal["ask.opened"] = "ask.opened"
     event_id: int
-    candidates: list[AskCandidate] = Field(min_length=1, max_length=4)
+    # Empty when the model had no guess worth drawing as a button. The question is then
+    # the picture, what the model says it sees, and Something else.
+    candidates: list[AskCandidate] = Field(default_factory=list, max_length=4)
     crop_url: str | None = None
     # The model's plain words about what it is looking at, when it had any. Shown beside
     # the buttons so a person knows what the camera saw before they answer.

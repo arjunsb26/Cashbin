@@ -397,7 +397,12 @@ def top_two(distribution: dict[str, float]) -> tuple[tuple[str, float], tuple[st
 
 
 def ask_candidates(distribution: dict[str, float]) -> list[AskCandidate]:
-    """The buttons a person sees, best first. DESIGN.md section 4.4 draws two to four."""
+    """The buttons a person sees, best first. DESIGN.md section 4.4 draws up to four.
+
+    An empty list is a real answer: the model had no guess worth showing, so the question
+    is the picture, what the model says it is looking at, and Something else. A button
+    reading "unknown object" was never an answer anybody could give.
+    """
     ordered = sorted(distribution.items(), key=lambda kv: (-kv[1], kv[0]))[:MAX_ASK_CANDIDATES]
     out: list[AskCandidate] = []
     for name, p in ordered:
@@ -405,8 +410,6 @@ def ask_candidates(distribution: dict[str, float]) -> list[AskCandidate]:
             out.append(AskCandidate(label=name, p=max(0.0, min(1.0, p))))
         except ValueError:
             continue
-    if not out:
-        out.append(AskCandidate(label=UNKNOWN_LABEL, p=0.0))
     return out
 
 
@@ -568,7 +571,10 @@ async def identify_event(
             # Only what a remembered example says. The scale's own guesses used to fill
             # this in, which is how a battery came back offering "laptop charger, pencil,
             # power bank": three catalog rows that weigh about the same and nothing else.
-            fallback = _neighbour_votes(neighbours)
+            # Nothing came back, so there is nothing to offer. A remembered exemplar or
+            # a catalog row that weighs about the same is not the model's guess, and
+            # drawing it as a button says the bin believes something it does not.
+            fallback: dict[str, float] = {}
             row = write_identification(
                 session,
                 event_id=event_id,
@@ -592,7 +598,7 @@ async def identify_event(
                 event_id,
                 vision.description or "no description",
             )
-            fallback = _neighbour_votes(neighbours) or _confident_candidates(vision)
+            fallback = _confident_candidates(vision)
             row = write_identification(
                 session,
                 event_id=event_id,

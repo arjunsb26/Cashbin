@@ -64,8 +64,8 @@ def synthetic_step(mass_g: float, now_ms: float, live: bool = False) -> Step:
     PLAN.md section 7 stores, so the evidence chart of an injected toss looks like the
     evidence chart of a real one.
 
-    A live Add opens further back, so the frame picker reaches past the item being held up
-    for its before frame instead of finding the item in both.
+    A live Add carries `whole_frame`, because the picture somebody took is the item and
+    there is nothing to diff it against.
     """
     t_open = now_ms - (LIVE_BEFORE_MS if live else OPEN_LEAD_MS)
     t_settle = now_ms - SETTLE_LEAD_MS
@@ -84,6 +84,7 @@ def synthetic_step(mass_g: float, now_ms: float, live: bool = False) -> Step:
         baseline_before_g=0.0,
         baseline_after_g=mass_g,
         trace=trace,
+        whole_frame=live,
     )
 
 
@@ -114,25 +115,18 @@ LIVE_BEFORE_MS = 2000.0
 NO_FRAMES = "No camera frames yet. Start the camera first."
 
 
-def _live_step(deps: IngestState, now_ms: float) -> None:
-    """Point the step at frames the camera has already sent, oldest one first.
+def _live_step(deps: IngestState) -> None:
+    """Check there is something to look at. The newest frame is the picture.
 
-    A crop is the difference between two frames. The newest frame is the item being held
-    over the bin, and a frame about two seconds older is the bin without it. Both are
-    already in the ring, so nothing is pushed and nothing is invented: the step is simply
-    shaped to reach for them.
+    PLAN.md 21a item 36. This used to shape the step so the frame picker would diff the
+    newest frame against one from two seconds earlier. On a phone held over a table that
+    diff finds the table, because the table is what moved least, and the ticket came back
+    with a grey patch for a crop. A picture somebody took on purpose needs no diff.
     """
     held = deps.frames.snapshot()
     if len(held) < 2:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=NO_FRAMES)
-    newest = held[-1]
-    wanted = newest.t_ms - LIVE_BEFORE_MS
-    older = min(held, key=lambda frame: abs(frame.t_ms - wanted))
-    log.info(
-        "an added item is cropped from the camera: %.0f ms apart, %d frames in the ring",
-        newest.t_ms - older.t_ms,
-        len(held),
-    )
+    log.info("an added item is the newest of %d frames in the ring", len(held))
 
 
 @router.post("/toss", response_model=SimTossResponse)
@@ -155,7 +149,7 @@ async def inject_toss(body: SimTossRequest, request: Request) -> SimTossResponse
         _push_empty_bin(deps, now_ms)
         deps.frames.push(data, now_ms)
     else:
-        _live_step(deps, now_ms)
+        _live_step(deps)
         if body.label is not None:
             # Only the stub reads this, and only on this path: a caller driving the
             # simulator sets its own expectations with /api/sim/expect, and pushing
