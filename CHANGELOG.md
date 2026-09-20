@@ -170,6 +170,13 @@ Newest first. Each lane writes under its own heading.
   else" and "Not now". A question that carries its own wording uses that as the heading in
   place of "Which is it?". Both are drawn as text, trimmed and capped, and neither is ever
   sent anywhere.
+- A question that carries its own wording is asking about a detail of a thing, not about
+  what the thing is, so its answer posts as `detail` rather than `label`. That holds for a
+  tapped choice and for the free text way in, which reads the answer the same way it always
+  did: trimmed, lowercased, letters, digits, spaces and hyphens, forty characters. A
+  question about what something is still posts `label`.
+- Answering a question left its buttons disabled, so "Something else" was dead on every
+  later question until the page was reloaded. A new question gets its buttons back.
 - `phone/dev/mock_server.py` has a chaos script: a ticket that arrives twice, a question
   landing on a ticket, a ticket landing under a question, the socket dying under an open
   question, and a ticket whose figure never comes. `--chaos` plays the lot for a run on a

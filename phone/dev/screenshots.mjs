@@ -358,6 +358,48 @@ async function main() {
   await page.click("#askNotNow");
   await page.waitForSelector('#askSheet[data-open="false"]', { state: "attached", timeout: 2000 });
 
+  // 8jc. a question about a detail. Tapping a choice sends it back as a detail,
+  // not as what the thing is, and so does the free text way in.
+  await chaos("ask-detail");
+  await page.waitForSelector('#askSheet[data-open="true"]', { timeout: 4000 });
+  await is(page, "#askHeading", "How much storage does it have?");
+  await wait(400);
+  await shot(page, "c11-ask-detail");
+  await page.click("#askOptions button");
+  await page.waitForSelector('#askSheet[data-open="false"]', { state: "attached", timeout: 4000 });
+  const tapped = await get("/api/dev/corrections/last");
+  if (tapped.detail !== "16 gb" || "label" in tapped) {
+    throw new Error(`a tapped detail posted ${JSON.stringify(tapped)}`);
+  }
+  console.log(`a tapped detail posted ${JSON.stringify(tapped)}`);
+
+  await chaos("ask-detail");
+  await page.waitForSelector('#askSheet[data-open="true"]', { timeout: 4000 });
+  await page.click("#askOther");
+  await page.fill("#askInput", "128 GB");
+  await page.click("#askSend");
+  await page.waitForSelector('#askSheet[data-open="false"]', { state: "attached", timeout: 4000 });
+  const typed = await get("/api/dev/corrections/last");
+  if (typed.detail !== "128 gb" || "label" in typed) {
+    throw new Error(`a typed detail posted ${JSON.stringify(typed)}`);
+  }
+  console.log(`a typed detail posted ${JSON.stringify(typed)}`);
+
+  // 8jd. a question about what the thing is still posts a label
+  await post("/api/dev/send", {
+    type: "ask",
+    event_id: 31,
+    candidates: [{ label: "wrap", p: 0.41 }],
+  });
+  await page.waitForSelector('#askSheet[data-open="true"]', { timeout: 4000 });
+  await page.click("#askOptions button");
+  await page.waitForSelector('#askSheet[data-open="false"]', { state: "attached", timeout: 4000 });
+  const labelled = await get("/api/dev/corrections/last");
+  if (labelled.label !== "wrap" || "detail" in labelled) {
+    throw new Error(`a label ask posted ${JSON.stringify(labelled)}`);
+  }
+  console.log(`a label ask posted ${JSON.stringify(labelled)}`);
+
   // 8k. an idle from the backend clears whatever is on the screen
   await post("/api/dev/send", {
     type: "result",
