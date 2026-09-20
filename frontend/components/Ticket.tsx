@@ -6,8 +6,8 @@ import * as Dialog from "@radix-ui/react-dialog";
 import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
 import { MoreHorizontal } from "lucide-react";
 import type { EventDetail, EventSummary, OptionScoreRead } from "@/lib/types";
-import { bestOption, ticketFigure } from "@/lib/derive";
-import { imageSrc, useAnswerAsk, useAssetTag, useVoidEvent } from "@/lib/api";
+import { bestOption, ticketFigure, ticketTone } from "@/lib/derive";
+import { imageSrc, useAnswerAsk, useAssetTag, useSettings, useVoidEvent } from "@/lib/api";
 import { classLine } from "@/lib/copy";
 import {
   ESTIMATE_MARKER,
@@ -79,22 +79,39 @@ export function Ticket({
   const record = detail?.item_record ?? null;
   const figure = ticketFigure(event, record);
   const tag = useAssetTag(record?.asset_id);
+  const settings = useSettings();
   const sort = classLine(record?.class ?? event.class, tag ? formatTag(tag) : null);
   const counted = useCountUp(figure.cents, arrival, phase === "identified" && arrival > 0);
   const identified = phase === "identified" && event.label !== null;
   const options = detail?.options ?? [];
   const mass = event.mass_g ?? 0;
+  // An open question is amber whatever the options say, because the answer is
+  // not settled yet. Otherwise the ticket carries the engine's own tone.
+  const asking = children != null;
+  const tone = asking ? "caution" : ticketTone(options, settings.data);
 
   return (
     <article
       className={cx(
         "ticket-arrive rounded-ticket border border-rule bg-surface p-5 shadow-ticket lg:p-6",
+        // The tone band, the same 4 px edge the phone sheet carries.
+        tone === "kept" && "border-t-4 border-t-kept",
+        tone === "caution" && "border-t-4 border-t-caution",
+        tone === "red" && "border-t-4 border-t-red-ink",
         arrival > 0 && "animate-ticket-in",
       )}
       style={{ width: width ?? "var(--ticket-w)", maxWidth: "100%" }}
       key={arrival}
     >
-      <header className="flex items-start gap-3">
+      <header
+        className={cx(
+          "flex items-start gap-3",
+          // A question tints its own header, so the ticket waiting on a person is
+          // the one thing on the page that is not the usual white paper.
+          asking &&
+            "-mx-5 -mt-5 bg-caution-tint px-5 pb-4 pt-5 lg:-mx-6 lg:-mt-6 lg:px-6 lg:pt-6",
+        )}
+      >
         {/* An ask shows the crop large in its own body, so the header does not repeat it. */}
         {children ? null : (
           <CropFrame
@@ -320,7 +337,7 @@ export function OptionTable({
                   className={cx(
                     "border-b border-rule",
                     option.allowed ? "h-row" : "align-top",
-                    isBest && "border-l-2 border-l-kept",
+                    isBest && "border-l-2 border-l-kept bg-kept-tint",
                     !option.allowed && "text-red-ink",
                   )}
                 >

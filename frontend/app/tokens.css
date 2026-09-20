@@ -17,6 +17,15 @@
   --caution: #b7791f;
   --surface: #ffffff;
 
+  /*
+    Tone tints. The tone itself is one of kept, caution and red-ink, the same
+    three the LCD and the phone sheet use. A tint is that tone laid over the
+    surface it sits on at low alpha, worked out once here so no screen mixes a
+    colour of its own: kept over bar at 12 percent, caution over surface at 10.
+  */
+  --kept-tint: #d5e6dc;
+  --caution-tint: #f8f2e9;
+
   /* The two shadows in the product, both tinted with ink */
   --shadow-ticket: rgba(26, 43, 76, 0.06);
   --shadow-overlay: rgba(26, 43, 76, 0.14);

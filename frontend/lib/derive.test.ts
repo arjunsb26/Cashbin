@@ -18,6 +18,8 @@ import {
   isEstimate,
   mediaSrc,
   posteriorCandidates,
+  co2eAvoided,
+  ticketTone,
   ticketFigure,
   traceView,
   trashBlocked,
@@ -519,4 +521,72 @@ test("the investigation note comes back without its markers", () => {
     { kind: "text", text: "1 ticket is still waiting on a person." },
   ]);
   assert.deepEqual(noteBlocks(null), []);
+});
+
+// The tone rule, mirrored from the engine so the ticket, the LCD and the phone
+// sheet cannot disagree about what colour a toss was.
+
+test("a blocked bin makes the ticket red", () => {
+  const tone = ticketTone([
+    option({ option: "trash", allowed: false, blocked_reason: "Electronics" }),
+    option({ option: "recycle", net_after_tax_cents: 0, rank: 1 }),
+  ]);
+  assert.equal(tone, "red");
+});
+
+test("the bin being the best answer makes the ticket green", () => {
+  const tone = ticketTone([
+    option({ option: "trash", rank: 1 }),
+    option({ option: "recycle", net_after_tax_cents: -100 }),
+  ]);
+  assert.equal(tone, "kept");
+});
+
+test("a better answer worth real money makes the ticket amber", () => {
+  const tone = ticketTone([
+    option({ option: "trash", net_after_tax_cents: 0 }),
+    option({ option: "resell", net_after_tax_cents: 1200, rank: 1 }),
+  ]);
+  assert.equal(tone, "caution");
+});
+
+test("the same money and much less carbon still makes the ticket amber", () => {
+  const tone = ticketTone([
+    option({ option: "trash", net_after_tax_cents: 0, kg_co2e: 0.4 }),
+    option({ option: "recycle", net_after_tax_cents: 3, kg_co2e: 0.1, rank: 1 }),
+  ]);
+  assert.equal(tone, "caution");
+});
+
+test("a carbon figure nobody has never buys a green tone", () => {
+  const tone = ticketTone([
+    option({ option: "trash", net_after_tax_cents: 0, kg_co2e: null }),
+    option({ option: "recycle", net_after_tax_cents: 3, kg_co2e: null, rank: 1 }),
+  ]);
+  assert.equal(tone, "caution");
+});
+
+test("a ticket with no options has no tone at all", () => {
+  assert.equal(ticketTone([]), null);
+  assert.equal(ticketTone(undefined), null);
+});
+
+test("the thresholds come from the settings when the read has landed", () => {
+  const rows = [
+    option({ option: "trash", net_after_tax_cents: 0, kg_co2e: 0.4 }),
+    option({ option: "recycle", net_after_tax_cents: 3, kg_co2e: 0.1, rank: 1 }),
+  ];
+  assert.equal(ticketTone(rows, { tone_co2e_kg: 1 }), "kept");
+  assert.equal(ticketTone(rows, { tone_co2e_kg: 0.02, tie_break_cents: 1 }), "caution");
+});
+
+test("carbon avoided is the positive form of a negative WARM factor", () => {
+  assert.equal(co2eAvoided(option({ option: "recycle", kg_co2e: -5.66 })), 5.66);
+  assert.equal(co2eAvoided(option({ option: "trash", kg_co2e: 0.41 })), -0.41);
+  assert.equal(co2eAvoided(option({ option: "trash", kg_co2e: null })), null);
+});
+
+test("the backend's own avoided figure wins over the flipped sign", () => {
+  const sent = { ...option({ option: "recycle", kg_co2e: -5.66 }), kg_co2e_avoided: 5.0 };
+  assert.equal(co2eAvoided(sent as OptionScoreRead), 5.0);
 });

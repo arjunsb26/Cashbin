@@ -14,6 +14,7 @@ import {
   FinanceFooter,
   SectionTitle,
   Skeleton,
+  StatusDot,
   cx,
 } from "@/components/ui";
 
@@ -50,12 +51,14 @@ export default function LivePage() {
         ) : (
           <div className="grid grid-cols-2 gap-x-8 gap-y-4 border-b border-rule pb-4 sm:grid-cols-4">
             <Total
+              tone="kept"
               label="Saved if followed"
               value={
                 totals ? formatMoney(totals.saved_if_followed_cents ?? 0, { symbol: true }) : null
               }
             />
             <Total
+              tone="kept"
               label="Kept from landfill"
               value={totals ? massParts((totals.kg_diverted ?? 0) * 1000).value : null}
               unit={totals ? massParts((totals.kg_diverted ?? 0) * 1000).unit : ""}
@@ -144,15 +147,21 @@ function Total({
   value,
   unit,
   quiet = false,
+  tone,
 }: {
   label: string;
   value: string | null;
   unit?: string;
   quiet?: boolean;
+  /** Set on the two totals that are money and mass kept out of the bin. */
+  tone?: "kept";
 }) {
   return (
     <div>
-      <p className="text-caption text-ink-soft">{label}</p>
+      <p className="flex items-center gap-2 text-caption text-ink-soft">
+        {tone ? <StatusDot tone={tone} /> : null}
+        {label}
+      </p>
       {value === null ? (
         <Skeleton className="mt-1 h-7 w-24" />
       ) : quiet ? (

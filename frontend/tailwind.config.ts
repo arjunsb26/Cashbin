@@ -15,7 +15,9 @@ const config: Config = {
         "control-border": "var(--control-border)",
         "red-ink": "var(--red-ink)",
         kept: "var(--kept)",
+        "kept-tint": "var(--kept-tint)",
         caution: "var(--caution)",
+        "caution-tint": "var(--caution-tint)",
         surface: "var(--surface)",
       },
       fontFamily: {
