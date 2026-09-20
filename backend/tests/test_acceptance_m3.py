@@ -140,14 +140,22 @@ def test_the_m3_story_reads_off_the_api_and_the_phone(
             stored = session.query(Asset).filter(Asset.tag == KEYBOARD_TAG).one()
             assert stored.status is AssetStatus.disposed
 
-        # 2. The bagel: donating beats binning, and a person has to sign it off.
+        # 2. The bagel: a bagel out of a bin is nobody's donation, and the ticket says
+        # why rather than leaving the option off. PLAN.md 21a item 48.
         bagel = client.get(f"/api/events/{by_label['bagel']['id']}").json()
-        ranked = {row["option"]: row["rank"] for row in bagel["options"] if row["allowed"]}
-        assert ranked[OptionKind.donate] < ranked[OptionKind.trash]
-        donate = next(row for row in bagel["options"] if row["option"] == OptionKind.donate)
+        by_kind = {row["option"]: row for row in bagel["options"]}
+        donate = by_kind[OptionKind.donate]
+        assert donate["allowed"] is False
+        assert "donated" in donate["blocked_reason"]
+        assert by_kind[OptionKind.trash]["allowed"] is True
+        # The arithmetic behind the option is untouched, and the drawer still shows it.
         assert donate["needs_human_review"] is True
         assert "DONATE_FOOD" in donate["rule_ids"]
-        assert by_label["bagel"]["saved_if_followed_cents"] > 0
+        assert donate["tax_effect_cents"] > 0
+        # Nothing beats the bin on money for an opened bagel. Composting it is the one
+        # thing left that is better than landfill, and it costs the same.
+        assert by_label["bagel"]["saved_if_followed_cents"] == 0
+        assert by_label["bagel"]["best_option"] in {OptionKind.trash, OptionKind.recycle}
 
         # 3. The charger and the phone: the landfill is closed, and the phone said so in red.
         for label in ("usb-c charger", "phone"):

@@ -194,6 +194,10 @@ class ItemRecord(BaseModel):
     scrap_source: EstimateSource | None = None
 
     condition: Condition = Condition.unknown
+    # What the model said it was looking at, and anything a person answered about it.
+    # Both are outside text and both are read here only for words like "sealed".
+    description: str = ""
+    detail: str = ""
 
     @property
     def mass_kg(self) -> float:
