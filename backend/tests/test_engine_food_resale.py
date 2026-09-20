@@ -9,7 +9,7 @@ the M3 acceptance check says it should.
 
 from __future__ import annotations
 
-from app.engine import options, rules, tax
+from app.engine import carbon, options, rules, tax
 from app.engine.records import (
     EngineSettings,
     Option,
@@ -43,11 +43,27 @@ def test_every_food_row_carries_the_food_flag() -> None:
         assert "food" in table[label].regulatory_flags, label
 
 
-def test_nothing_but_food_carries_the_food_flag() -> None:
+def test_the_food_flag_follows_the_material_and_not_a_list() -> None:
+    """A row is flagged food when most of its mass is food, and only then.
+
+    This used to be a fixed list of labels, which meant the catalog could not grow a food
+    row without the rule quietly stopping short of it. The material mix is the fact; the
+    flag is supposed to agree with it.
+    """
     for item in load_catalog():
-        if item.label in FOOD_LABELS:
-            continue
-        assert "food" not in item.regulatory_flags, item.label
+        mostly_food = sum(
+            share
+            for material, share in item.material_mix.items()
+            if carbon.is_food_material(material)
+        )
+        flagged = "food" in item.regulatory_flags
+        assert flagged == (mostly_food >= 0.5), f"{item.label}: {mostly_food:.2f} food"
+
+
+def test_every_label_the_resale_rule_names_is_still_flagged() -> None:
+    table = catalog_by_label()
+    for label in FOOD_LABELS:
+        assert "food" in table[label].regulatory_flags, label
 
 
 def test_food_cost_is_half_the_retail_value_and_says_so() -> None:

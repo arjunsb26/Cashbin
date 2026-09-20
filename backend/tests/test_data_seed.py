@@ -33,7 +33,7 @@ EN_DASH = chr(0x2013)
 
 def test_the_catalog_parses_and_is_the_right_size() -> None:
     items = load_catalog()
-    assert 30 <= len(items) <= 40
+    assert 50 <= len(items) <= 60
     assert len({item.label for item in items}) == len(items)
     assert len({item.id for item in items}) == len(items)
 
