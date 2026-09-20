@@ -295,11 +295,20 @@ export function useSetup() {
   return useQuery({ queryKey: keys.setup, queryFn: source.setup });
 }
 
-/** One answer from a person. The label was read into a plain key before it got here. */
+/**
+ * One answer from a person. The label was read into a plain key before it got here.
+ *
+ * `detail` is the answer to a detail question ("how much does it hold"), which is
+ * not a label and never becomes one. The contract has no field for it yet, so it
+ * rides alongside and a backend that has not grown one ignores it. The moment the
+ * field lands, this type stops being a widening and starts being the contract.
+ */
+export type AnswerBody = CorrectionCreate & { detail?: string };
+
 export function useAnswerAsk() {
   const client = useQueryClient();
   return useMutation({
-    mutationFn: async (body: CorrectionCreate) => {
+    mutationFn: async (body: AnswerBody) => {
       if (MOCK) return { ...body, correction_id: 0, status: "confirmed" } as CorrectionResponse;
       return send<CorrectionResponse>("/api/corrections", "POST", body);
     },

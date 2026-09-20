@@ -48,6 +48,7 @@ export default function LivePage() {
           candidates: open.candidates ?? [],
           crop_url: open.crop_url ?? null,
           description: askDescription(open),
+          label: tape.find((e) => e.id === open.event_id)?.label ?? null,
           question: askQuestion(open)?.question ?? null,
           choices: askQuestion(open)?.choices ?? null,
         }

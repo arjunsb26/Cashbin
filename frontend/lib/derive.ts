@@ -470,6 +470,7 @@ export function askFromDetail(detail: EventDetail | null | undefined): AskView |
     crop_url: detail.event.crop_url ?? null,
     candidates,
     description: askDescription(identification),
+    label: detail.event.label ?? identification?.label ?? null,
     question: detailQuestion?.question ?? null,
     choices: detailQuestion?.choices ?? null,
   };
@@ -502,6 +503,11 @@ export type AskView = {
   /** The model's sentence about the photo, when the payload carries one. */
   description?: string | null;
   /**
+   * The label the ticket already carries. A detail question is about something
+   * already identified, so its answer has to travel with the label it is about.
+   */
+  label?: string | null;
+  /**
    * The one question that matters, PLAN.md 21a item 40: how many gigabytes, what
    * wattage, dead or still works. When the payload carries one, it is the heading
    * and the choices are the buttons, in place of a list of labels.
@@ -515,8 +521,11 @@ export type AskView = {
  *
  * Model text, so it is treated as data at every step: the question is collapsed to
  * single spaces and capped at 120 characters, each choice at 40, and at most four
- * are kept, which is what the panel can show. A backend that sends neither field
- * leaves both null and the ask reads as a list of labels, exactly as before.
+ * are kept, which is what the panel can show. The backend sends the question with
+ * the ordinary candidate list rather than a list of its own, so `choices` comes
+ * back empty there and the panel draws the candidates under the question instead.
+ * A backend that sends no question at all leaves this null and the ask reads as a
+ * list of labels, exactly as before.
  */
 export function askQuestion(source: unknown): { question: string; choices: string[] } | null {
   if (!source || typeof source !== "object") return null;
@@ -525,13 +534,14 @@ export function askQuestion(source: unknown): { question: string; choices: strin
   const question = raw.replace(/\s+/g, " ").trim().slice(0, 120);
   if (question.length === 0) return null;
   const list = (source as { choices?: unknown }).choices;
-  if (!Array.isArray(list)) return null;
-  const choices = list
-    .filter((c): c is string => typeof c === "string")
-    .map((c) => c.replace(/\s+/g, " ").trim().slice(0, 40))
-    .filter((c) => c.length > 0)
-    .slice(0, 4);
-  return choices.length >= 2 ? { question, choices } : null;
+  const choices = Array.isArray(list)
+    ? list
+        .filter((c): c is string => typeof c === "string")
+        .map((c) => c.replace(/\s+/g, " ").trim().slice(0, 40))
+        .filter((c) => c.length > 0)
+        .slice(0, 4)
+    : [];
+  return { question, choices: choices.length >= 2 ? choices : [] };
 }
 
 // The weight trace ---------------------------------------------------------

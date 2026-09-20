@@ -775,10 +775,23 @@ test("a question is data: it is capped, squashed and never trusted", () => {
   assert.equal(asked?.choices[0]?.length, 40);
 });
 
-test("one choice is not a question worth asking", () => {
-  assert.equal(askQuestion({ question: "Dead or still works?", choices: ["dead"] }), null);
-  assert.equal(askQuestion({ question: "Dead or still works?" }), null);
+test("a question with fewer than two choices of its own keeps the candidates", () => {
+  // The backend sends a question with the ordinary candidate list and no choices
+  // field. The question is still the heading; it just is not a detail question, so
+  // the answer to it stays a label and the candidates stay the buttons.
+  assert.deepEqual(askQuestion({ question: "Dead or still works?", choices: ["dead"] }), {
+    question: "Dead or still works?",
+    choices: [],
+  });
+  assert.deepEqual(askQuestion({ question: "The camera answer did not arrive. What is it?" }), {
+    question: "The camera answer did not arrive. What is it?",
+    choices: [],
+  });
+});
+
+test("choices with no question are not a question at all", () => {
   assert.equal(askQuestion({ choices: ["dead", "works"] }), null);
+  assert.equal(askQuestion({ question: "   " }), null);
   assert.equal(askQuestion(null), null);
 });
 

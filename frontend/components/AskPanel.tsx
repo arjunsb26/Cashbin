@@ -26,9 +26,17 @@ export function AskPanel({ ask, onDismiss }: { ask: AskView; onDismiss: () => vo
   // The one question that matters. When the model asked for a detail rather than a
   // label, the question is the heading and its choices are the buttons, in the same
   // shape and the same keys as a label ask, so nobody has to learn a second panel.
-  const detail = ask.question && (ask.choices?.length ?? 0) >= 2 ? ask : null;
+  // A question the backend sent is the heading, whatever it is asking.
+  //
+  // What the answer means depends on whether it came with choices of its own. With
+  // them, the question is about a property of something already identified ("how
+  // much does it hold") and the answer is a detail, not a label. Without them, the
+  // question is still about identity ("the camera answer did not arrive, what is
+  // it") and the answer is the label, exactly as an ordinary ask.
+  const choices = (ask.choices ?? []).slice(0, 4);
+  const detail = ask.question && choices.length >= 2 ? ask : null;
   const buttons: { label: string; p: number | null }[] = detail
-    ? (detail.choices ?? []).slice(0, 4).map((choice) => ({ label: choice, p: null }))
+    ? choices.map((choice) => ({ label: choice, p: null }))
     : ask.candidates.slice(0, 4).map((c) => ({ label: c.label, p: c.p }));
   const draft = drafts.get(ask.event_id) ?? { typing: false, raw: "" };
   const [answered, setAnswered] = useState<string | null>(null);
@@ -47,10 +55,19 @@ export function AskPanel({ ask, onDismiss }: { ask: AskView; onDismiss: () => vo
     setRawState(next);
   };
 
+  // A detail answer is not a label: "128 gb" does not name the thing, it sizes it.
+  // It travels in its own field so the valuation can use it, and the label the
+  // ticket already has travels with it, because a correction is keyed on a label
+  // and dropping it would refuse the whole answer.
   const send = (label: string) => {
     drafts.delete(ask.event_id);
     setAnswered(label);
-    answer.mutate({ event_id: ask.event_id, label, by: "person" });
+    answer.mutate({
+      event_id: ask.event_id,
+      label: detail ? (ask.label ?? ask.candidates[0]?.label ?? label) : label,
+      by: "person",
+      detail: detail ? label : undefined,
+    });
   };
 
   // The box is revealed by a click, and a click leaves the focus on the button that
@@ -84,7 +101,9 @@ export function AskPanel({ ask, onDismiss }: { ask: AskView; onDismiss: () => vo
       <div className="flex flex-col gap-2">
         <p className="text-section">{answered}</p>
         <p className="text-caption text-ink-soft">
-          Learned. Next time this is recognised without asking.
+          {detail
+            ? "Taken. The ticket keeps its label and this answer goes with it."
+            : "Learned. Next time this is recognised without asking."}
         </p>
       </div>
     );
@@ -99,7 +118,7 @@ export function AskPanel({ ask, onDismiss }: { ask: AskView; onDismiss: () => vo
       />
       <div className="flex-1">
         <h3 className="text-section">
-          {detail ? detail.question : buttons.length > 0 ? "Which is it?" : "What is this?"}
+          {ask.question ?? (buttons.length > 0 ? "Which is it?" : "What is this?")}
         </h3>
         {ask.description ? (
           <p className="pt-1 text-caption text-ink-soft">Looks like: {ask.description}</p>
