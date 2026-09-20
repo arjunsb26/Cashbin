@@ -58,8 +58,34 @@ async function send<T>(path: string, method: "POST" | "PATCH", body: unknown): P
     headers: { "content-type": "application/json" },
     body: JSON.stringify(body),
   });
-  if (!res.ok) throw new Error(`The backend answered ${res.status} for ${path}.`);
+  if (!res.ok) throw await refused(res, path);
   return (await res.json()) as T;
+}
+
+/**
+ * The backend's own sentence, when it sent one.
+ *
+ * A refusal like "No camera frames yet. Start the camera first." is the whole
+ * answer to what went wrong, and it is written for a person. Reaching for the
+ * status code instead would throw that sentence away and print a number.
+ */
+export class Refused extends Error {
+  readonly status: number;
+  constructor(status: number, message: string) {
+    super(message);
+    this.status = status;
+  }
+}
+
+async function refused(res: Response, path: string): Promise<Refused> {
+  let sentence = "";
+  try {
+    const body = (await res.json()) as { detail?: unknown };
+    if (typeof body.detail === "string") sentence = body.detail;
+  } catch {
+    // Not every refusal carries a body.
+  }
+  return new Refused(res.status, sentence || `The backend answered ${res.status} for ${path}.`);
 }
 
 // The one seam between mock mode and the real backend.
@@ -101,6 +127,7 @@ export const keys = {
   close: ["close"] as const,
   setup: ["setup"] as const,
   rules: ["rules"] as const,
+  devTools: ["dev-tools"] as const,
 };
 
 export function useSummary() {
@@ -197,6 +224,50 @@ export function useAnswerAsk() {
       void client.invalidateQueries({ queryKey: keys.event(body.event_id) });
       void client.invalidateQueries({ queryKey: keys.events });
       void client.invalidateQueries({ queryKey: keys.rounds });
+    },
+  });
+}
+
+/**
+ * Whether this backend has its dev tools on.
+ *
+ * There is no flag to read, so the question is asked of the route itself: a backend
+ * with the simulator mounted answers the empty body with a 422, one without it
+ * answers 404 because the route is not there. Nothing is tossed either way. A
+ * demo build talks to a backend with the tools off, so nothing shows.
+ */
+export function useDevTools() {
+  return useQuery({
+    queryKey: keys.devTools,
+    queryFn: async () => {
+      if (MOCK) return true;
+      try {
+        const res = await fetch(`${API_URL}/api/sim/expect`, {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: "{}",
+        });
+        return res.status !== 404;
+      } catch {
+        return false;
+      }
+    },
+    staleTime: Infinity,
+    retry: false,
+  });
+}
+
+/** Dev only. One toss with a weight and whatever the camera is looking at. */
+export function useAddToss() {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: async (body: { mass_g: number }) => {
+      if (MOCK) return { event_id: 0, status: "detected" };
+      return send<{ event_id: number; status: string }>("/api/sim/toss", "POST", body);
+    },
+    onSuccess: () => {
+      void client.invalidateQueries({ queryKey: keys.events });
+      void client.invalidateQueries({ queryKey: keys.summary });
     },
   });
 }

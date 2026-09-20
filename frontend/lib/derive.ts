@@ -269,7 +269,23 @@ export function askFromDetail(detail: EventDetail | null | undefined): AskView |
     event_id: detail.event.id,
     crop_url: detail.event.crop_url ?? null,
     candidates,
+    description: askDescription(identification),
   };
+}
+
+/**
+ * What the model says it is looking at, when it says anything.
+ *
+ * This is the model's own words, so it is data and never anything else: it is capped
+ * at 120 characters and printed as a quoted sentence. A backend older than the field
+ * sends nothing and the ask reads as it always did.
+ */
+export function askDescription(source: unknown): string | null {
+  if (!source || typeof source !== "object") return null;
+  const raw = (source as { description?: unknown }).description;
+  if (typeof raw !== "string") return null;
+  const text = raw.replace(/\s+/g, " ").trim().slice(0, 120);
+  return text.length > 0 ? text : null;
 }
 
 /** The same shape the socket sends, with the candidate list left as a plain array. */
@@ -278,6 +294,8 @@ export type AskView = {
   event_id: number;
   crop_url: string | null;
   candidates: { label: string; p: number }[];
+  /** The model's sentence about the photo, when the payload carries one. */
+  description?: string | null;
 };
 
 // The weight trace ---------------------------------------------------------

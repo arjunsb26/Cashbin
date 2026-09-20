@@ -22,7 +22,7 @@ const drafts = new Map<number, { typing: boolean; raw: string }>();
  * The ask takes over the ticket body. Keys 1 to 4 answer it.
  * Free text is read into a small object first, and the page shows what it understood.
  */
-export function AskPanel({ ask }: { ask: AskView }) {
+export function AskPanel({ ask, onDismiss }: { ask: AskView; onDismiss: () => void }) {
   const draft = drafts.get(ask.event_id) ?? { typing: false, raw: "" };
   const [answered, setAnswered] = useState<string | null>(null);
   const [typing, setTypingState] = useState(draft.typing);
@@ -56,6 +56,12 @@ export function AskPanel({ ask }: { ask: AskView }) {
   useEffect(() => {
     if (answered) return;
     const onKey = (e: KeyboardEvent) => {
+      // Escape is the way out of a question, from the box as much as anywhere else.
+      // It is not a character, so no one loses a keystroke to it.
+      if (e.key === "Escape") {
+        onDismiss();
+        return;
+      }
       // A digit typed into the label box is part of the label, never an answer.
       if (typing || fromEditable(e.target)) return;
       const index = Number(e.key) - 1;
@@ -86,6 +92,9 @@ export function AskPanel({ ask }: { ask: AskView }) {
       />
       <div className="flex-1">
         <h3 className="text-section">Which is it?</h3>
+        {ask.description ? (
+          <p className="pt-1 text-caption text-ink-soft">Looks like: {ask.description}</p>
+        ) : null}
         <ul className="m-0 flex list-none flex-col gap-2 p-0 pt-3">
           {ask.candidates.slice(0, 4).map((candidate, i) => (
             <li key={candidate.label}>
@@ -140,11 +149,22 @@ export function AskPanel({ ask }: { ask: AskView }) {
           <button
             type="button"
             onClick={() => setTyping(true)}
-            className="mt-3 text-body underline underline-offset-2"
+            className="mt-3 block text-body underline underline-offset-2"
           >
             Something else
           </button>
         )}
+
+        {/* The way out. Nothing is posted and nothing is decided: the ticket stays
+            in the tape marked asking, so the close still counts it as one that
+            needed a person, and the screen moves on to whatever landed next. */}
+        <button
+          type="button"
+          onClick={onDismiss}
+          className="mt-3 block text-caption text-ink-soft underline underline-offset-2"
+        >
+          Not now
+        </button>
       </div>
     </div>
   );

@@ -1,9 +1,12 @@
 "use client";
 
+import { useState } from "react";
+
 import { API_URL, useEventDetails, useRounds, useSummary } from "@/lib/api";
-import { askFromDetail, type AskView } from "@/lib/derive";
+import { askDescription, askFromDetail, type AskView } from "@/lib/derive";
 import { useLive, useReach } from "@/lib/live";
 import { formatCount, formatMoney, formatPercent, massParts } from "@/lib/format";
+import { AddToss } from "@/components/AddToss";
 import { AskPanel } from "@/components/AskPanel";
 import { FirstRun } from "@/components/FirstRun";
 import { RoundTotals } from "@/components/RoundTotals";
@@ -30,11 +33,21 @@ export default function LivePage() {
   const details = useEventDetails(tape);
   // A question outranks the next toss. While one is open it holds the ticket, so a
   // toss landing seven seconds later cannot carry an unanswered ask off the screen.
-  const waiting = tape.find((e) => e.status === "asking") ?? null;
-  const open = live.ask;
+  // Which is why there has to be a way out of one: a question waved off with "Not
+  // now" posts nothing, the ticket stays in the tape marked asking so the close
+  // still counts it, and the sheet moves on to whatever landed next.
+  const [waved, setWaved] = useState<number[]>([]);
+  const waiting =
+    tape.find((e) => e.status === "asking" && !waved.includes(e.id)) ?? null;
+  const open = live.ask && !waved.includes(live.ask.event_id) ? live.ask : null;
   const ask: AskView | null =
     open && tape.some((e) => e.id === open.event_id)
-      ? { ...open, type: "ask.opened", crop_url: open.crop_url ?? null }
+      ? {
+          ...open,
+          type: "ask.opened",
+          crop_url: open.crop_url ?? null,
+          description: askDescription(open),
+        }
       : askFromDetail(waiting ? details.get(waiting.id) : null);
   const asked = ask ? (tape.find((e) => e.id === ask.event_id) ?? null) : null;
   const ticket = asked
@@ -105,6 +118,11 @@ export default function LivePage() {
 
       <div className="grid grid-cols-1 gap-8 lg:grid-cols-[var(--ticket-w)_minmax(0,1fr)]">
         <section aria-label="Current ticket">
+          {/* The column's own head. It carries the one control that belongs to the
+              ticket side, and it is empty on a backend with the dev tools off. */}
+          <div className="flex min-h-9 items-center justify-end pb-3 empty:hidden">
+            <AddToss />
+          </div>
           {reach === "connecting" ? (
             <div className="flex w-ticket max-w-full flex-col gap-3 border border-rule bg-surface p-5">
               <Skeleton className="h-[var(--crop-ticket)] w-[var(--crop-ticket)]" />
@@ -122,7 +140,12 @@ export default function LivePage() {
               phase={ticket.phase}
               arrival={ticket.arrival}
             >
-              {asked && ask ? <AskPanel ask={ask} /> : undefined}
+              {asked && ask ? (
+                <AskPanel
+                  ask={ask}
+                  onDismiss={() => setWaved((ids) => [...ids, ask.event_id])}
+                />
+              ) : undefined}
             </Ticket>
           ) : (
             <FirstRun />
