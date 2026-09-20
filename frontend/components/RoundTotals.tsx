@@ -1,7 +1,9 @@
 "use client";
 
 import type { RoundRead, SummaryResponse } from "@/lib/types";
+import { useWaiting } from "@/lib/api";
 import { formatCount, formatMoney, formatPercent, massParts } from "@/lib/format";
+import { waitingSentence } from "@/lib/copy";
 import { cx } from "./ui";
 
 /**
@@ -19,6 +21,7 @@ export function RoundTotals({
   summary: SummaryResponse | undefined;
   round: RoundRead | null;
 }) {
+  const waiting = useWaiting();
   if (!summary) return null;
   const mass = massParts((summary.kg_diverted ?? 0) * 1000);
   const accuracy = round?.first_try_accuracy ?? null;
@@ -46,11 +49,9 @@ export function RoundTotals({
             <span className="text-body">{formatPercent(accuracy)}</span>
           </div>
           <AccuracyBar fraction={accuracy} />
-          <p className="pt-1 text-caption text-ink-soft">
-            {round?.n_asked
-              ? `${formatCount(round.n_asked)} needed a person.`
-              : "None of them needed a person."}
-          </p>
+          {/* The count of things waiting on a person comes from the queue, the
+              same place the rail reads, so the tape and the rail cannot differ. */}
+          <p className="pt-1 text-caption text-ink-soft">{waitingSentence(waiting)}</p>
         </div>
       )}
     </section>

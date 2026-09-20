@@ -50,3 +50,16 @@ export const FIRST_RUN_STEPS = [
 /** The exact command, so it can be copied rather than retyped from a screen. */
 export const SIMULATOR_COMMAND =
   "uv run --directory backend python ../sim/run_scenario.py --scenario demo --insecure";
+
+/**
+ * The one sentence about things waiting on a person, wherever a screen says it.
+ *
+ * The rail, the tape's total and Trends used to say "waiting", "needed a person"
+ * and "asks" about counts that were not the same count. One sentence and one
+ * source means a reader can carry the number from one screen to the next.
+ */
+export function waitingSentence(waiting: number): string {
+  if (waiting <= 0) return "Nothing is waiting on a person.";
+  if (waiting === 1) return "One thing is waiting on a person.";
+  return waiting + " things are waiting on a person.";
+}

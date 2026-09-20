@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Activity, BookOpen, CheckSquare, ClipboardCheck, TrendingUp } from "lucide-react";
-import { useReview } from "@/lib/api";
+import { useWaiting } from "@/lib/api";
 import { brand } from "@/lib/brand";
 import { SettingsDialog } from "./SettingsDialog";
 import { cx } from "./ui";
@@ -24,8 +24,8 @@ const DESTINATIONS = [
 
 export function Rail() {
   const pathname = usePathname();
-  const review = useReview();
-  const open = review.data?.open_count ?? 0;
+  // One waiting count for the whole app, read from the queue itself.
+  const open = useWaiting();
 
   return (
     <nav
