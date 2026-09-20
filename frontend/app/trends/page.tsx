@@ -13,6 +13,8 @@ import {
 import type { StatsResponse } from "@/lib/types";
 import { formatCount, formatDate, formatMass, formatMoney, formatPercent } from "@/lib/format";
 import { waitingSentence } from "@/lib/copy";
+import { AskBooks } from "@/components/AskBooks";
+import { CategoryDonut, categoryClass } from "@/components/CategoryDonut";
 import { LearningChart } from "@/components/LearningChart";
 import {
   Badge,
@@ -39,7 +41,7 @@ export default function TrendsPage() {
   const data = stats.data ?? null;
 
   return (
-    <div className="flex max-w-[860px] flex-col gap-8">
+    <div className="flex flex-col gap-8">
       <PageHeader
         title="Trends"
         description="What has gone in the bin, what it cost, and where it came from."
@@ -103,44 +105,53 @@ export default function TrendsPage() {
 
       {data && !statsEmpty(data) ? <Figures stats={data} range={range} /> : null}
 
-      <section>
-        <SectionTitle>Right first try, and what it costs</SectionTitle>
-        {rounds.isPending ? <Skeleton className="mt-3 h-[240px] w-full" /> : null}
-        {rounds.isError ? (
-          <div className="pt-3">
-            <ErrorState
-              title="The rounds did not load. The backend is not answering."
-              onRetry={() => rounds.refetch()}
-            />
-          </div>
-        ) : null}
-        {rounds.data && list.length === 0 ? (
-          <div className="pt-3">
-            <EmptyState title="No rounds yet. The first round opens with the first toss, and the accuracy line starts there." />
-          </div>
-        ) : null}
-        {list.length > 0 ? (
-          <div className="pt-3">
-            <LearningChart rounds={list} />
-            <p className="pt-2 text-caption text-ink-soft">
-              Cost per toss is on its own scale, which is why it is dashed.
-            </p>
-          </div>
-        ) : null}
-      </section>
+      {/* The learning chart and what it learned sit side by side on a laptop, so
+          the chart is not a lone line with a blank half page beside it. */}
+      <div className="grid grid-cols-1 gap-8 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
+        <section>
+          <SectionTitle>Right first try, and what it costs</SectionTitle>
+          {rounds.isPending ? <Skeleton className="mt-3 h-[240px] w-full" /> : null}
+          {rounds.isError ? (
+            <div className="pt-3">
+              <ErrorState
+                title="The rounds did not load. The backend is not answering."
+                onRetry={() => rounds.refetch()}
+              />
+            </div>
+          ) : null}
+          {rounds.data && list.length === 0 ? (
+            <div className="pt-3">
+              <EmptyState title="No rounds yet. The first round opens with the first toss, and the accuracy line starts there." />
+            </div>
+          ) : null}
+          {list.length > 0 ? (
+            <div className="pt-3">
+              <LearningChart rounds={list} />
+              <p className="pt-2 text-caption text-ink-soft">
+                Cost per toss is on its own scale, which is why it is dashed.
+              </p>
+            </div>
+          ) : null}
+        </section>
 
-      {learned.length > 0 ? (
         <section>
           <SectionTitle>What it learned</SectionTitle>
-          <ul className="m-0 list-none p-0 pt-3">
-            {learned.map((note) => (
-              <li key={note} className="border-b border-rule py-2">
-                <p className="text-body">{note}</p>
-              </li>
-            ))}
-          </ul>
+          {learned.length > 0 ? (
+            <ul className="m-0 list-none p-0 pt-3">
+              {learned.map((note) => (
+                <li key={note} className="border-b border-rule py-2">
+                  <p className="text-body">{note}</p>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="pt-3 text-body text-ink-soft">
+              Nothing corrected yet. Every answer a person gives at the bin lands here as a
+              sentence, and the next toss of the same thing is recognised from it.
+            </p>
+          )}
         </section>
-      ) : null}
+      </div>
 
       <FinanceFooter />
     </div>
@@ -205,30 +216,40 @@ function Figures({ stats, range }: { stats: StatsResponse; range: StatsRange }) 
         </p>
       </section>
 
-      <section>
-        <SectionTitle>Where it went</SectionTitle>
-        <ul className="m-0 list-none p-0 pt-3">
-          {bars.map((bar) => (
-            <CategoryRow key={bar.category} bar={bar} total={barTotal} />
-          ))}
-        </ul>
-      </section>
-
-      {suggestions.length > 0 || stats.summary_md ? (
+      {/* Two columns on a laptop: where the money went on the left, what the
+          numbers say and the question box on the right. One column on a phone. */}
+      <div className="grid grid-cols-1 gap-8 lg:grid-cols-[minmax(0,1fr)_minmax(320px,0.8fr)]">
         <section>
-          <SectionTitle>What the numbers say</SectionTitle>
-          <ul className="m-0 list-none p-0 pt-3 empty:hidden">
-            {suggestions.map((line) => (
-              <li key={line} className="border-b border-rule py-2">
-                <p className="text-body">{line}</p>
-              </li>
-            ))}
-          </ul>
-          {stats.summary_md ? (
-            <p className="max-w-[68ch] pt-4 text-body text-ink-soft">{stats.summary_md}</p>
-          ) : null}
+          <SectionTitle>Where it went</SectionTitle>
+          <div className="flex flex-col gap-4 pt-3 sm:flex-row sm:items-start sm:gap-6">
+            <CategoryDonut bars={bars} className="self-center sm:self-start" />
+            <ul className="m-0 min-w-0 flex-1 list-none p-0">
+              {bars.map((bar) => (
+                <CategoryRow key={bar.category} bar={bar} total={barTotal} />
+              ))}
+            </ul>
+          </div>
         </section>
-      ) : null}
+
+        <div className="flex flex-col gap-8">
+          {suggestions.length > 0 || stats.summary_md ? (
+            <section>
+              <SectionTitle>What the numbers say</SectionTitle>
+              <ul className="m-0 list-none p-0 pt-3 empty:hidden">
+                {suggestions.map((line) => (
+                  <li key={line} className="border-b border-rule py-2">
+                    <p className="text-body">{line}</p>
+                  </li>
+                ))}
+              </ul>
+              {stats.summary_md ? (
+                <p className="pt-4 text-body text-ink-soft">{stats.summary_md}</p>
+              ) : null}
+            </section>
+          ) : null}
+          <AskBooks where="trends" />
+        </div>
+      </div>
     </>
   );
 }
@@ -246,21 +267,26 @@ function Figure({ label, value, under }: { label: string; value: string; under: 
 /**
  * A bar drawn by hand out of two blocks, because that is all a bar is and a chart
  * library would put its own look on it. The figure sits beside the label rather
- * than at the end of the bar, so a phone reads the numbers in one column.
+ * than at the end of the bar, so a phone reads the numbers in one column. The bar
+ * wears its category's colour, the same one its slice of the ring wears.
  */
 function CategoryRow({ bar, total }: { bar: CategoryBar; total: number }) {
   const share = total > 0 ? bar.cents / total : 0;
+  const colour = categoryClass(bar.category);
   return (
     <li className="border-b border-rule py-2">
       <div className="flex items-baseline justify-between gap-4">
-        <span className="text-body">{bar.label}</span>
+        <span className="flex items-center gap-2 text-body">
+          <span className={cx("inline-block h-2.5 w-2.5 rounded-full", colour.fill)} aria-hidden="true" />
+          {bar.label}
+        </span>
         <span className="text-body">
           {formatMoney(bar.cents, { symbol: true })}
           <Badge>{formatPercent(share)}</Badge>
         </span>
       </div>
       <div className="mt-1 h-2 w-full bg-bar" aria-hidden="true">
-        <div className="h-2 bg-ink" style={{ width: Math.round(bar.share * 100) + "%" }} />
+        <div className={cx("h-2", colour.fill)} style={{ width: Math.round(bar.share * 100) + "%" }} />
       </div>
       <p className="pt-1 text-caption text-ink-soft">
         {formatCount(bar.tosses)} {bar.tosses === 1 ? "toss" : "tosses"}, {formatMass(bar.massG)}
@@ -271,23 +297,19 @@ function CategoryRow({ bar, total }: { bar: CategoryBar; total: number }) {
 
 function TrendsSkeleton() {
   return (
-    <div className="flex flex-col gap-6">
+    <div className="flex flex-col gap-8" aria-hidden="true">
       <div className="grid grid-cols-2 gap-x-8 gap-y-4 sm:grid-cols-4">
         {[0, 1, 2, 3].map((i) => (
           <div key={i} className="flex flex-col gap-2">
             <Skeleton className="h-4 w-24" />
-            <Skeleton className="h-8 w-20" />
-            <Skeleton className="h-4 w-16" />
+            <Skeleton className="h-8 w-28" />
+            <Skeleton className="h-4 w-20" />
           </div>
         ))}
       </div>
-      <div className="flex flex-col gap-4">
-        {[0, 1, 2, 3, 4].map((i) => (
-          <div key={i} className="flex flex-col gap-2">
-            <Skeleton className="h-4 w-full" />
-            <Skeleton className="h-2 w-full" />
-          </div>
-        ))}
+      <div className="grid grid-cols-1 gap-8 lg:grid-cols-2">
+        <Skeleton className="h-[200px] w-full" />
+        <Skeleton className="h-[200px] w-full" />
       </div>
     </div>
   );

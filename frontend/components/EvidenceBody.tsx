@@ -60,11 +60,13 @@ export function EvidenceBody({ evidence }: { evidence: EvidenceBundle }) {
               {id.confidence !== null && id.confidence !== undefined
                 ? ` at ${formatProbability(id.confidence)} confidence`
                 : ""}
-              {id.latency_ms ? `, in ${Math.round(id.latency_ms)} ms` : ""}.
+              {id.latency_ms ? `, in ${(id.latency_ms / 1000).toFixed(1)} s` : ""}.
             </p>
-            {id.provider && id.model ? (
+            {id.provider === "human" ? (
+              <p className="text-caption text-ink-soft">Confirmed by a person.</p>
+            ) : id.provider && id.model ? (
               <p className="text-caption text-ink-soft">
-                Served by {id.provider}, model {id.model}.
+                Answered by the vision model in one pass.
               </p>
             ) : null}
             {evidence.same_treatment ? (

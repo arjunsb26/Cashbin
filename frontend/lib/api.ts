@@ -187,17 +187,54 @@ export function useWaiting(): number {
 export function useReviewDecision() {
   const client = useQueryClient();
   return useMutation({
-    mutationFn: async (body: { id: number; decision: "approve" | "reject"; note: string }) => {
+    mutationFn: async (body: {
+      id: number;
+      decision: "approve" | "reject";
+      note: string;
+      /** The person's own figure, in cents, when they overrode the estimate. */
+      amountCents?: number | null;
+    }) => {
       if (MOCK) return null;
-      return send<ReviewDecisionResponse>(`/api/review/${body.id}/${body.decision}`, "POST", {
-        by: "person",
-        note: body.note,
-      });
+      const payload: Record<string, unknown> = { by: "person", note: body.note };
+      if (typeof body.amountCents === "number") payload.amount_cents = body.amountCents;
+      return send<ReviewDecisionResponse>(`/api/review/${body.id}/${body.decision}`, "POST", payload);
     },
     onSettled: () => {
       void client.invalidateQueries({ queryKey: keys.review });
       void client.invalidateQueries({ queryKey: keys.events });
       void client.invalidateQueries({ queryKey: keys.journal });
+    },
+  });
+}
+
+/** What the ask agent sends back. Local until the contract carries it. */
+export type AskResponse = {
+  answer: string;
+  steps: { tool: string; args_summary: string; finding: string }[];
+  provider: string;
+  model: string;
+  latency_ms: number | null;
+  grounded: boolean;
+};
+
+/**
+ * A question about the books, answered by an agent that looks things up.
+ * The question travels as data in a JSON field. Nothing here writes.
+ */
+export function useAsk() {
+  return useMutation({
+    mutationFn: async (question: string) => {
+      if (MOCK) {
+        return {
+          answer: "The mock has no books to read.",
+          steps: [],
+          provider: "",
+          model: "",
+          latency_ms: null,
+          grounded: false,
+        } satisfies AskResponse;
+      }
+      return send<AskResponse>("/api/ask", "POST", { question });
     },
   });
 }

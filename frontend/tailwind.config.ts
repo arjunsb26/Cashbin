@@ -19,6 +19,11 @@ const config: Config = {
         caution: "var(--caution)",
         "caution-tint": "var(--caution-tint)",
         surface: "var(--surface)",
+        "cat-food": "var(--cat-food)",
+        "cat-packaging": "var(--cat-packaging)",
+        "cat-equipment": "var(--cat-equipment)",
+        "cat-ewaste": "var(--cat-ewaste)",
+        "cat-other": "var(--cat-other)",
       },
       fontFamily: {
         sans: "var(--font-plex-sans), system-ui, sans-serif",

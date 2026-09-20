@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Activity, BookOpen, CheckSquare, ClipboardCheck, TrendingUp } from "lucide-react";
@@ -32,7 +33,10 @@ export function Rail() {
       aria-label="Sections"
       className="sticky top-0 flex h-dvh w-rail shrink-0 flex-col items-stretch gap-1 bg-paper py-3"
     >
-      <span className="px-2 pb-3 text-center text-caption text-ink-soft">{brand.short_name}</span>
+      <Link href="/" className="flex flex-col items-center gap-1 px-2 pb-3" aria-label={brand.name}>
+        <Image src="/logo-mark.png" alt="" width={44} height={44} priority />
+        <span className="text-caption text-ink-soft">{brand.short_name}</span>
+      </Link>
       {DESTINATIONS.map(({ href, label, Icon }) => {
         const current = href === "/" ? pathname === "/" : pathname.startsWith(href);
         return (

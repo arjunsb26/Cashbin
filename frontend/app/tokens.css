@@ -26,6 +26,17 @@
   --kept-tint: #d5e6dc;
   --caution-tint: #f8f2e9;
 
+  /*
+    One colour per category of thing thrown away, for the Trends charts only.
+    Each carries a meaning (the category) and appears with its name beside it.
+    Green stays reserved for money kept, so no category is green.
+  */
+  --cat-food: #c2703e;
+  --cat-packaging: #3b7ea1;
+  --cat-equipment: #1a2b4c;
+  --cat-ewaste: #7a4e9b;
+  --cat-other: #8793a6;
+
   /* The two shadows in the product, both tinted with ink */
   --shadow-ticket: rgba(26, 43, 76, 0.06);
   --shadow-overlay: rgba(26, 43, 76, 0.14);

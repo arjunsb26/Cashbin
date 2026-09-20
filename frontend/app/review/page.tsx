@@ -48,7 +48,12 @@ export default function ReviewPage() {
    * and the read is refetched when the backend answers, so a refusal puts the row
    * back where it was with the backend's own sentence under it.
    */
-  const settle = (item: ReviewItemRead, decision: "approve" | "reject", note: string) => {
+  const settle = (
+    item: ReviewItemRead,
+    decision: "approve" | "reject",
+    note: string,
+    amountCents?: number | null,
+  ) => {
     setPending((now) => ({
       ...now,
       [item.id]: { status: decision === "approve" ? "approved" : "rejected", note },
@@ -59,7 +64,7 @@ export default function ReviewPage() {
       return next;
     });
     decide.mutate(
-      { id: item.id, decision, note },
+      { id: item.id, decision, note, amountCents },
       {
         onError: (error) => {
           setPending((now) => {
@@ -212,7 +217,12 @@ function ReviewRow({
   status: ReviewStatus;
   note: string | null;
   refused: string | null;
-  onSettle: (item: ReviewItemRead, decision: "approve" | "reject", note: string) => void;
+  onSettle: (
+    item: ReviewItemRead,
+    decision: "approve" | "reject",
+    note: string,
+    amountCents?: number | null,
+  ) => void;
   onAnswer: (item: ReviewItemRead, label: string) => void;
 }) {
   const [other, setOther] = useState(false);
@@ -393,11 +403,24 @@ function NoteDialog({
 }: {
   item: ReviewItemRead;
   decision: "approve" | "reject";
-  onSettle: (item: ReviewItemRead, decision: "approve" | "reject", note: string) => void;
+  onSettle: (
+    item: ReviewItemRead,
+    decision: "approve" | "reject",
+    note: string,
+    amountCents?: number | null,
+  ) => void;
 }) {
   const [open, setOpen] = useState(false);
   const [typed, setTyped] = useState("");
+  const [ownAmount, setOwnAmount] = useState(false);
+  const [amountText, setAmountText] = useState("");
   const approving = decision === "approve";
+  // A figure a person can override: a value a model estimated, or a thing found
+  // off the register. A donation or a bare question has no amount to argue with.
+  const priced =
+    item.kind === "estimate_above_threshold" || item.kind === "possible_unrecorded_asset";
+  const parsedCents = parseDollars(amountText);
+  const amountOk = !ownAmount || parsedCents !== null;
 
   return (
     <Dialog.Root open={open} onOpenChange={setOpen}>
@@ -417,10 +440,55 @@ function NoteDialog({
           </Dialog.Title>
           <p className="pb-4 pt-1 text-caption text-ink-soft">
             {approving
-              ? "The posting stands and the question closes. The ledger does not move."
+              ? priced
+                ? "Keep the figure and the question closes, or type your own and the books repost at yours."
+                : "The posting stands and the question closes. The ledger does not move."
               : "What the ticket claimed is undone. The entries are reversed, never deleted."}
           </p>
           <div className="flex flex-col gap-3">
+            {approving && priced ? (
+              <div className="flex flex-col gap-2">
+                <p className="text-body">
+                  The estimate is {formatMoney(item.amount_cents ?? 0, { symbol: true })}.
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  <Button
+                    tone={ownAmount ? undefined : "primary"}
+                    onClick={() => setOwnAmount(false)}
+                    aria-pressed={!ownAmount}
+                  >
+                    Keep the estimate
+                  </Button>
+                  <Button
+                    tone={ownAmount ? "primary" : undefined}
+                    onClick={() => setOwnAmount(true)}
+                    aria-pressed={ownAmount}
+                  >
+                    Use my own figure
+                  </Button>
+                </div>
+                {ownAmount ? (
+                  <Field
+                    label="Your figure, in dollars"
+                    hint="What it is really worth. The estimate stays beside it in the evidence."
+                    htmlFor={"review-amount-" + item.id}
+                    error={
+                      amountText.length > 0 && parsedCents === null
+                        ? "A dollar figure, for example 45 or 45.50."
+                        : null
+                    }
+                  >
+                    <Input
+                      id={"review-amount-" + item.id}
+                      inputMode="decimal"
+                      value={amountText}
+                      onChange={(e) => setAmountText(e.target.value)}
+                      placeholder={formatMoney(item.amount_cents ?? 0)}
+                    />
+                  </Field>
+                ) : null}
+              </div>
+            ) : null}
             <Field
               label="Why"
               hint="One line, for whoever reads the books after you. It is kept with the decision."
@@ -436,12 +504,22 @@ function NoteDialog({
             <div className="flex gap-2">
               <Button
                 tone={approving ? "primary" : "danger"}
+                disabled={!amountOk}
                 onClick={() => {
-                  onSettle(item, decision, typed.trim().slice(0, 120));
+                  onSettle(
+                    item,
+                    decision,
+                    typed.trim().slice(0, 120),
+                    approving && priced && ownAmount ? parsedCents : null,
+                  );
                   setOpen(false);
                 }}
               >
-                {approving ? "Approve it" : "Reject it"}
+                {approving
+                  ? ownAmount && parsedCents !== null
+                    ? "Approve at " + formatMoney(parsedCents, { symbol: true })
+                    : "Approve it"
+                  : "Reject it"}
               </Button>
               <Dialog.Close asChild>
                 <Button>Cancel</Button>
@@ -452,6 +530,18 @@ function NoteDialog({
       </Dialog.Portal>
     </Dialog.Root>
   );
+}
+
+/**
+ * Dollars typed by a person, as whole cents, or null when it is not a figure.
+ * A leading dollar sign and thousands commas are allowed because people type them.
+ */
+function parseDollars(text: string): number | null {
+  const cleaned = text.replace(/[$,\s]/g, "");
+  if (!/^\d+(\.\d{1,2})?$/.test(cleaned)) return null;
+  const cents = Math.round(Number(cleaned) * 100);
+  if (!Number.isFinite(cents) || cents < 0 || cents > 10_000_000) return null;
+  return cents;
 }
 
 function QueueSkeleton() {
