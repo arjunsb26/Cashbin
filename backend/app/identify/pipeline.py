@@ -506,6 +506,20 @@ async def identify_event(
 _NO_PRIOR = MassPrior(mean_g=0.0, var=0.0, n=0)
 
 
+def spend_on(session: Session, event_id: int) -> int:
+    """Every microdollar this event's stages cost, added up.
+
+    The round's cost used to be read off the last identification row, which was the row of
+    the call that served the toss. Since the mass prior fusion writes a row of its own on
+    top, and that stage runs here and costs nothing, reading the last row would report every
+    cloud call as free. Adding the rows up is right whatever stages exist.
+    """
+    rows = session.execute(
+        select(Identification.cost_microusd).where(Identification.event_id == event_id)
+    ).scalars()
+    return sum(int(value) for value in rows if value)
+
+
 def _local_usage(model: str) -> CallUsage:
     """A stage that ran here. CLAUDE.md: every row says what served it, and this cost nothing."""
     return CallUsage(
@@ -628,7 +642,7 @@ async def _finalise(
         asked=False,
         confident=True,
         latency_ms=_elapsed(started),
-        cost_microusd=row.cost_microusd,
+        cost_microusd=spend_on(session, event.id),
     )
     session.commit()
     metrics.publish_metrics(session, deps.bus)
@@ -661,7 +675,7 @@ async def _ask(
         asked=True,
         confident=False,
         latency_ms=_elapsed(started),
-        cost_microusd=row.cost_microusd,
+        cost_microusd=spend_on(session, event.id),
     )
     session.commit()
     metrics.publish_metrics(session, deps.bus)
@@ -729,6 +743,7 @@ __all__ = [
     "reset_identify",
     "reset_providers",
     "set_on_final",
+    "spend_on",
     "store_exemplar",
     "top_two",
     "write_identification",

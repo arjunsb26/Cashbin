@@ -16,6 +16,7 @@ from fastapi.testclient import TestClient
 from starlette.testclient import WebSocketTestSession
 
 from app.config import Settings
+from app.identify.stub import get_expect_queue
 from app.models import CropQuality, EventKind, EventStatus
 from tests.ingest_helpers import ScriptedClock, weight_frames
 from tests.test_detect_steps import Signal
@@ -65,6 +66,12 @@ def test_a_staircase_becomes_one_event_row_per_step(
 ) -> None:
     signal = demo_signal()
     drive(app, signal)
+    # Tell the stub what is coming, the way the simulator does. Without this it answers the
+    # same label for every crop, and since PLAN.md 21a item 24 made the seeded mass priors
+    # count, a 172 g "usb cable" is second-guessed by the scale and opens an ask. That is
+    # the fusion stage working; this test is about one event row per step.
+    for label in ("bagel", "keyboard", "cookie", "phone"):
+        get_expect_queue().push(label)
 
     with client.websocket_connect("/ws/ui") as ui, client.websocket_connect("/ws/bin") as bin_sock:
         stream(bin_sock, signal)

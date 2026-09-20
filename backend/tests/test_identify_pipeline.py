@@ -169,9 +169,12 @@ async def test_a_confident_stub_answer_is_final(settings: Settings) -> None:
     assert outcome.label == "bagel"
     assert outcome.method is IdentifyMethod.stub
     rows = rows_for(event_id)
-    assert rows[-1].provider == "stub"
-    assert rows[-1].model == "stub"
+    # The call's own row says which provider served it. The mass prior then writes a row of
+    # its own on top, which is the fusion stage and is served locally.
+    served = next(row for row in rows if row.provider == "stub")
+    assert served.model == "stub"
     assert rows[-1].is_final is True
+    assert rows[-1].label == "bagel"
     assert listener.types()[0] == "screen"
 
 
