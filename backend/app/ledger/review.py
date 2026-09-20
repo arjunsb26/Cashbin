@@ -654,6 +654,22 @@ def approve(
         assert amount_cents is not None
         reversed_ids, difference, detail = _restate_estimate(session, item, amount_cents)
         decided = f"{item.kind.value} approved at {amount_cents} cents"
+    elif (
+        amount_cents is not None
+        and item.kind in AMOUNT_KINDS
+        and amount_cents != item.amount_cents
+    ):
+        # The row's figure is what following the best option is worth, not the
+        # estimate itself, so nothing posted rests on it. The person's figure still
+        # goes on the row, because a typed amount that vanished would read as lost.
+        was = item.amount_cents
+        item.amount_cents = amount_cents
+        reversed_ids, difference = [], amount_cents - was
+        detail = (
+            f"Approved at ${money(amount_cents)}, the ticket said ${money(was)}. "
+            "Nothing posted rests on this figure, so the entries stand as they are."
+        )
+        decided = f"{item.kind.value} approved at {amount_cents} cents"
     else:
         reversed_ids, difference = [], 0
         detail = "The entries already posted for this ticket stand as they are."
