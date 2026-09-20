@@ -24,11 +24,7 @@ from app.config import Settings
 from app.detect.crop import downscale_jpeg
 from app.identify.cost import cost_microusd, price_for
 from app.identify.estimate_cache import read_estimate, write_estimate
-from app.identify.openai_request import (
-    UNKNOWN_CHOICE,
-    build_estimate_request,
-    build_vision_request,
-)
+from app.identify.openai_request import build_estimate_request, build_vision_request
 from app.identify.providers import CallUsage, IdentifyContext
 from app.schemas import ValueEstimate, VisionResult, normalise_label
 
@@ -134,12 +130,7 @@ class OpenAIVisionProvider(_Adapter):
             self.settings.llm_vision_effort,
             self.settings.llm_service_tier,
         )
-        known = {*context.catalog_labels, UNKNOWN_CHOICE}
-
-        def in_the_catalog(answer: Any) -> bool:
-            return str(getattr(answer, "label", "")) in known
-
-        parsed = self._parse(request, model, VisionResult, in_the_catalog if known else None)
+        parsed = self._parse(request, model, VisionResult)
         if parsed is None:
             return VisionResult.model_validate(
                 {"label": "unknown object", "class": "untracked",

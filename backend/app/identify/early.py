@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import time
 from collections.abc import Coroutine
 from dataclasses import dataclass, field
 from typing import Any
@@ -26,6 +27,9 @@ log = logging.getLogger(__name__)
 # What the work gives back: the model's answer, and the crop it actually looked at.
 EarlyResult = tuple[VisionResult | None, bytes | None]
 
+# Never nothing. A call that is about to answer should be allowed to.
+MIN_BUDGET_S = 0.05
+
 
 @dataclass
 class Pending:
@@ -34,11 +38,28 @@ class Pending:
     opened_ms: float
     task: asyncio.Task[EarlyResult]
     event_id: int | None = field(default=None)
+    started_at: float = field(default_factory=time.perf_counter)
+
+    @property
+    def running_for(self) -> float:
+        """Seconds since the call was started, which is before anyone asked for it."""
+        return time.perf_counter() - self.started_at
+
+    def budget(self, timeout_s: float) -> float:
+        """What is left of the toss's own clock.
+
+        The timeout belongs to the toss and not to each call. The early call has a head
+        start of about `identify_open_delay_ms` plus the settle, and if it also got a fresh
+        clock then a slow host would cost the wait twice: the whole timeout here, and then
+        the whole timeout again on the settled call, with a person watching.
+        """
+        return max(MIN_BUDGET_S, timeout_s - self.running_for)
 
     async def result(self, timeout_s: float) -> EarlyResult:
         """What the model said, or (None, None) when it failed or ran out of time."""
         if self.task.cancelled():
             return None, None
+        timeout_s = self.budget(timeout_s)
         try:
             return await asyncio.wait_for(self.task, timeout=timeout_s)
         except TimeoutError:

@@ -20,7 +20,7 @@ from app.engine.records import ItemClass as EngineClass
 from app.engine.records import ItemRecord as EngineRecord
 from app.engine.records import Option
 from app.notify import lcd
-from app.pipeline import ADVICE, BINNED, BLOCKED_ADVICE, BLOCKED_ONLY, BLOCKED_PREFIX, advice_line
+from app.pipeline import ADVICE, BINNED, BLOCKED_ADVICE, BLOCKED_ONLY, advice_line
 from app.schemas import LCD_BIG_MAX, LCD_LINE_MAX
 
 # Marks and words no line the bin draws may carry. CLAUDE.md "Writing" and "What users see".
@@ -44,7 +44,7 @@ BANNED_WORDS = (
 def every_line_two() -> list[str]:
     """Every line 2 the pipeline can compose, from the three tables it composes them from."""
     lines = list(ADVICE.values())
-    lines += [BLOCKED_PREFIX + text for text in BLOCKED_ADVICE.values()]
+    lines += list(BLOCKED_ADVICE.values())
     lines.append(BLOCKED_ONLY)
     lines += list(BINNED.values())
     return lines
@@ -105,7 +105,7 @@ def test_the_binned_line_names_what_happened_to_the_books() -> None:
 
 
 def test_a_blocked_bin_says_the_bin_is_closed_and_what_to_do_instead() -> None:
-    assert advice_line(record(), ranking(Option.recycle), blocked=True) == "No bin. Recycle it"
+    assert advice_line(record(), ranking(Option.recycle), blocked=True) == "Recycle, not trash"
     assert advice_line(record(), ranking(Option.trash), blocked=True) == BLOCKED_ONLY
     assert advice_line(record(), ranking(None), blocked=True) == BLOCKED_ONLY
 
@@ -119,7 +119,8 @@ def test_the_other_screens_read_the_same_way() -> None:
         for mark in BANNED_MARKS:
             assert mark not in line
     # The biggest figure the bin can be handed still fits the seven character field.
-    built = lcd.result("Mechanical keyboard", lcd.fit_big("-$1,234,567.89"), "No bin. Resell it",
+    built = lcd.result("Mechanical keyboard", lcd.fit_big("-$1,234,567.89"),
+                       "Resell it, not trash",
                        "red")
     assert len(built.big) <= LCD_BIG_MAX
     assert len(built.l1) <= LCD_LINE_MAX

@@ -1347,6 +1347,17 @@
           ],
           "default": null
         },
+        "description": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
         "event_id": {
           "type": "integer"
         },
@@ -1868,6 +1879,18 @@
         },
         "event_id": {
           "type": "integer"
+        },
+        "looks_like": {
+          "anyOf": [
+            {
+              "maxLength": 80,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
         },
         "type": {
           "const": "ask",
@@ -2626,7 +2649,7 @@
       "type": "object"
     },
     "SimTossRequest": {
-      "description": "Dev only. Mounted only when DEV_TOOLS is on.",
+      "description": "Dev only. Mounted only when DEV_TOOLS is on.\n\nWith no `image` the frames come from whatever the camera is looking at right now, so\nthe Add button on the dashboard and the phone can make a ticket out of a real item and\na weight somebody typed in. With an `image` it is the old simulator path.",
       "properties": {
         "image": {
           "anyOf": [
@@ -2641,10 +2664,18 @@
           "default": null
         },
         "label": {
-          "description": "Lowercase label. Letters, digits, spaces and hyphens only.",
-          "maxLength": 40,
-          "pattern": "^[a-z0-9 -]+$",
-          "type": "string"
+          "anyOf": [
+            {
+              "description": "Lowercase label. Letters, digits, spaces and hyphens only.",
+              "maxLength": 40,
+              "pattern": "^[a-z0-9 -]+$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
         },
         "mass_g": {
           "exclusiveMinimum": 0.0,
@@ -2652,7 +2683,6 @@
         }
       },
       "required": [
-        "label",
         "mass_g"
       ],
       "type": "object"
@@ -2754,6 +2784,18 @@
         },
         "event_id": {
           "type": "integer"
+        },
+        "looks_like": {
+          "anyOf": [
+            {
+              "maxLength": 80,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
         },
         "type": {
           "const": "ask.opened",
@@ -3058,6 +3100,11 @@
           "maximum": 1.0,
           "minimum": 0.0,
           "type": "number"
+        },
+        "description": {
+          "default": "",
+          "maxLength": 80,
+          "type": "string"
         },
         "label": {
           "description": "Lowercase label. Letters, digits, spaces and hyphens only.",

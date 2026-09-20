@@ -57,14 +57,17 @@ def asset_bytes(name: str) -> bytes | None:
         return None
 
 
-def synthetic_step(mass_g: float, now_ms: float) -> Step:
+def synthetic_step(mass_g: float, now_ms: float, live: bool = False) -> Step:
     """A step shaped like a real one: flat baseline, flat new level, no error to speak of.
 
     The trace runs from 2 s before the open to 1 s after the settle, which is the window
     PLAN.md section 7 stores, so the evidence chart of an injected toss looks like the
     evidence chart of a real one.
+
+    A live Add opens further back, so the frame picker reaches past the item being held up
+    for its before frame instead of finding the item in both.
     """
-    t_open = now_ms - OPEN_LEAD_MS
+    t_open = now_ms - (LIVE_BEFORE_MS if live else OPEN_LEAD_MS)
     t_settle = now_ms - SETTLE_LEAD_MS
     trace: list[list[float]] = []
     dt = 1000.0 / TRACE_RATE_HZ
@@ -104,9 +107,41 @@ def _push_empty_bin(deps: IngestState, now_ms: float) -> None:
     deps.frames.push(empty, now_ms - OPEN_LEAD_MS - CropParams().before_lead_ms)
 
 
+# How far back a live Add reaches for its "before" frame. Two seconds is long enough that
+# whatever is being held up now was not in shot then, and short enough to still be in the
+# four second ring.
+LIVE_BEFORE_MS = 2000.0
+NO_FRAMES = "No camera frames yet. Start the camera first."
+
+
+def _live_step(deps: IngestState, now_ms: float) -> None:
+    """Point the step at frames the camera has already sent, oldest one first.
+
+    A crop is the difference between two frames. The newest frame is the item being held
+    over the bin, and a frame about two seconds older is the bin without it. Both are
+    already in the ring, so nothing is pushed and nothing is invented: the step is simply
+    shaped to reach for them.
+    """
+    held = deps.frames.snapshot()
+    if len(held) < 2:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=NO_FRAMES)
+    newest = held[-1]
+    wanted = newest.t_ms - LIVE_BEFORE_MS
+    older = min(held, key=lambda frame: abs(frame.t_ms - wanted))
+    log.info(
+        "an added item is cropped from the camera: %.0f ms apart, %d frames in the ring",
+        newest.t_ms - older.t_ms,
+        len(held),
+    )
+
+
 @router.post("/toss", response_model=SimTossResponse)
 async def inject_toss(body: SimTossRequest, request: Request) -> SimTossResponse:
-    """Make one event without a scale. The dashboard demo path when no bin is plugged in."""
+    """Make one event without a scale.
+
+    Two ways in. With an image it is the simulator's own path, unchanged. Without one it is
+    the Add button: a weight a person typed and whatever the camera can see right now.
+    """
     deps: IngestState = get_ingest(request.app)
     now_ms = deps.clock()
 
@@ -119,8 +154,15 @@ async def inject_toss(body: SimTossRequest, request: Request) -> SimTossResponse
             )
         _push_empty_bin(deps, now_ms)
         deps.frames.push(data, now_ms)
+    else:
+        _live_step(deps, now_ms)
+        if body.label is not None:
+            # Only the stub reads this, and only on this path: a caller driving the
+            # simulator sets its own expectations with /api/sim/expect, and pushing
+            # again behind them would leave one queued for the toss after this.
+            get_expect_queue().push(str(body.label))
 
-    step = synthetic_step(body.mass_g, now_ms)
+    step = synthetic_step(body.mass_g, now_ms, live=not body.image)
     log.info("injected a toss of %.1f g labelled %s", body.mass_g, body.label)
     event_id = await create_event_from_step(step, deps)
 

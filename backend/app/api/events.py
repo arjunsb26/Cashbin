@@ -21,6 +21,7 @@ from app.db import session_scope
 from app.engine.carbon import avoided_co2e
 from app.engine.records import EstimateSource
 from app.engine.records import ItemClass as EngineItemClass
+from app.identify.pipeline import read_candidates, read_description
 from app.ingest.media import media_url
 from app.ledger.journal import FLAG_POSSIBLE_UNRECORDED_ASSET, looks_unrecorded
 from app.ledger.queries import account_name
@@ -272,10 +273,9 @@ def _identifications(session: Session, event_id: int) -> list[IdentificationRead
     ).all()
     out: list[IdentificationRead] = []
     for row in rows:
+        stored = _loads(row.candidates_json, [])
         candidates = [
-            VisionCandidate.model_validate(item)
-            for item in _loads(row.candidates_json, [])
-            if isinstance(item, dict)
+            VisionCandidate.model_validate(item) for item in read_candidates(stored)
         ]
         out.append(
             IdentificationRead(
@@ -295,6 +295,7 @@ def _identifications(session: Session, event_id: int) -> list[IdentificationRead
                 is_final=row.is_final,
                 provider=row.provider,
                 model=row.model,
+                description=read_description(stored),
             )
         )
     return out

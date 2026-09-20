@@ -523,6 +523,7 @@ export interface IdentificationRead {
   class?: ItemClass | null;
   confidence?: number | null;
   cost_microusd?: number | null;
+  description?: string | null;
   event_id: number;
   id: number;
   is_final?: boolean;
@@ -660,6 +661,7 @@ export interface PhoneAsk {
     | [AskCandidate, AskCandidate, AskCandidate, AskCandidate];
   crop_url?: string | null;
   event_id: number;
+  looks_like?: string | null;
   type?: "ask";
 }
 /**
@@ -886,15 +888,16 @@ export interface SimExpectResponse {
 /**
  * Dev only. Mounted only when DEV_TOOLS is on.
  *
+ * With no `image` the frames come from whatever the camera is looking at right now, so
+ * the Add button on the dashboard and the phone can make a ticket out of a real item and
+ * a weight somebody typed in. With an `image` it is the old simulator path.
+ *
  * This interface was referenced by `BinBooksContracts`'s JSON-Schema
  * via the `definition` "SimTossRequest".
  */
 export interface SimTossRequest {
   image?: string | null;
-  /**
-   * Lowercase label. Letters, digits, spaces and hyphens only.
-   */
-  label: string;
+  label?: string | null;
   mass_g: number;
 }
 /**
@@ -933,6 +936,7 @@ export interface UiAskOpened {
     | [AskCandidate, AskCandidate, AskCandidate, AskCandidate];
   crop_url?: string | null;
   event_id: number;
+  looks_like?: string | null;
   type?: "ask.opened";
 }
 /**
@@ -1062,6 +1066,7 @@ export interface VisionResult {
   class: ItemClass;
   condition?: "working" | "broken" | "unknown";
   confidence: number;
+  description?: string;
   /**
    * Lowercase label. Letters, digits, spaces and hyphens only.
    */

@@ -36,6 +36,7 @@ from app.models import (
 LCD_LINE_MAX = 20
 LCD_BIG_MAX = 7
 VISIBLE_TEXT_MAX = 120
+DESCRIPTION_MAX = 80
 LABEL_MAX = 40
 
 
@@ -150,6 +151,14 @@ class MaterialKey(str):
     @classmethod
     def _validate(cls, value: Any) -> MaterialKey:
         return cls(normalise_key(value))
+
+
+def _clean_free_text(value: Any, limit: int) -> Any:
+    """Outside prose, made safe to store and to draw. Never an instruction, always data."""
+    if not isinstance(value, str):
+        return value
+    cleaned = _CONTROL.sub(" ", unicodedata.normalize("NFKC", value))
+    return _WHITESPACE.sub(" ", cleaned).strip()[:limit]
 
 
 def lcd_text(raw: Any, limit: int) -> Any:
@@ -315,6 +324,7 @@ class PhoneAsk(WireModel):
     event_id: int
     candidates: list[AskCandidate] = Field(min_length=1, max_length=4)
     crop_url: str | None = None
+    looks_like: str | None = Field(default=None, max_length=DESCRIPTION_MAX)
 
 
 class PhoneIdle(WireModel):
@@ -373,6 +383,9 @@ class UiAskOpened(WireModel):
     event_id: int
     candidates: list[AskCandidate] = Field(min_length=1, max_length=4)
     crop_url: str | None = None
+    # The model's plain words about what it is looking at, when it had any. Shown beside
+    # the buttons so a person knows what the camera saw before they answer.
+    looks_like: str | None = Field(default=None, max_length=DESCRIPTION_MAX)
 
 
 class UiAskResolved(WireModel):
@@ -426,6 +439,10 @@ class VisionResult(ApiModel):
     candidates: list[VisionCandidate] = Field(default_factory=list, max_length=5)
     material: MaterialKey | None = None
     condition: Literal["working", "broken", "unknown"] = "unknown"
+    # What the camera is looking at, in plain words, whatever the label came out as. It is
+    # what a person reads when the bin has to ask, and it is what the estimator prices when
+    # the thing is not in the catalog.
+    description: str = Field(default="", max_length=DESCRIPTION_MAX)
     visible_text: str = Field(default="", max_length=VISIBLE_TEXT_MAX)
     provider: str = Field(default="", max_length=40)
     model: str = Field(default="", max_length=80)
@@ -434,10 +451,13 @@ class VisionResult(ApiModel):
     @classmethod
     def _cap_visible_text(cls, value: Any) -> Any:
         """Text read off a sign is data. Strip control characters and cut it to the cap."""
-        if not isinstance(value, str):
-            return value
-        cleaned = _CONTROL.sub(" ", unicodedata.normalize("NFKC", value))
-        return _WHITESPACE.sub(" ", cleaned).strip()[:VISIBLE_TEXT_MAX]
+        return _clean_free_text(value, VISIBLE_TEXT_MAX)
+
+    @field_validator("description", mode="before")
+    @classmethod
+    def _cap_description(cls, value: Any) -> Any:
+        """The model's own words about the object, treated exactly like a sign: as data."""
+        return _clean_free_text(value, DESCRIPTION_MAX)
 
 
 class MoneyRange(ApiModel):
@@ -540,6 +560,7 @@ class IdentificationRead(ApiModel):
     event_id: int
     method: IdentifyMethod
     label: str | None = None
+    description: str | None = None
     item_class: ItemClass | None = Field(default=None, alias="class")
     confidence: float | None = None
     candidates: list[VisionCandidate] = Field(default_factory=list)
@@ -884,10 +905,15 @@ class DeviceTareResponse(ApiModel):
 
 
 class SimTossRequest(ApiModel):
-    """Dev only. Mounted only when DEV_TOOLS is on."""
+    """Dev only. Mounted only when DEV_TOOLS is on.
 
-    label: ValidatedLabel
+    With no `image` the frames come from whatever the camera is looking at right now, so
+    the Add button on the dashboard and the phone can make a ticket out of a real item and
+    a weight somebody typed in. With an `image` it is the old simulator path.
+    """
+
     mass_g: float = Field(gt=0.0)
+    label: ValidatedLabel | None = None
     image: str | None = Field(default=None, max_length=255)
 
 

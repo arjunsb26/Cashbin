@@ -321,3 +321,230 @@ def test_the_bench_defaults_are_what_the_bench_found() -> None:
     assert settings.llm_vision_effort == "none"
     assert settings.llm_text_effort == "none"
     assert settings.vision_image_max_px == 384
+
+
+# An early "unknown" is not an answer -----------------------------------------
+
+
+async def test_an_early_unknown_falls_back_to_the_settled_crop(
+    settings: Settings,
+) -> None:
+    """The early crop is taken 300 ms after the item lands and the settled one later.
+
+    An early call that cannot name the thing has not decided anything, so the settled crop
+    gets its own call rather than the ask opening on the first picture anyone took.
+    """
+    from app.db import session_scope
+    from app.identify.openai_request import UNKNOWN_CHOICE
+    from app.identify.pipeline import identify_event
+    from app.identify.providers import EstimatorProvider
+    from app.identify.stub import StubEstimatorProvider
+    from tests.test_identify_pipeline import ScriptedVision, vision
+    from tests.test_identify_support import make_event, setup_db
+
+    early.clear()
+    setup_db(settings)
+    with session_scope() as session:
+        event_id = make_event(session, mass_g=95.0).id
+
+    spy = ScriptedVision(vision("bagel", 0.95))
+    estimator: EstimatorProvider = StubEstimatorProvider()
+    providers = Providers(vision=spy, estimator=estimator, name="stub")
+
+    unsure = VisionResult.model_validate(
+        {"label": UNKNOWN_CHOICE, "class": "untracked", "confidence": 0.99}
+    )
+
+    async def work() -> tuple[VisionResult | None, bytes | None]:
+        return unsure, b"the early crop"
+
+    early.start(opened_ms=11.0, work=work())
+    assert early.claim(11.0, event_id) is True
+
+    deps = make_deps(settings, providers=providers)
+    outcome = await identify_event(event_id, make_jpeg(), [], 95.0, 2.0, deps)
+
+    assert spy.calls == 1, "the settled crop has to get its own call"
+    assert outcome.final is True
+    assert outcome.label == "bagel"
+
+
+async def test_a_settled_unknown_still_opens_the_ask(settings: Settings) -> None:
+    """Two goes at it and still no name is a question for a person."""
+    from app.db import session_scope
+    from app.identify.openai_request import UNKNOWN_CHOICE
+    from app.identify.pipeline import identify_event
+    from app.identify.providers import EstimatorProvider
+    from app.identify.stub import StubEstimatorProvider
+    from tests.test_identify_pipeline import ScriptedVision
+    from tests.test_identify_support import make_event, setup_db
+
+    early.clear()
+    setup_db(settings)
+    with session_scope() as session:
+        event_id = make_event(session, mass_g=95.0).id
+
+    unsure = VisionResult.model_validate(
+        {"label": UNKNOWN_CHOICE, "class": "untracked", "confidence": 0.99}
+    )
+    spy = ScriptedVision(unsure)
+    estimator: EstimatorProvider = StubEstimatorProvider()
+    providers = Providers(vision=spy, estimator=estimator, name="stub")
+
+    async def work() -> tuple[VisionResult | None, bytes | None]:
+        return unsure, b"the early crop"
+
+    early.start(opened_ms=12.0, work=work())
+    assert early.claim(12.0, event_id) is True
+
+    outcome = await identify_event(
+        event_id, make_jpeg(), [], 95.0, 2.0, make_deps(settings, providers=providers)
+    )
+    assert spy.calls == 1
+    assert outcome.final is False
+
+
+async def test_a_qr_tag_beats_an_early_answer_of_any_kind(settings: Settings) -> None:
+    """The tag is read off the settled frames and it is the last word, as it always was."""
+    from app.db import session_scope
+    from app.identify.pipeline import identify_event
+    from app.identify.providers import EstimatorProvider
+    from app.identify.stub import StubEstimatorProvider
+    from app.models import Asset, IdentifyMethod, TaxMethod
+    from tests.test_identify_pipeline import ScriptedVision, vision
+    from tests.test_identify_support import make_event, qr_jpeg, setup_db
+
+    early.clear()
+    setup_db(settings)
+    with session_scope() as session:
+        session.add(
+            Asset(
+                tag="bb-0002",
+                description="Mechanical keyboard",
+                cost_cents=12_000,
+                in_service_date="2025-02-01",
+                book_life_months=36,
+                tax_method=TaxMethod.bonus_100,
+            )
+        )
+        event_id = make_event(session, mass_g=780.0).id
+
+    spy = ScriptedVision(vision("bagel", 0.99))
+    estimator: EstimatorProvider = StubEstimatorProvider()
+    providers = Providers(vision=spy, estimator=estimator, name="stub")
+
+    async def work() -> tuple[VisionResult | None, bytes | None]:
+        return vision("cookie", 0.99), b"the early crop"
+
+    early.start(opened_ms=13.0, work=work())
+    assert early.claim(13.0, event_id) is True
+
+    outcome = await identify_event(
+        event_id,
+        make_jpeg(),
+        [qr_jpeg("bb-0002")],
+        780.0,
+        3.0,
+        make_deps(settings, providers=providers),
+    )
+    assert outcome.method is IdentifyMethod.qr
+    assert outcome.label == "bb-0002"
+    assert spy.calls == 0, "a tag costs nothing, so nothing else was asked"
+
+
+# What the early call must not spend money on ---------------------------------
+
+
+async def test_a_step_going_down_never_starts_a_call(settings: Settings) -> None:
+    """A bag going out or an item coming back is not a toss and identifies nothing.
+
+    In the demo_real run this cost two live calls on the bag change alone, because a call
+    already on the wire cannot be unsent when the step settles the wrong way.
+    """
+    from app.db import get_session_factory
+    from app.ingest.state import IngestState
+    from app.notify.bus import get_bus
+    from app.pipeline import build_pipeline
+
+    early.clear()
+    pipe = build_pipeline(settings, get_session_factory(), get_bus())
+    ingest = IngestState(settings=settings)
+    ingest.frames.push(make_jpeg(), 0.0)
+    pipe.attach(ingest)
+
+    ingest.latest_g = 40.0
+    ingest.on_step_open(1000.0, 1200.0)
+    assert early.peek() is None, "the scale is going down, so there is nothing to look at"
+
+    ingest.latest_g = 1400.0
+    ingest.on_step_open(2000.0, 1200.0)
+    assert early.peek() is not None
+    early.cancel("end of test")
+
+
+async def test_a_tag_in_shot_saves_the_early_call(settings: Settings) -> None:
+    """A tagged asset costs nothing to identify, so it must not cost a call either."""
+    from app.db import get_session_factory, session_scope
+    from app.ingest.state import IngestState
+    from app.models import Asset, TaxMethod
+    from app.notify.bus import get_bus
+    from app.pipeline import build_pipeline
+    from tests.test_identify_pipeline import ScriptedVision, vision
+    from tests.test_identify_support import qr_jpeg, setup_db
+
+    early.clear()
+    setup_db(settings)
+    with session_scope() as session:
+        session.add(
+            Asset(
+                tag="bb-0002",
+                description="Mechanical keyboard",
+                cost_cents=12_000,
+                in_service_date="2025-02-01",
+                book_life_months=36,
+                tax_method=TaxMethod.bonus_100,
+            )
+        )
+
+    pipe = build_pipeline(settings, get_session_factory(), get_bus())
+    spy = ScriptedVision(vision("bagel", 0.99))
+    pipe.vision.inner = spy
+    ingest = IngestState(settings=settings)
+    tagged = qr_jpeg("bb-0002")
+    ingest.frames.push(make_jpeg(), 0.0)
+    ingest.frames.push(tagged, 900.0)
+    pipe.attach(ingest)
+
+    ingest.latest_g = 800.0
+    ingest.on_step_open(600.0, 0.0)
+    pending = early.peek()
+    assert pending is not None
+    answer, crop = await pending.result(timeout_s=5.0)
+
+    assert spy.calls == 0, "the tag was in shot, so nothing was asked of the model"
+    assert answer is None and crop is None
+
+
+async def test_the_timeout_belongs_to_the_toss_and_not_to_each_call() -> None:
+    """The early call has a head start, so it does not also get a fresh clock.
+
+    Otherwise a slow host costs the wait twice: the early call runs out the full timeout
+    from the settle, and then the settled call runs out another one, and the person has
+    waited sixteen seconds for an ask.
+    """
+    early.clear()
+
+    async def work() -> tuple[VisionResult | None, bytes | None]:
+        await asyncio.sleep(10.0)
+        raise AssertionError("it should have been given up on")
+
+    pending = early.start(opened_ms=0.0, work=work())
+    await asyncio.sleep(0.4)
+    started = time.perf_counter()
+    answer, _crop = await pending.result(timeout_s=0.6)
+    waited = time.perf_counter() - started
+
+    assert answer is None
+    assert waited < 0.3, (
+        "the 0.4 s the call had already been running comes out of its budget"
+    )
