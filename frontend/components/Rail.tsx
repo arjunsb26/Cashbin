@@ -2,20 +2,31 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Activity, BookOpen, CheckSquare, LineChart, Tag } from "lucide-react";
+import { Activity, BookOpen, CheckSquare, ClipboardCheck, TrendingUp } from "lucide-react";
+import { useReview } from "@/lib/api";
 import { brand } from "@/lib/brand";
+import { SettingsDialog } from "./SettingsDialog";
 import { cx } from "./ui";
 
+/**
+ * Five destinations for two readers. Live and Trends answer "what did I waste".
+ * Review, Books and Close answer "what does this do to my accounts". Nothing
+ * else is on the rail: the kit and the setup checklist are reachable by address,
+ * because they are for the people building the thing, not using it.
+ */
 const DESTINATIONS = [
   { href: "/", label: "Live", Icon: Activity },
+  { href: "/trends", label: "Trends", Icon: TrendingUp },
+  { href: "/review", label: "Review", Icon: ClipboardCheck },
   { href: "/books", label: "Books", Icon: BookOpen },
-  { href: "/assets", label: "Assets", Icon: Tag },
-  { href: "/learning", label: "Learning", Icon: LineChart },
   { href: "/close", label: "Close", Icon: CheckSquare },
 ];
 
 export function Rail() {
   const pathname = usePathname();
+  const review = useReview();
+  const open = review.data?.open_count ?? 0;
+
   return (
     <nav
       aria-label="Sections"
@@ -34,11 +45,29 @@ export function Rail() {
               current ? "border-l-ink text-ink" : "border-l-transparent text-ink-soft",
             )}
           >
-            <Icon size={16} strokeWidth={1.5} aria-hidden="true" />
+            <span className="relative">
+              <Icon size={16} strokeWidth={1.5} aria-hidden="true" />
+              {/* How many things are waiting on a person, on the one item that
+                  waits on one. It is a count, so it is a number, not a dot. */}
+              {href === "/review" && open > 0 ? (
+                <span
+                  className="absolute -right-3 -top-2 min-w-4 rounded-control bg-caution px-1 text-center text-caption leading-4 text-paper"
+                  aria-hidden="true"
+                >
+                  {open}
+                </span>
+              ) : null}
+            </span>
             {label}
+            {href === "/review" && open > 0 ? (
+              <span className="sr-only">{open} waiting on a person</span>
+            ) : null}
           </Link>
         );
       })}
+      <div className="mt-auto">
+        <SettingsDialog />
+      </div>
     </nav>
   );
 }

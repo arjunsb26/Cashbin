@@ -894,3 +894,142 @@ export const RULES: RuleRead[] = [
     needs_human_review: true,
   },
 ];
+
+// Trends. The same run the rest of these fixtures come from, bucketed.
+import type { StatsResponse } from "../derive";
+import type { ReviewListResponse } from "../review";
+
+export const STATS_DAY: StatsResponse = {
+  range: "day",
+  period_start: "2026-09-19",
+  period_end: "2026-09-19",
+  periods: 1,
+  totals: {
+    events: 27,
+    wasted_cents: 4183,
+    saved_if_followed_cents: 4180,
+    kg_diverted: 3.2,
+    open_asks: 2,
+    open_ask_cents: 2698,
+  },
+  averages: { events: 27, wasted_cents: 4183, kg_diverted: 3.2 },
+  categories: [
+    { category: "equipment", events: 4, wasted_cents: 2600, mass_g: 1102, kg_co2e: 0.41 },
+    { category: "e-waste", events: 6, wasted_cents: 1099, mass_g: 618, kg_co2e: 0.22 },
+    { category: "food", events: 11, wasted_cents: 414, mass_g: 1204, kg_co2e: 0.6 },
+    { category: "packaging", events: 5, wasted_cents: 70, mass_g: 498, kg_co2e: 0.09 },
+    { category: "other", events: 1, wasted_cents: 0, mass_g: 12, kg_co2e: 0 },
+  ],
+  suggestions: [
+    "Equipment is the biggest line, at $26.00 across 4 tosses.",
+    "$12.00 of resale value went in the bin. The keyboard was the largest single one.",
+    "2 questions are still open, covering $26.98.",
+  ],
+  summary_md:
+    "Twenty seven tosses today, and $41.83 of them left the books. Equipment is where the money is: four items, $26.00, and a keyboard that would have fetched $12.00 secondhand. Food is the most frequent at eleven tosses but only $4.14. Two questions are still waiting on a person.",
+};
+
+export const STATS_WEEK: StatsResponse = {
+  range: "week",
+  period_start: "2026-09-14",
+  period_end: "2026-09-20",
+  periods: 1,
+  totals: {
+    events: 61,
+    wasted_cents: 9240,
+    saved_if_followed_cents: 7310,
+    kg_diverted: 7.4,
+    open_asks: 2,
+    open_ask_cents: 2698,
+  },
+  averages: { events: 8.7, wasted_cents: 1320, kg_diverted: 1.06 },
+  categories: [
+    { category: "equipment", events: 9, wasted_cents: 5100, mass_g: 2480, kg_co2e: 0.92 },
+    { category: "e-waste", events: 13, wasted_cents: 2340, mass_g: 1410, kg_co2e: 0.51 },
+    { category: "food", events: 26, wasted_cents: 1520, mass_g: 2890, kg_co2e: 1.44 },
+    { category: "packaging", events: 12, wasted_cents: 280, mass_g: 1160, kg_co2e: 0.21 },
+    { category: "other", events: 1, wasted_cents: 0, mass_g: 12, kg_co2e: 0 },
+  ],
+  suggestions: [
+    "Equipment is the biggest line, at $51.00 across 9 tosses.",
+    "The week averages $13.20 a day across 7 days.",
+    "Food is 26 of 61 tosses but $15.20 of $92.40.",
+  ],
+  summary_md:
+    "Sixty one tosses this week and $92.40 off the books, which averages $13.20 a day. Equipment is nine tosses and more than half the money. Food is the most frequent by a distance and the cheapest per item. Packaging is twelve tosses and $2.80, so it is a carbon line rather than a money one.",
+};
+
+/** The read came back and there is nothing in it yet. */
+export const STATS_NONE: StatsResponse = {
+  range: "day",
+  totals: { events: 0, wasted_cents: 0, saved_if_followed_cents: 0, kg_diverted: 0 },
+  averages: { events: 0, wasted_cents: 0 },
+  categories: [],
+  suggestions: [],
+  summary_md: null,
+};
+
+export const REVIEW: ReviewListResponse = {
+  open_count: 4,
+  items: [
+    {
+      id: 1,
+      event_id: 105,
+      kind: "unresolved_ask",
+      status: "open",
+      label: null,
+      reason: "Nobody answered before the next toss landed.",
+      amount_cents: 16999,
+      created_at: "2026-09-19T14:31:00",
+      candidates: [
+        { label: "phone", p: 0.48 },
+        { label: "power bank", p: 0.34 },
+        { label: "portable monitor", p: 0.18 },
+      ],
+    },
+    {
+      id: 2,
+      event_id: 103,
+      kind: "estimate_above_threshold",
+      status: "open",
+      label: "usb-c charger",
+      reason: "Valued by a model at $12.00, over the $10.00 that needs a person.",
+      amount_cents: 1200,
+      created_at: "2026-09-19T14:28:00",
+    },
+    {
+      id: 3,
+      event_id: 101,
+      kind: "donation",
+      status: "open",
+      label: "bagel",
+      reason: "Claimed as a donation, which carries an enhanced deduction.",
+      amount_cents: 62,
+      created_at: "2026-09-19T14:24:00",
+    },
+    {
+      id: 4,
+      event_id: 102,
+      kind: "possible_unrecorded_asset",
+      status: "open",
+      label: "mechanical keyboard",
+      reason: "Worth $120.00 when bought and the register has never heard of it.",
+      amount_cents: 12000,
+      asset_tag: null,
+      created_at: "2026-09-19T14:26:00",
+    },
+    {
+      id: 5,
+      event_id: 104,
+      kind: "estimate_above_threshold",
+      status: "approved",
+      label: "water bottle empty",
+      reason: "Valued by a model at $0.00.",
+      amount_cents: 0,
+      decided_at: "2026-09-19T14:33:00",
+      decided_by: "person",
+      note: "Nothing on it either way.",
+      created_at: "2026-09-19T14:30:00",
+    },
+  ],
+};

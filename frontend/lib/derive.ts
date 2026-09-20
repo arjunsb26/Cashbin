@@ -973,3 +973,106 @@ export function bookVsTax(itemClass: ItemClass | null | undefined): string {
   }
   return "Nothing was on the books for this, so there is no entry on either side.";
 }
+
+// Trends -------------------------------------------------------------------
+
+/**
+ * What `GET /api/stats` answers, PLAN.md 21a items 43 and 46.
+ *
+ * Defined here until contracts carries it, because the route is being written in
+ * another lane as this screen is built. Every field is optional on the way in and
+ * read through the readers below, so a backend that sends a smaller object draws a
+ * smaller page rather than a broken one.
+ */
+export type StatsRange = "day" | "week";
+
+/** The five buckets a person recognises, PLAN.md 21a item 43. */
+export const STATS_CATEGORIES = ["food", "packaging", "equipment", "e-waste", "other"] as const;
+export type StatsCategory = (typeof STATS_CATEGORIES)[number];
+
+export type StatsCategoryRow = {
+  category: StatsCategory | string;
+  events?: number;
+  wasted_cents?: number;
+  mass_g?: number;
+  kg_co2e?: number;
+};
+
+export type StatsTotals = {
+  events?: number;
+  wasted_cents?: number;
+  saved_if_followed_cents?: number;
+  kg_diverted?: number;
+  open_asks?: number;
+  open_ask_cents?: number;
+};
+
+export type StatsAverages = {
+  events?: number;
+  wasted_cents?: number;
+  kg_diverted?: number;
+};
+
+export type StatsResponse = {
+  range?: StatsRange;
+  /** The span the numbers cover, as dates. */
+  period_start?: string;
+  period_end?: string;
+  /** How many of the range's units the figures cover, so an average has a base. */
+  periods?: number;
+  totals?: StatsTotals;
+  averages?: StatsAverages;
+  categories?: StatsCategoryRow[];
+  /** Computed lines, already filtered by the engine's own thresholds. */
+  suggestions?: string[];
+  /** One paragraph written from those numbers, never from free text. */
+  summary_md?: string | null;
+};
+
+/** The words for a category, so no screen spells one its own way. */
+export function categoryWords(category: string): string {
+  if (category === "e-waste") return "Electronics";
+  if (category === "food") return "Food";
+  if (category === "packaging") return "Packaging";
+  if (category === "equipment") return "Equipment";
+  if (category === "other") return "Other";
+  return category.charAt(0).toUpperCase() + category.slice(1);
+}
+
+export type CategoryBar = {
+  category: string;
+  label: string;
+  cents: number;
+  events: number;
+  massG: number;
+  /** 0 to 1, against the largest row, for the bar's width. */
+  share: number;
+};
+
+/**
+ * The category rows in the order a person reads them, biggest first, each with
+ * its share of the largest so a bar can be drawn by hand out of two blocks.
+ * Rows with nothing in them are left out, because a bar of zero says nothing.
+ */
+export function categoryBars(stats: StatsResponse | null | undefined): CategoryBar[] {
+  const rows = (stats?.categories ?? []).filter(
+    (row) => (row.wasted_cents ?? 0) > 0 || (row.events ?? 0) > 0,
+  );
+  const top = rows.reduce((max, row) => Math.max(max, Math.abs(row.wasted_cents ?? 0)), 0);
+  return rows
+    .map((row) => ({
+      category: String(row.category),
+      label: categoryWords(String(row.category)),
+      cents: Math.abs(row.wasted_cents ?? 0),
+      events: row.events ?? 0,
+      massG: row.mass_g ?? 0,
+      share: top > 0 ? Math.abs(row.wasted_cents ?? 0) / top : 0,
+    }))
+    .sort((a, b) => b.cents - a.cents || b.events - a.events);
+}
+
+/** True when the read came back but has nothing in it yet. */
+export function statsEmpty(stats: StatsResponse | null | undefined): boolean {
+  if (!stats) return true;
+  return (stats.totals?.events ?? 0) === 0 && categoryBars(stats).length === 0;
+}
