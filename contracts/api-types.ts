@@ -888,12 +888,17 @@ export interface PhoneResult {
   type?: "result";
 }
 /**
- * Who decided and why. Both fields are outside text, so both are cleaned.
+ * Who decided and why. Both text fields are outside text, so both are cleaned.
+ *
+ * `amount_cents` is the figure a person typed in place of the model's. The user's words
+ * are "for amts to approve you might wanna enter ur own amt so add that as an option",
+ * so it is an option: leave it out and the estimate stands as it is.
  *
  * This interface was referenced by `BinBooksContracts`'s JSON-Schema
  * via the `definition` "ReviewDecision".
  */
 export interface ReviewDecision {
+  amount_cents?: number | null;
   by?: string;
   note?: string;
 }

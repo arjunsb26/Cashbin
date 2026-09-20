@@ -44,9 +44,17 @@ def list_review(
 
 def _decide(item_id: int, body: ReviewDecision, approved: bool) -> ReviewDecisionResponse:
     with session_scope() as session:
-        act = review.approve if approved else review.reject
         try:
-            item, reversing, difference, detail = act(session, item_id, body.by, body.note)
+            if approved:
+                # The amount only reaches the approve path. Rejecting undoes the ticket,
+                # so there is nothing for a typed figure to land on.
+                item, reversing, difference, detail = review.approve(
+                    session, item_id, body.by, body.note, body.amount_cents
+                )
+            else:
+                item, reversing, difference, detail = review.reject(
+                    session, item_id, body.by, body.note
+                )
         except KeyError:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND, detail=NO_SUCH_ITEM
@@ -81,7 +89,12 @@ def run_agent(settings: Settings = Depends(get_settings)) -> ReviewRunResponse:
 
 @router.post("/{item_id}/approve", response_model=ReviewDecisionResponse)
 def approve_item(item_id: int, body: ReviewDecision) -> ReviewDecisionResponse:
-    """Keep what was posted. The question closes and the ledger does not move."""
+    """Close the question. Send an amount to approve a value at your own figure instead.
+
+    Without one the ledger does not move. With one, on an item whose figure is a value
+    estimate, the estimate takes the person's amount and anything posted at the old
+    figure is reversed and posted again at the new one.
+    """
     return _decide(item_id, body, approved=True)
 
 

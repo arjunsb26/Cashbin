@@ -2363,8 +2363,21 @@
       "type": "object"
     },
     "ReviewDecision": {
-      "description": "Who decided and why. Both fields are outside text, so both are cleaned.",
+      "description": "Who decided and why. Both text fields are outside text, so both are cleaned.\n\n`amount_cents` is the figure a person typed in place of the model's. The user's words\nare \"for amts to approve you might wanna enter ur own amt so add that as an option\",\nso it is an option: leave it out and the estimate stands as it is.",
       "properties": {
+        "amount_cents": {
+          "anyOf": [
+            {
+              "maximum": 10000000,
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
         "by": {
           "default": "person",
           "maxLength": 40,

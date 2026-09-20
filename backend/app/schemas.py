@@ -1057,11 +1057,20 @@ class ReviewListResponse(ApiModel):
     open_count: int = 0
 
 
+REVIEW_AMOUNT_MAX_CENTS = 10_000_000
+
+
 class ReviewDecision(ApiModel):
-    """Who decided and why. Both fields are outside text, so both are cleaned."""
+    """Who decided and why. Both text fields are outside text, so both are cleaned.
+
+    `amount_cents` is the figure a person typed in place of the model's. The user's words
+    are "for amts to approve you might wanna enter ur own amt so add that as an option",
+    so it is an option: leave it out and the estimate stands as it is.
+    """
 
     by: str = Field(default="person", max_length=DECIDED_BY_MAX)
     note: str = Field(default="", max_length=REVIEW_NOTE_MAX)
+    amount_cents: int | None = Field(default=None, ge=0, le=REVIEW_AMOUNT_MAX_CENTS)
 
     @field_validator("by", mode="before")
     @classmethod

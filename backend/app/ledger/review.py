@@ -29,6 +29,7 @@ who decided what and when.
 from __future__ import annotations
 
 import json
+import logging
 from datetime import UTC, datetime
 from typing import Any
 
@@ -42,10 +43,16 @@ from app.ledger import queries
 from app.ledger.journal import looks_unrecorded
 from app.schemas import AskCandidate, ReviewItemRead, ReviewListResponse
 
+log = logging.getLogger(__name__)
+
 # No setting by this name exists yet, so the default is read through getattr. When one is
 # added to Settings it takes over with no change here.
 REVIEW_AFTER_S_DEFAULT = 120.0
 MODEL_ESTIMATE_SOURCE = "model_estimate"
+# What the estimate row says once a person has typed their own figure over it. Every
+# estimate carries where it came from, and "a person said so" is the strongest source
+# there is.
+PERSON_SOURCE = "person"
 
 DONATION_BLOCKED_REASON = "A person rejected this deduction on review."
 REJECT_CORRECTION_FIELD = "review"
@@ -428,6 +435,154 @@ class AlreadyDecided(ValueError):  # noqa: N818
     """Raised when someone decides an item a second time."""
 
 
+# Approving at your own amount ---------------------------------------------
+#
+# The two kinds whose figure is a value estimate a person is allowed to overrule. Every
+# other kind is a yes or a no about something that is already posted, so a typed amount
+# has nothing to land on and is ignored.
+AMOUNT_KINDS: frozenset[models.ReviewKind] = frozenset(
+    {
+        models.ReviewKind.estimate_above_threshold,
+        models.ReviewKind.possible_unrecorded_asset,
+    }
+)
+
+RESTATED_SUFFIX = ", restated"
+RESTATED_FROM = "restated_from_cents"
+
+
+def takes_amount(session: Session, item: models.ReviewItem, amount_cents: int | None) -> bool:
+    """Whether this decision is a person putting their own figure on an estimate.
+
+    The item's figure has to be the estimate itself. An `estimate_above_threshold` item
+    raised because reselling beat binning carries what following that option is worth,
+    not what the thing is worth, and writing a typed amount onto that row would put the
+    wrong number in the wrong place.
+    """
+    if amount_cents is None or item.kind not in AMOUNT_KINDS:
+        return False
+    if amount_cents == item.amount_cents:
+        return False
+    record = session.get(models.ItemRecord, item.event_id)
+    if record is None or record.fmv_mid != item.amount_cents:
+        log.warning(
+            "review item %d was approved at a typed amount but its figure is not the "
+            "estimate, so the estimate was left alone",
+            item.id,
+        )
+        return False
+    return True
+
+
+def _restate_estimate(
+    session: Session, item: models.ReviewItem, amount_cents: int
+) -> tuple[list[int], int, str]:
+    """Put the person's figure on the estimate and restate anything posted at the old one."""
+    was = item.amount_cents
+    record = session.get(models.ItemRecord, item.event_id)
+    if record is not None:
+        record.fmv_mid = amount_cents
+        record.fmv_source = PERSON_SOURCE
+        if record.fmv_low is not None and record.fmv_low > amount_cents:
+            record.fmv_low = amount_cents
+        if record.fmv_high is not None and record.fmv_high < amount_cents:
+            record.fmv_high = amount_cents
+    reversed_ids = _repost_at(session, item.event_id, was, amount_cents)
+    session.flush()
+
+    detail = f"Approved at ${money(amount_cents)}, the estimate said ${money(was)}."
+    if reversed_ids:
+        count = len(reversed_ids)
+        entries = "entry was" if count == 1 else "entries were"
+        detail += f" {count} {entries} reversed and reposted at the approved amount."
+    return reversed_ids, amount_cents - was, detail
+
+
+def _repost_at(
+    session: Session, event_id: int, old_cents: int, new_cents: int
+) -> list[int]:
+    """Reverse every entry posted at the old figure and post it again at the new one.
+
+    The reject path already reverses and reposts this way, through `queries._to_pure`,
+    `journal.reversal` and `queries.post_entry`. Only an entry whose lines actually carry
+    the old figure moves, and only when the restated entry still balances. Anything the
+    estimate did not drive is left alone, because restating it would be guesswork.
+    """
+    from app.ledger.journal import reversal
+
+    rows = list(
+        session.scalars(
+            select(models.JournalEntry)
+            .where(models.JournalEntry.event_id == event_id)
+            .order_by(models.JournalEntry.id)
+        )
+    )
+    prefix = "Reversal of: "
+    already = {row.memo.removeprefix(prefix) for row in rows if row.memo.startswith(prefix)}
+
+    out: list[int] = []
+    for row in rows:
+        if row.memo.startswith(prefix) or row.memo in already:
+            continue
+        lines = list(
+            session.scalars(
+                select(models.JournalLine)
+                .where(models.JournalLine.entry_id == row.id)
+                .order_by(models.JournalLine.id)
+            )
+        )
+        if not any(
+            line.debit_cents == old_cents or line.credit_cents == old_cents for line in lines
+        ):
+            continue
+        pure = queries._to_pure(row, lines)
+        restated = _at_new_amount(pure, old_cents, new_cents)
+        if restated is None:
+            log.warning(
+                "journal entry %d carries the estimate but does not balance at the new "
+                "amount, so it was left as it was",
+                row.id,
+            )
+            continue
+        undone = queries.post_entry(
+            session, reversal(pure), event_id=event_id, close_id=row.close_id
+        )
+        queries.post_entry(session, restated, event_id=event_id, close_id=row.close_id)
+        out.append(undone.id)
+    return out
+
+
+def _at_new_amount(entry: Any, old_cents: int, new_cents: int) -> Any:
+    """The same entry with every line at the old figure written at the new one.
+
+    The memo gains a word, so a later void reverses the restated entry rather than
+    mistaking it for the original that already has a reversal against it.
+    """
+    from app.ledger.journal import JournalEntry as PureEntry
+    from app.ledger.journal import JournalLine as PureLine
+    from app.ledger.journal import Unbalanced, assert_balanced
+
+    restated = PureEntry(
+        memo=f"{entry.memo}{RESTATED_SUFFIX}"[:200],
+        basis=entry.basis,
+        lines=[
+            PureLine(
+                account=line.account,
+                debit_cents=new_cents if line.debit_cents == old_cents else line.debit_cents,
+                credit_cents=(
+                    new_cents if line.credit_cents == old_cents else line.credit_cents
+                ),
+            )
+            for line in entry.lines
+        ],
+        evidence={**entry.evidence, RESTATED_FROM: old_cents, "restated_by": PERSON_SOURCE},
+    )
+    try:
+        return assert_balanced(restated)
+    except Unbalanced:
+        return None
+
+
 def _record_correction(
     session: Session, item: models.ReviewItem, new_value: str, by: str
 ) -> None:
@@ -476,19 +631,38 @@ def _agreement(item: models.ReviewItem, status: models.ReviewStatus) -> bool | N
 
 
 def approve(
-    session: Session, item_id: int, by: str = "person", note: str = ""
+    session: Session,
+    item_id: int,
+    by: str = "person",
+    note: str = "",
+    amount_cents: int | None = None,
 ) -> tuple[models.ReviewItem, list[int], int, str]:
-    """Keep what was posted and close the question. Nothing in the ledger moves."""
+    """Close the question. Nothing moves, unless a person typed their own amount.
+
+    With no amount, or with the amount the item already carries, this keeps what was
+    posted and the ledger does not move. With a different amount on a value estimate,
+    the person's figure replaces the estimate and anything posted at the old figure is
+    reversed and posted again at the new one.
+    """
     item = session.get(models.ReviewItem, item_id)
     if item is None:
         raise KeyError(item_id)
     if item.status is not models.ReviewStatus.open:
         raise AlreadyDecided(f"this item was already {item.status.value}")
 
+    if takes_amount(session, item, amount_cents):
+        assert amount_cents is not None
+        reversed_ids, difference, detail = _restate_estimate(session, item, amount_cents)
+        decided = f"{item.kind.value} approved at {amount_cents} cents"
+    else:
+        reversed_ids, difference = [], 0
+        detail = "The entries already posted for this ticket stand as they are."
+        decided = f"{item.kind.value} approved"
+
     _mark(item, models.ReviewStatus.approved, by, note)
-    _record_correction(session, item, f"{item.kind.value} approved", by)
+    _record_correction(session, item, decided, by)
     session.flush()
-    return item, [], 0, "The entries already posted for this ticket stand as they are."
+    return item, reversed_ids, difference, detail
 
 
 def _reject_donation(
