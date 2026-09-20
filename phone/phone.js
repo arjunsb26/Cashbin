@@ -130,6 +130,26 @@ function hide(node) {
   node.textContent = "";
 }
 
+/* A field inside a sheet that is still sliding in is off the screen, and a
+   browser reaches it by scrolling the page under it. The page has nowhere to
+   scroll back to, so the camera sits high with a band of nothing under it for
+   the rest of the session. The focus takes no scroll, and anything that scrolls
+   the page anyway is put back. */
+function takeFocus(node) {
+  try {
+    node.focus({ preventScroll: true });
+  } catch (err) {
+    node.focus();
+  }
+  unscroll();
+}
+
+function unscroll() {
+  const root = document.scrollingElement || document.documentElement;
+  if (root.scrollTop) root.scrollTop = 0;
+  if (root.scrollLeft) root.scrollLeft = 0;
+}
+
 function setThemeColour() {
   const paper = getComputedStyle(document.documentElement).getPropertyValue("--paper").trim();
   const meta = el("themeColor");
@@ -562,7 +582,9 @@ function onResult(message) {
     stay(eventId, "a question is open, so this ticket is not drawn");
     return;
   }
-  if (sheetState === "adding") {
+  // A weight still being typed keeps the screen. A weight already sent does not,
+  // because the ticket on its way back is the answer to it.
+  if (sheetState === "adding" && !adding) {
     stay(eventId, "a weight is being typed, so this ticket is not drawn");
     return;
   }
@@ -792,7 +814,7 @@ function onLabelInput() {
 function revealOther() {
   askOther.hidden = true;
   askField.hidden = false;
-  askInput.focus();
+  takeFocus(askInput);
 }
 
 /* ---- answering ---- */
@@ -879,7 +901,7 @@ function openAdd() {
   hide(addNote);
   setAddDisabled(false);
   setState("adding", null, "opened the weight box");
-  addInput.focus();
+  takeFocus(addInput);
   addInput.select();
 }
 
@@ -899,7 +921,7 @@ async function sendToss() {
   const mass = readMass(addInput.value);
   if (mass === null) {
     show(addNote, "Type the weight in grams, above zero.");
-    addInput.focus();
+    takeFocus(addInput);
     return;
   }
   adding = true;
@@ -986,6 +1008,8 @@ document.addEventListener("keydown", (event) => {
   event.preventDefault();
   closeAdd();
 });
+
+window.addEventListener("scroll", unscroll, { passive: true });
 
 document.addEventListener("visibilitychange", () => {
   if (document.visibilityState !== "visible" || !cameraRunning) return;
