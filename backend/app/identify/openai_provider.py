@@ -76,10 +76,13 @@ class _Adapter:
             except (ValidationError, ValueError):
                 log.warning("openai reply failed validation on attempt %d", attempt)
         price = price_for(model, PROVIDER_NAME)
+        tier = str(request.get("service_tier", ""))
         self.last_call = CallUsage(
             provider=PROVIDER_NAME, model=model, tokens_in=tokens[0], tokens_out=tokens[1],
-            latency_ms=latency_ms, cost_microusd=cost_microusd(tokens[0], tokens[1], price),
+            latency_ms=latency_ms,
+            cost_microusd=cost_microusd(tokens[0], tokens[1], price, tier),
             price_known=price is not None,
+            service_tier=tier or "default",
         )
         log.info(
             "openai model=%s tier=%s effort=%s tokens_in=%s cached_in=%s tokens_out=%s "

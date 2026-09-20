@@ -856,7 +856,7 @@ class SettingsRead(ApiModel):
     # not know them still validates.
     llm_service_tier: ServiceTier = "fast"
     llm_vision_effort: ReasoningEffort = "none"
-    llm_text_effort: ReasoningEffort = "low"
+    llm_text_effort: ReasoningEffort = "none"
 
 
 class SettingsUpdate(ApiModel):

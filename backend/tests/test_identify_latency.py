@@ -264,7 +264,7 @@ def test_the_settings_route_carries_the_three_speed_knobs(client: TestClient) ->
     body = client.get("/api/settings").json()
     assert body["llm_service_tier"] == "fast"
     assert body["llm_vision_effort"] == "none"
-    assert body["llm_text_effort"] == "low"
+    assert body["llm_text_effort"] == "none"
     changed = client.patch(
         "/api/settings", json={"llm_service_tier": "default", "llm_vision_effort": "low"}
     )
@@ -276,3 +276,48 @@ def test_the_settings_route_carries_the_three_speed_knobs(client: TestClient) ->
 def test_a_service_tier_the_host_would_refuse_is_refused_here(client: TestClient) -> None:
     assert client.patch("/api/settings", json={"llm_service_tier": "turbo"}).status_code == 422
     assert client.patch("/api/settings", json={"llm_vision_effort": "lots"}).status_code == 422
+
+
+# What the fast queue costs ---------------------------------------------------
+
+
+def test_the_fast_queue_is_priced_at_twice_the_standard_rate() -> None:
+    """Lane K concern: every fast row understated the real spend by about half."""
+    from app.identify.cost import FAST_TIER_MULTIPLIER, cost_microusd, price_for
+
+    price = price_for("gpt-5.6-luna", "openai")
+    assert price is not None
+    standard = cost_microusd(600, 40, price)
+    fast = cost_microusd(600, 40, price, service_tier="fast")
+    priority = cost_microusd(600, 40, price, service_tier="priority")
+    assert standard is not None and fast is not None
+    assert fast == round(standard * FAST_TIER_MULTIPLIER)
+    assert priority == fast
+    assert cost_microusd(600, 40, price, service_tier="default") == standard
+
+
+def test_the_row_says_what_the_call_cost_on_the_queue_it_used() -> None:
+    from app.identify.openai_provider import OpenAIVisionProvider
+
+    client = FakeClient(
+        [json.dumps({"label": "bagel", "class": "inventory", "confidence": 0.9})]
+    )
+    provider = OpenAIVisionProvider(
+        _settings(
+            llm_vision_model="gpt-5.6-luna", llm_service_tier="fast", openai_api_key="x"
+        ),
+        client=client,
+    )
+    provider.identify(make_jpeg(), _context())
+    usage = provider.last_call
+    assert usage is not None
+    assert usage.service_tier == "fast"
+    assert usage.cost_microusd is not None
+
+
+def test_the_bench_defaults_are_what_the_bench_found() -> None:
+    settings = _settings()
+    assert settings.llm_service_tier == "fast"
+    assert settings.llm_vision_effort == "none"
+    assert settings.llm_text_effort == "none"
+    assert settings.vision_image_max_px == 384

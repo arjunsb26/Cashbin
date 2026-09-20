@@ -2278,7 +2278,7 @@
           "type": "string"
         },
         "llm_text_effort": {
-          "default": "low",
+          "default": "none",
           "enum": [
             "none",
             "minimal",

@@ -98,14 +98,14 @@ class Settings(BaseSettings):
     # classifies a photograph rather than working anything out, so it thinks by default not
     # at all. The estimator does arithmetic on a price, so it keeps a low effort.
     llm_vision_effort: str = "none"
-    llm_text_effort: str = "low"
+    llm_text_effort: str = "none"
     # How the host is asked to schedule the call. "fast" is the low latency queue; "default"
     # turns the request back into an ordinary one.
     llm_service_tier: str = "fast"
     llm_timeout_s: float = Field(default=8.0, gt=0.0)
     # The longest side of the picture actually sent. The full size crop stays on disk for the
     # evidence drawer; the model is classifying a thing, not reading fine print.
-    vision_image_max_px: int = Field(default=512, ge=64, le=4096)
+    vision_image_max_px: int = Field(default=384, ge=64, le=4096)
     vision_image_quality: int = Field(default=80, ge=1, le=100)
 
     # Start the vision call when the step opens instead of when it settles. The settle alone

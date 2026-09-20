@@ -30,6 +30,9 @@ class CallUsage:
     latency_ms: int | None = None
     cost_microusd: int | None = None
     price_known: bool = False
+    # Which queue the host was asked to use. The fast queue is billed above the standard
+    # rate, so a cost figure without this cannot be checked.
+    service_tier: str = ""
 
 
 @dataclass(frozen=True)
