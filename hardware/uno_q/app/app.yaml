@@ -1,0 +1,6 @@
+# The bin's Linux side as an Arduino App: the bridge that carries weights and screens
+# between the sketch and the laptop, and the webcam that watches the bin.
+name: Cashbin bin
+icon: ""
+ports: []
+bricks: []
