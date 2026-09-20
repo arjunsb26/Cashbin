@@ -391,7 +391,11 @@ export function OptionTable({
   const best = bestOption(options);
   const [expanded, setExpanded] = useState(false);
   const collapsed = settled && !expanded;
-  const shown = collapsed && best ? [best] : options;
+  // Options the engine filtered out (repair a cheap thing, resell food) stay in the
+  // evidence drawer with their reasons; on the ticket they only look strange. The blocked
+  // trash row stays, because the rule that blocks it is the point.
+  const visible = options.filter((option) => option.allowed || option.option === "trash");
+  const shown = collapsed && best ? [best] : visible;
   return (
     <section className="pt-5">
       <div className="flex flex-wrap items-baseline justify-between gap-x-4">
@@ -402,7 +406,7 @@ export function OptionTable({
             onClick={() => setExpanded((on) => !on)}
             className="text-caption text-ink-soft underline underline-offset-2"
           >
-            {expanded ? "Hide the other options" : `Show all ${options.length} options`}
+            {expanded ? "Hide the other options" : `Show all ${visible.length} options`}
           </button>
         ) : null}
       </div>
