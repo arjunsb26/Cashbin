@@ -19,6 +19,7 @@ from sqlalchemy.orm import Session
 
 from app.config import Settings
 from app.identify.pipeline import (
+    DIFFERENT_PREFIX,
     IdentifyDeps,
     PendingQuestion,
     catalog_facts,
@@ -31,6 +32,8 @@ from app.identify.pipeline import (
 from app.identify.priors import MassPrior, welford_update
 from app.learn import metrics, rounds
 from app.models import (
+    Asset,
+    AssetStatus,
     CatalogItem,
     Correction,
     Event,
@@ -97,6 +100,27 @@ def update_mass_prior(session: Session, label: str, item_class: ItemClass, mass_
     row.mass_prior_var = updated.var
     row.mass_prior_n = updated.n
     session.flush()
+
+
+def answered_tag(session: Session, label: str) -> Asset | None:
+    """The register row a person tapped, when the answer was a tag and not a name.
+
+    PLAN.md 21a item 30. The ask offers the row encoded as its own tag, so the answer that
+    comes back is `bb-0007` and the register holds `BB-0007`. The register is small and the
+    comparison is on the tag, so it is done here rather than in a case-sensitive `where`.
+    """
+    wanted = label.strip().lower()
+    if not wanted:
+        return None
+    rows = session.scalars(select(Asset).where(Asset.status == AssetStatus.active)).all()
+    return next((row for row in rows if row.tag.lower() == wanted), None)
+
+
+def plain_label(label: str) -> str:
+    """"a different wireless mouse" is a refusal of the register row, not a name for it."""
+    if label.startswith(DIFFERENT_PREFIX):
+        return label[len(DIFFERENT_PREFIX) :].strip() or label
+    return label
 
 
 def detail_answer(body: CorrectionCreate, pending: PendingQuestion | None) -> str | None:
@@ -190,9 +214,17 @@ async def apply_correction(
         # so the question is closed rather than left open against the next answer.
         clear_question(int(event.id))
 
-        label = str(body.label)
+        label = plain_label(str(body.label))
+        # A tag is not a name for a kind of thing, it is one row on the register. Answering
+        # with one takes that asset off the books through the same path a scanned QR code
+        # takes, which is what the ask offered to do.
+        asset = answered_tag(session, label)
+        if asset is not None:
+            label = asset.tag
         facts = catalog_facts(session)
         item_class = body.item_class or facts.classes.get(label)
+        if asset is not None:
+            item_class = ItemClass.fixed_asset
         previous = _previous_final(session, event.id)
         was_confident = (
             previous is not None
@@ -246,12 +278,15 @@ async def apply_correction(
         event.status = EventStatus.confirmed
         session.flush()
 
-        crop = load_crop(active.settings, event)
+        # A tag teaches nothing. It names one object that is now off the register, so an
+        # exemplar under it would answer the next mouse with an asset already disposed of,
+        # and a mass prior under it would put a tag in the catalog.
+        crop = load_crop(active.settings, event) if asset is None else None
         if crop:
             store_exemplar(
                 session, active, event=event, label=label, crop=crop, confirmed_by=body.by
             )
-        if event.mass_g is not None:
+        if event.mass_g is not None and asset is None:
             update_mass_prior(session, label, item_class, event.mass_g)
         if was_confident:
             rounds.count_override(session, event)

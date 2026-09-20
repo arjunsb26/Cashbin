@@ -13,6 +13,19 @@ Newest first. Each lane writes under its own heading.
   nothing about money.
 - A second toss inside the hold takes the screen back, so the running total never covers a
   result somebody is reading.
+- An unknown thing that the register already describes now opens an ask instead of a
+  ticket. "Wireless mouse" on the books and a mouse in the bin are probably one object, and
+  the difference is a book loss and a tax line against twelve dollars of somebody else's
+  mouse. The match is token overlap on the description, and text printed on the thing can
+  only help it: a brand the camera never named finds the row.
+- The ask offers the register row first and "a different mouse" second. The first answer
+  takes the asset off the register the same way a scanned tag does. The second carries on
+  as an unknown thing under its own name.
+- An answer that is a tag teaches nothing. It names one object rather than a kind of one,
+  so it leaves no exemplar and moves no mass prior.
+- The soak's measured numbers moved, and the comment beside them says why. A quarter of
+  that run is a mouse or a pair of earbuds the register already holds, so the bin asks
+  whose they are, and asking that is not failing to recognise anything.
 
 ## 2026-09-20, lane q2: the dashboard on the real contracts
 

@@ -40,6 +40,7 @@ from app.identify.providers import (
 from app.identify.stub import StubEstimatorProvider, StubVisionProvider
 from app.models import (
     Asset,
+    AssetStatus,
     CatalogItem,
     Event,
     EventStatus,
@@ -50,6 +51,8 @@ from app.models import (
 from app.notify import lcd
 from app.notify.bus import CHANNEL_BIN, CHANNEL_PHONE, CHANNEL_UI, Bus, get_bus
 from app.schemas import (
+    LABEL_MAX,
+    QUESTION_MAX,
     AskCandidate,
     PhoneAsk,
     PhoneIdle,
@@ -690,6 +693,74 @@ def _neighbour_votes(neighbours: Sequence[Neighbour]) -> dict[str, float]:
     return {label: votes / len(neighbours) for label, votes in counts.items()}
 
 
+# The thing you already own, that nobody put a tag on ------------------------
+#
+# PLAN.md 21a item 30. The camera names an object and the register describes one, and when
+# those two readings are the same object the ticket is a book loss rather than an unknown
+# thing worth twelve dollars. Nobody is going to tag every mouse in the room, so the bin
+# asks. One tap writes the asset off properly; the other tap says it is somebody else's.
+
+DIFFERENT_PREFIX = "a different "
+# Words that carry no weight in a description, so they neither find a row nor block one.
+_FILLER = frozenset({"a", "an", "the", "of", "and", "or", "with", "for", "in", "on"})
+# How much of what the two sides say has to be the same word before they are one object.
+MATCH_FLOOR = 0.5
+# The register row leads the ask and the refusal follows it, so the order never depends on
+# which way a sort happened to fall.
+MATCH_P = 0.6
+DIFFERENT_P = 0.4
+
+
+def _words_of(text: str) -> set[str]:
+    """The words in a label or a description, lowercased, with the filler dropped."""
+    cleaned = "".join(c if c.isalnum() else " " for c in text.lower())
+    return {word for word in cleaned.split() if word and word not in _FILLER}
+
+
+def looks_like_row(label: str, visible_text: str, description: str) -> bool:
+    """Is what the camera saw the thing this register row describes?
+
+    Token overlap, because "wireless mouse" and "Wireless mouse" are the same object and a
+    string comparison says they are not. Text printed on the thing can only help: a brand
+    the label never mentions finds the row, and noise on a sticker cannot push a match
+    below the floor because it is not counted against it.
+    """
+    wanted = _words_of(description)
+    named = _words_of(label)
+    if not wanted or not named:
+        return False
+    shared = wanted & (named | _words_of(visible_text))
+    if not shared:
+        return False
+    return len(shared) / len(wanted | named) >= MATCH_FLOOR
+
+
+def register_match(session: Session, label: str, visible_text: str = "") -> Asset | None:
+    """The active register row this object is most likely to be, or nothing."""
+    rows = session.scalars(
+        select(Asset).where(Asset.status == AssetStatus.active).order_by(Asset.tag)
+    ).all()
+    for row in rows:
+        if looks_like_row(label, visible_text, row.description):
+            return row
+    return None
+
+
+def register_question(tag: str, description: str) -> str:
+    """What the bin asks about a row it thinks this is. Short enough for the phone."""
+    shown = description.strip().lower()
+    asked = f"Is this your registered {shown} ({tag.upper()})?"
+    if len(asked) <= QUESTION_MAX:
+        return asked
+    room = QUESTION_MAX - len(f"Is this your registered  ({tag.upper()})?")
+    return f"Is this your registered {shown[:max(room, 0)].strip()} ({tag.upper()})?"
+
+
+def register_choices(tag: str, label: str) -> dict[str, float]:
+    """The two answers: the row on the register, and anything else that looks like it."""
+    return {tag.lower(): MATCH_P, f"{DIFFERENT_PREFIX}{label}"[:LABEL_MAX]: DIFFERENT_P}
+
+
 def open_ask(
     session: Session,
     event: Event,
@@ -982,6 +1053,28 @@ async def identify_event(
                 # The drawer says "two candidates, same treatment" off this.
                 row.posterior_json = json.dumps({**final_dist, SAME_TREATMENT_KEY: 1.0})
             session.flush()
+            # PLAN.md 21a item 30. Before anything is priced as nobody's property, check
+            # whether the register already describes it. An untagged mouse of yours is a
+            # book loss and a tax line, not twelve dollars of somebody else's mouse.
+            if row.item_class is ItemClass.untracked:
+                owned = register_match(session, best[0], vision.visible_text)
+                if owned is not None:
+                    log.info(
+                        "event %s looks like %s on the register (%s), so a person decides",
+                        event_id,
+                        owned.tag,
+                        owned.description,
+                    )
+                    return await _ask(
+                        session,
+                        event,
+                        register_choices(owned.tag, best[0]),
+                        active,
+                        started,
+                        row,
+                        vision.description,
+                        question=register_question(owned.tag, owned.description),
+                    )
             # PLAN.md 21a item 38. The bin knows what it is and still cannot price it, so
             # it asks the one question a buyer would ask before it says a figure.
             wanted = await _detail_question(session, event, row, vision, active, mass_g)
