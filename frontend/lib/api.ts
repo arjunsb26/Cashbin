@@ -147,9 +147,36 @@ export function useStats(range: StatsRange) {
   return useQuery({ queryKey: keys.stats(range), queryFn: () => source.stats(range) });
 }
 
-/** Everything a person still has to settle. Null when the route is not there yet. */
+/**
+ * Everything a person still has to settle. Null when the route is not there yet.
+ *
+ * The queue is read the moment the screen mounts and read again on every arrival,
+ * because a page that shows a cached "nothing waiting" while the rail counts five
+ * is worse than a page that waits half a second. Nothing has to be pressed first.
+ */
 export function useReview() {
-  return useQuery({ queryKey: keys.review, queryFn: source.review });
+  return useQuery({
+    queryKey: keys.review,
+    queryFn: source.review,
+    staleTime: 0,
+    refetchOnMount: "always",
+  });
+}
+
+/**
+ * How many things are waiting on a person, for every screen that says a number.
+ *
+ * There is one such number and it is the queue's own `open_count`. The rail, the
+ * tape's total and Trends all read this, so three screens can no longer print
+ * three different counts of the same thing. When the summary grows a `waiting`
+ * field it wins, because it is computed beside the rest of the totals.
+ */
+export function useWaiting(): number {
+  const review = useReview();
+  const summary = useSummary();
+  const fromSummary = (summary.data as { waiting?: number } | undefined)?.waiting;
+  if (typeof fromSummary === "number") return fromSummary;
+  return review.data?.open_count ?? 0;
 }
 
 /**
