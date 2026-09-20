@@ -59,6 +59,62 @@ def test_the_catalog_covers_food_packaging_and_small_electronics() -> None:
         assert label in labels
     for label in ("usb-c charger", "keyboard", "power bank", "phone"):
         assert label in labels
+    # The everyday things a hackathon table holds. PLAN.md 21a item 32.
+    for label in ("usb flash drive", "pen", "laptop", "aa battery", "granola bar"):
+        assert label in labels
+
+
+# The rows a hackathon table actually holds, added for PLAN.md 21a item 32, priced against
+# a listing in September 2026. Three of them were not priced and say so instead.
+PRICE_CHECKED = (
+    "usb flash drive",
+    "pen",
+    "pencil",
+    "notebook",
+    "sticky notes",
+    "laptop",
+    "tablet",
+    "phone case",
+    "usb-a cable",
+    "lightning cable",
+    "aa battery",
+    "coin cell battery",
+    "granola bar",
+    "energy drink can",
+    "coffee pod",
+    "napkin",
+    "plastic fork",
+    "tea bag",
+)
+PRICE_PENDING = ("sticker sheet", "lanyard badge")
+
+
+def test_the_everyday_rows_carry_a_price_and_the_listing_it_came_from() -> None:
+    table = catalog_by_label()
+    for label in PRICE_CHECKED:
+        item = table[label]
+        assert item.unit_cost_cents is not None, label
+        assert item.unit_cost_cents > 0, label
+        assert "http" in item.price_source, label
+
+
+def test_a_row_nobody_could_price_says_so_and_holds_no_figure() -> None:
+    """A blank cell is never a zero. CLAUDE.md: never invent a price."""
+    table = catalog_by_label()
+    for label in PRICE_PENDING:
+        item = table[label]
+        assert item.price_source == "NEEDS_HUMAN", label
+        assert item.unit_cost_cents is None, label
+        assert item.price_per_kg_cents is None, label
+        assert item.fmv_per_kg_cents is None, label
+
+
+def test_every_food_row_carries_the_value_donation_math_needs() -> None:
+    """The enhanced food deduction works off fair market value, so food rows need one."""
+    for item in load_catalog():
+        if "food" in item.regulatory_flags and item.unit_cost_cents is not None:
+            assert item.fmv_per_kg_cents, item.label
+            assert item.fmv_per_kg_cents > 0, item.label
 
 
 def test_every_electronics_row_is_flagged_and_batteries_are_flagged_too() -> None:

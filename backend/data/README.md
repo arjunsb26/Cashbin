@@ -8,8 +8,9 @@ checklist can show them.
 
 ## catalog.csv
 
-Thirty common items: hackathon food, the packaging it comes in, and small
-electronics. Columns match the `catalog_item` table in PLAN.md section 8, plus
+Fifty common items: hackathon food, the packaging it comes in, small
+electronics, and the everyday things a table at a hackathon actually holds
+(a pen, a notebook, a flash drive, a lanyard, a laptop, an AA battery). Columns match the `catalog_item` table in PLAN.md section 8, plus
 `price_source`, which holds the URL the price came from or, for food, the words
 `estimate: 50 percent of retail` followed by that URL.
 
@@ -27,8 +28,13 @@ electronics. Columns match the `catalog_item` table in PLAN.md section 8, plus
   (rule `FOOD_NO_RESALE`). The row still shows, struck through, with the reason.
 - `material_mix_json` fractions must sum to 1 and every key must exist in
   `warm_factors.csv`. A test enforces both.
+- Eighteen of the twenty everyday rows were priced against a listing in
+  September 2026, one unit at a time: a pack price divided by the pack size
+  where a thing is sold in packs. Two of them, the sticker sheet and the lanyard
+  badge, have no price at all and say `NEEDS_HUMAN`, because no listing was
+  found that priced one unit of the thing. A blank cell is never a zero.
 - `mass_prior_mean_g` is a typical mass, not a measurement. It ships with
-  `mass_prior_n = 1` and a wide variance, so the first real weighing of an item
+  `mass_prior_n = 3` and a wide variance, so the first real weighing of an item
   moves the prior almost all the way. Four rows (usb cable, earbuds, hdmi cable,
   webcam) have a prior mass but no `unit_mass_g`, because no spec page published
   a weight.
