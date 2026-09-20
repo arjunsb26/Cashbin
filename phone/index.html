@@ -43,6 +43,10 @@
 
       <button type="button" class="add-toss" id="addToss" hidden>Add a toss</button>
 
+      <!-- Sits under an open sheet so a tap beside the sheet lands somewhere
+           known. A tap here puts a result away and leaves a question alone. -->
+      <div class="backdrop" id="backdrop" data-open="false" hidden></div>
+
       <section
         class="sheet"
         id="resultSheet"
@@ -58,7 +62,8 @@
             <span class="secondary" id="resultMass" hidden></span>
           </div>
           <p class="figure result__figure" id="resultFigure"></p>
-          <p class="result__line" id="resultLine"></p>
+          <p class="result__line" id="resultLine" hidden></p>
+          <p class="result__waiting" id="resultWaiting" hidden></p>
         </div>
       </section>
 
@@ -86,7 +91,9 @@
             <span class="field__read-back" id="askReadBack"></span>
             <button type="button" class="button button--primary" id="askSend" disabled>Send answer</button>
           </div>
+          <button type="button" class="button ask__not-now" id="askNotNow">Not now</button>
           <p class="ask__note" id="askNote" hidden></p>
+          <p class="ask__waiting" id="askWaiting" hidden></p>
         </div>
       </section>
 
