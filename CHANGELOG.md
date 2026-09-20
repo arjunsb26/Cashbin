@@ -28,6 +28,11 @@ Newest first. Each lane writes under its own heading.
   and with the page set to `overflow: hidden` there was no way to scroll it back: the
   camera sat high with a band of nothing under it for the rest of the session. Focus takes
   no scroll now, and anything that scrolls the page anyway is put straight back.
+- A question with no candidates draws no buttons. It shows the picture, the heading, and
+  what the camera saw in the model's own words on a "Looks like:" line above "Something
+  else" and "Not now". A question that carries its own wording uses that as the heading in
+  place of "Which is it?". Both are drawn as text, trimmed and capped, and neither is ever
+  sent anywhere.
 - `phone/dev/mock_server.py` has a chaos script: a ticket that arrives twice, a question
   landing on a ticket, a ticket landing under a question, the socket dying under an open
   question, and a ticket whose figure never comes. `--chaos` plays the lot for a run on a

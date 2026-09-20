@@ -167,6 +167,34 @@ CHAOS: list[dict[str, Any]] = [
         ],
     },
     {
+        # A question the model had no guess for. The picture and its own words
+        # stand in for the buttons.
+        "name": "ask-no-candidates",
+        "after_s": 4.0,
+        "send": [
+            {
+                "type": "ask",
+                "event_id": 28,
+                "candidates": [],
+                "looks_like": "a black plastic handle with a frayed cable coming out of it",
+            }
+        ],
+    },
+    {
+        # A question the backend wrote itself, which stands in for the heading.
+        "name": "ask-question",
+        "after_s": 6.0,
+        "send": [
+            {
+                "type": "ask",
+                "event_id": 29,
+                "question": "Is this the broken monitor from the meeting room?",
+                "candidates": [{"label": "monitor", "p": 0.52}],
+                "looks_like": "a wide flat screen with a cracked corner",
+            }
+        ],
+    },
+    {
         # The backend says nothing is happening.
         "name": "idle",
         "after_s": 16.0,
