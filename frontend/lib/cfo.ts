@@ -1,90 +1,20 @@
-// The four blocks the CFO reads, until contracts carries them.
+// The arithmetic behind the four blocks a CFO reads.
 //
-// Lane P's backend hangs these off `CloseRead`, and the generated types land on
-// main shortly. These are the same fields with the same names, every one of them
-// optional on the way in, so a close written before the blocks existed draws the
-// statement it always drew and each block appears the moment its data does. Swap
-// the import for the contract type when it arrives.
+// The block shapes used to be restated here, because the backend was being
+// written as the screen was. They hang off `CloseRead` in the contract now, so
+// `blocksOf` reads them straight off the close with no cast and a schema change
+// reaches this screen as a type error. What is left here is the checking: whether
+// a rollforward row foots and whether the M-1 block reconciles.
 //
 // PLAN.md 21a item 39.
 
-import type { CloseRead } from "./types";
-
-export type RollforwardRow = {
-  asset_id?: number | null;
-  tag?: string;
-  description?: string;
-  opening_cost_cents?: number;
-  additions_cents?: number;
-  disposals_cost_cents?: number;
-  closing_cost_cents?: number;
-  opening_accum_cents?: number;
-  depreciation_cents?: number;
-  disposals_accum_cents?: number;
-  closing_accum_cents?: number;
-  opening_nbv_cents?: number;
-  closing_nbv_cents?: number;
-};
-
-export type RollforwardBlock = {
-  period_start?: string;
-  period_end?: string;
-  rows?: RollforwardRow[];
-  total?: RollforwardRow;
-  /** The backend's own answer to whether the columns foot. */
-  ties?: boolean;
-};
-
-export type ReconciliationRow = {
-  event_id: number;
-  asset_id?: number | null;
-  tag?: string;
-  description?: string;
-  book_loss_cents?: number;
-  tax_loss_cents?: number;
-  difference_cents?: number;
-  reason?: string;
-  rule_ids?: string[];
-};
-
-export type ReconciliationBlock = {
-  title?: string;
-  rows?: ReconciliationRow[];
-  book_loss_cents?: number;
-  differences_cents?: number;
-  tax_loss_cents?: number;
-  ties?: boolean;
-};
-
-export type Form4797Row = {
-  part?: "II" | "III";
-  line?: string;
-  description?: string;
-  date_acquired?: string;
-  date_disposed?: string;
-  gross_proceeds_cents?: number;
-  cost_cents?: number;
-  depreciation_allowed_cents?: number;
-  gain_or_loss_cents?: number;
-  recapture_note?: string;
-  rule_ids?: string[];
-};
-
-export type Form4797Block = {
-  part_ii_rows?: Form4797Row[];
-  part_ii_line_10_cents?: number;
-  part_iii_rows?: Form4797Row[];
-  part_iii_recapture_cents?: number;
-  disclaimer?: string;
-};
-
-/** A close as it stands once the four blocks exist. */
-export type CloseWithBlocks = CloseRead & {
-  memo_md?: string | null;
-  rollforward?: RollforwardBlock | null;
-  reconciliation?: ReconciliationBlock | null;
-  form4797?: Form4797Block | null;
-};
+import type {
+  CloseRead,
+  Form4797Block,
+  ReconciliationBlock,
+  RollforwardBlock,
+  RollforwardRow,
+} from "./types";
 
 export function blocksOf(close: CloseRead | null | undefined): {
   memo: string | null;
@@ -92,12 +22,11 @@ export function blocksOf(close: CloseRead | null | undefined): {
   reconciliation: ReconciliationBlock | null;
   form4797: Form4797Block | null;
 } {
-  const read = (close ?? {}) as CloseWithBlocks;
   return {
-    memo: read.memo_md ?? null,
-    rollforward: read.rollforward ?? null,
-    reconciliation: read.reconciliation ?? null,
-    form4797: read.form4797 ?? null,
+    memo: close?.memo_md ?? null,
+    rollforward: close?.rollforward ?? null,
+    reconciliation: close?.reconciliation ?? null,
+    form4797: close?.form4797 ?? null,
   };
 }
 

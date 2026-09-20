@@ -3,8 +3,8 @@
 // for review and for the screenshot run: ?state=empty, loading, error.
 import * as fx from "./fixtures";
 import { mockState } from "./state";
-import type { StatsRange, StatsResponse } from "../derive";
-import type { ReviewListResponse } from "../review";
+import type { StatsRange } from "../derive";
+import type { ReviewListResponse, StatsResponse } from "../types";
 import type {
   AssetRead,
   CloseRead,

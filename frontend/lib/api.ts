@@ -3,7 +3,7 @@
 import { useMutation, useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
 import { emptyLiveState, fixtures, mockApi, startMockLive } from "./mock";
 import { mediaSrc } from "./derive";
-import type { StatsRange, StatsResponse } from "./derive";
+import type { StatsRange } from "./derive";
 import type {
   AssetCreate,
   AssetListResponse,
@@ -16,16 +16,19 @@ import type {
   EventListResponse,
   EventSummary,
   JournalResponse,
+  ReviewDecisionResponse,
+  ReviewListResponse,
+  ReviewRunResponse,
   RoundListResponse,
   RoundRead,
   RulesResponse,
   SettingsRead,
   SettingsUpdate,
   SetupResponse,
+  StatsResponse,
   SummaryResponse,
   VoidResponse,
 } from "./types";
-import type { ReviewDecisionResponse, ReviewListResponse } from "./review";
 
 export const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "https://localhost:8443";
 export const MOCK = process.env.NEXT_PUBLIC_API_MOCK === "1";
@@ -110,7 +113,7 @@ const source = MOCK
       // Two routes newer than this screen. A backend without them answers 404, and
       // null is read as "not answering yet" rather than as an empty page, so
       // nobody is told there is no waste when nobody was asked.
-      stats: (range: StatsRange) => getOrNull<StatsResponse>(`/api/stats?range=${range}`),
+      stats: (range: StatsRange) => getOrNull<StatsResponse>(`/api/stats?bucket=${range}`),
       review: () => getOrNull<ReviewListResponse>("/api/review"),
     };
 
@@ -186,6 +189,26 @@ export function useReviewAnswer() {
     onSettled: () => {
       void client.invalidateQueries({ queryKey: keys.review });
       void client.invalidateQueries({ queryKey: keys.events });
+    },
+  });
+}
+
+/**
+ * Ask the review agent to look at every open item that has no reading yet.
+ *
+ * It proposes and nothing else: every item comes back still open, with what the
+ * agent thinks and the lookups it made attached. Nothing is decided by it, so the
+ * button is a plain one and not a primary.
+ */
+export function useReviewRun() {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: async () => {
+      if (MOCK) return null;
+      return send<ReviewRunResponse>("/api/review/run", "POST", {});
+    },
+    onSettled: () => {
+      void client.invalidateQueries({ queryKey: keys.review });
     },
   });
 }
@@ -272,11 +295,20 @@ export function useSetup() {
   return useQuery({ queryKey: keys.setup, queryFn: source.setup });
 }
 
-/** One answer from a person. The label was read into a plain key before it got here. */
+/**
+ * One answer from a person. The label was read into a plain key before it got here.
+ *
+ * `detail` is the answer to a detail question ("how much does it hold"), which is
+ * not a label and never becomes one. The contract has no field for it yet, so it
+ * rides alongside and a backend that has not grown one ignores it. The moment the
+ * field lands, this type stops being a widening and starts being the contract.
+ */
+export type AnswerBody = CorrectionCreate & { detail?: string };
+
 export function useAnswerAsk() {
   const client = useQueryClient();
   return useMutation({
-    mutationFn: async (body: CorrectionCreate) => {
+    mutationFn: async (body: AnswerBody) => {
       if (MOCK) return { ...body, correction_id: 0, status: "confirmed" } as CorrectionResponse;
       return send<CorrectionResponse>("/api/corrections", "POST", body);
     },

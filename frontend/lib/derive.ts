@@ -3,6 +3,7 @@
 // a wrong number on a ticket has one place to look.
 
 import type {
+  CategoryStat,
   CloseCheck,
   CloseRead,
   EstimateRef,
@@ -15,6 +16,9 @@ import type {
   OptionKind,
   OptionScoreRead,
   RuleRead,
+  StatsAverages,
+  StatsBucket,
+  StatsResponse,
   VisionCandidate,
 } from "./types";
 
@@ -127,6 +131,23 @@ const PACKAGING_MATERIALS = new Set([
   "steel_cans",
 ]);
 
+/**
+ * The category the backend put the ticket in, when it sends one.
+ *
+ * The five groups are the same five `GET /api/stats` buckets tickets into, and
+ * the backend decides them from the item record rather than guessing at the
+ * material mix. Anything that is not one of the five is not a category, so an
+ * unknown word reads as nothing rather than as a sixth group.
+ */
+export function eventCategory(
+  event: EventSummary | null | undefined,
+): StatsCategory | null {
+  const raw = (event as { category?: unknown } | null | undefined)?.category;
+  if (typeof raw !== "string") return null;
+  const found = STATS_CATEGORIES.find((name) => name === raw);
+  return found ?? null;
+}
+
 /** True when every material on the item record is packaging and none of it is food. */
 export function isPackaging(record: ItemRecordRead | null | undefined): boolean {
   if (!record || record.class !== "inventory") return false;
@@ -199,7 +220,13 @@ export function ticketHeadline(
     };
   }
   if (itemClass === "inventory") {
-    if (isPackaging(record)) {
+    // The backend's own category wins where it sends one. The material mix guess
+    // below is only a stand in for it: a cardboard box around something expensive
+    // reads as packaging to the mix and does not to the backend, so the moment the
+    // category is on the wire the guess stops being consulted at all.
+    const category = eventCategory(event);
+    const packaging = category !== null ? category === "packaging" : isPackaging(record);
+    if (packaging) {
       const best = bestOption(options);
       const kg = best ? co2eAvoided(best) : null;
       if (kg != null) {
@@ -466,6 +493,7 @@ export function askFromDetail(detail: EventDetail | null | undefined): AskView |
     crop_url: detail.event.crop_url ?? null,
     candidates,
     description: askDescription(identification),
+    label: detail.event.label ?? identification?.label ?? null,
     question: detailQuestion?.question ?? null,
     choices: detailQuestion?.choices ?? null,
   };
@@ -498,6 +526,11 @@ export type AskView = {
   /** The model's sentence about the photo, when the payload carries one. */
   description?: string | null;
   /**
+   * The label the ticket already carries. A detail question is about something
+   * already identified, so its answer has to travel with the label it is about.
+   */
+  label?: string | null;
+  /**
    * The one question that matters, PLAN.md 21a item 40: how many gigabytes, what
    * wattage, dead or still works. When the payload carries one, it is the heading
    * and the choices are the buttons, in place of a list of labels.
@@ -511,8 +544,11 @@ export type AskView = {
  *
  * Model text, so it is treated as data at every step: the question is collapsed to
  * single spaces and capped at 120 characters, each choice at 40, and at most four
- * are kept, which is what the panel can show. A backend that sends neither field
- * leaves both null and the ask reads as a list of labels, exactly as before.
+ * are kept, which is what the panel can show. The backend sends the question with
+ * the ordinary candidate list rather than a list of its own, so `choices` comes
+ * back empty there and the panel draws the candidates under the question instead.
+ * A backend that sends no question at all leaves this null and the ask reads as a
+ * list of labels, exactly as before.
  */
 export function askQuestion(source: unknown): { question: string; choices: string[] } | null {
   if (!source || typeof source !== "object") return null;
@@ -521,13 +557,14 @@ export function askQuestion(source: unknown): { question: string; choices: strin
   const question = raw.replace(/\s+/g, " ").trim().slice(0, 120);
   if (question.length === 0) return null;
   const list = (source as { choices?: unknown }).choices;
-  if (!Array.isArray(list)) return null;
-  const choices = list
-    .filter((c): c is string => typeof c === "string")
-    .map((c) => c.replace(/\s+/g, " ").trim().slice(0, 40))
-    .filter((c) => c.length > 0)
-    .slice(0, 4);
-  return choices.length >= 2 ? { question, choices } : null;
+  const choices = Array.isArray(list)
+    ? list
+        .filter((c): c is string => typeof c === "string")
+        .map((c) => c.replace(/\s+/g, " ").trim().slice(0, 40))
+        .filter((c) => c.length > 0)
+        .slice(0, 4)
+    : [];
+  return { question, choices: choices.length >= 2 ? choices : [] };
 }
 
 // The weight trace ---------------------------------------------------------
@@ -1026,57 +1063,60 @@ export function bookVsTax(itemClass: ItemClass | null | undefined): string {
 // Trends -------------------------------------------------------------------
 
 /**
- * What `GET /api/stats` answers, PLAN.md 21a items 43 and 46.
+ * The bucketing `GET /api/stats` is asked for, PLAN.md 21a items 43 and 46.
  *
- * Defined here until contracts carries it, because the route is being written in
- * another lane as this screen is built. Every field is optional on the way in and
- * read through the readers below, so a backend that sends a smaller object draws a
- * smaller page rather than a broken one.
+ * The response itself is the contract's `StatsResponse`: a list of day or week
+ * buckets, the averages, the suggestions and the paragraph. There are no totals
+ * on the wire, because a total is the sum of the buckets and one arithmetic is
+ * safer than two. `statsTotals` does that sum here.
  */
-export type StatsRange = "day" | "week";
+export type StatsRange = NonNullable<StatsResponse["bucket"]>;
 
 /** The five buckets a person recognises, PLAN.md 21a item 43. */
 export const STATS_CATEGORIES = ["food", "packaging", "equipment", "e-waste", "other"] as const;
-export type StatsCategory = (typeof STATS_CATEGORIES)[number];
+export type StatsCategory = CategoryStat["category"];
 
-export type StatsCategoryRow = {
-  category: StatsCategory | string;
-  events?: number;
-  wasted_cents?: number;
-  mass_g?: number;
-  kg_co2e?: number;
-};
-
+/** The range added up, in the backend's own field names. */
 export type StatsTotals = {
-  events?: number;
-  wasted_cents?: number;
-  saved_if_followed_cents?: number;
-  kg_diverted?: number;
-  open_asks?: number;
-  open_ask_cents?: number;
+  tosses: number;
+  wasted_cents: number;
+  book_loss_cents: number;
+  estimated_value_cents: number;
+  kg_landfill: number;
+  kg_co2e_avoided: number;
+  asks: number;
 };
 
-export type StatsAverages = {
-  events?: number;
-  wasted_cents?: number;
-  kg_diverted?: number;
+const EMPTY_TOTALS: StatsTotals = {
+  tosses: 0,
+  wasted_cents: 0,
+  book_loss_cents: 0,
+  estimated_value_cents: 0,
+  kg_landfill: 0,
+  kg_co2e_avoided: 0,
+  asks: 0,
 };
 
-export type StatsResponse = {
-  range?: StatsRange;
-  /** The span the numbers cover, as dates. */
-  period_start?: string;
-  period_end?: string;
-  /** How many of the range's units the figures cover, so an average has a base. */
-  periods?: number;
-  totals?: StatsTotals;
-  averages?: StatsAverages;
-  categories?: StatsCategoryRow[];
-  /** Computed lines, already filtered by the engine's own thresholds. */
-  suggestions?: string[];
-  /** One paragraph written from those numbers, never from free text. */
-  summary_md?: string | null;
-};
+/** Every bucket in the range, added up. A missing figure counts as nothing. */
+export function statsTotals(stats: StatsResponse | null | undefined): StatsTotals {
+  return (stats?.buckets ?? []).reduce<StatsTotals>(
+    (sum, bucket: StatsBucket) => ({
+      tosses: sum.tosses + (bucket.tosses ?? 0),
+      wasted_cents: sum.wasted_cents + (bucket.wasted_cents ?? 0),
+      book_loss_cents: sum.book_loss_cents + (bucket.book_loss_cents ?? 0),
+      estimated_value_cents: sum.estimated_value_cents + (bucket.estimated_value_cents ?? 0),
+      kg_landfill: sum.kg_landfill + (bucket.kg_landfill ?? 0),
+      kg_co2e_avoided: sum.kg_co2e_avoided + (bucket.kg_co2e_avoided ?? 0),
+      asks: sum.asks + (bucket.asks ?? 0),
+    }),
+    { ...EMPTY_TOTALS },
+  );
+}
+
+/** The per day figures, with nothing where the backend sent nothing. */
+export function statsAverages(stats: StatsResponse | null | undefined): StatsAverages {
+  return stats?.averages ?? {};
+}
 
 /** The words for a category, so no screen spells one its own way. */
 export function categoryWords(category: string): string {
@@ -1092,7 +1132,7 @@ export type CategoryBar = {
   category: string;
   label: string;
   cents: number;
-  events: number;
+  tosses: number;
   massG: number;
   /** 0 to 1, against the largest row, for the bar's width. */
   share: number;
@@ -1101,27 +1141,39 @@ export type CategoryBar = {
 /**
  * The category rows in the order a person reads them, biggest first, each with
  * its share of the largest so a bar can be drawn by hand out of two blocks.
- * Rows with nothing in them are left out, because a bar of zero says nothing.
+ *
+ * Every bucket carries its own category list, so the rows are added across the
+ * range first. Rows with nothing in them are left out, because a bar of zero says
+ * nothing.
  */
 export function categoryBars(stats: StatsResponse | null | undefined): CategoryBar[] {
-  const rows = (stats?.categories ?? []).filter(
-    (row) => (row.wasted_cents ?? 0) > 0 || (row.events ?? 0) > 0,
-  );
-  const top = rows.reduce((max, row) => Math.max(max, Math.abs(row.wasted_cents ?? 0)), 0);
+  const summed = new Map<string, { cents: number; tosses: number; kg: number }>();
+  for (const bucket of stats?.buckets ?? []) {
+    for (const row of bucket.by_category ?? []) {
+      const name = String(row.category);
+      const held = summed.get(name) ?? { cents: 0, tosses: 0, kg: 0 };
+      held.cents += row.cents ?? 0;
+      held.tosses += row.tosses ?? 0;
+      held.kg += row.kg ?? 0;
+      summed.set(name, held);
+    }
+  }
+  const rows = [...summed.entries()].filter(([, row]) => row.cents > 0 || row.tosses > 0);
+  const top = rows.reduce((max, [, row]) => Math.max(max, Math.abs(row.cents)), 0);
   return rows
-    .map((row) => ({
-      category: String(row.category),
-      label: categoryWords(String(row.category)),
-      cents: Math.abs(row.wasted_cents ?? 0),
-      events: row.events ?? 0,
-      massG: row.mass_g ?? 0,
-      share: top > 0 ? Math.abs(row.wasted_cents ?? 0) / top : 0,
+    .map(([name, row]) => ({
+      category: name,
+      label: categoryWords(name),
+      cents: Math.abs(row.cents),
+      tosses: row.tosses,
+      massG: row.kg * 1000,
+      share: top > 0 ? Math.abs(row.cents) / top : 0,
     }))
-    .sort((a, b) => b.cents - a.cents || b.events - a.events);
+    .sort((a, b) => b.cents - a.cents || b.tosses - a.tosses);
 }
 
 /** True when the read came back but has nothing in it yet. */
 export function statsEmpty(stats: StatsResponse | null | undefined): boolean {
   if (!stats) return true;
-  return (stats.totals?.events ?? 0) === 0 && categoryBars(stats).length === 0;
+  return statsTotals(stats).tosses === 0 && categoryBars(stats).length === 0;
 }

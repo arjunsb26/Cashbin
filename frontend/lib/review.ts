@@ -1,48 +1,12 @@
-// The review queue's shapes, until contracts carries them.
+// The words above the review queue. Every wire shape comes from the contract.
 //
-// Lane P's backend is written and its generated types land on main within the
-// hour. These are the same fields, read as optional on the way in, so the screen
-// draws whatever the backend actually sends and a missing field is a blank cell
-// rather than a crash. Swap the import for the contract type when it arrives.
+// The queue's types used to be restated here, because the backend was being
+// written as the screen was. They are in `contracts/api-types.ts` now and are
+// re-exported from `lib/types.ts` with the rest, so nothing on this screen can
+// drift from what the backend sends. What is left here is the grouping and the
+// plain sentences, which are the dashboard's own and are on no wire.
 
-/** Why a ticket landed in the queue. PLAN.md 21a item 39. */
-export type ReviewKind =
-  | "donation"
-  | "estimate_above_threshold"
-  | "possible_unrecorded_asset"
-  | "unresolved_ask"
-  | "confident_overruled";
-
-export type ReviewStatus = "open" | "approved" | "rejected";
-
-export type ReviewItemRead = {
-  id: number;
-  event_id: number;
-  kind: ReviewKind;
-  status: ReviewStatus;
-  label?: string | null;
-  reason?: string;
-  amount_cents?: number;
-  asset_id?: number | null;
-  asset_tag?: string | null;
-  candidates?: { label: string; p: number }[];
-  created_at?: string;
-  decided_at?: string | null;
-  decided_by?: string | null;
-  note?: string | null;
-};
-
-export type ReviewListResponse = {
-  items?: ReviewItemRead[];
-  open_count?: number;
-};
-
-export type ReviewDecisionResponse = {
-  item: ReviewItemRead;
-  reversing_entry_ids?: number[];
-  difference_cents?: number;
-  detail?: string;
-};
+import type { ReviewKind } from "./types";
 
 /** The three groups the queue is read in, and the words above each one. */
 export const REVIEW_GROUPS = [
@@ -79,3 +43,10 @@ export function reviewGroupOf(kind: ReviewKind): string {
   const group = REVIEW_GROUPS.find((g) => (g.kinds as ReviewKind[]).includes(kind));
   return group?.id ?? "amounts";
 }
+
+/** What the agent proposed, in the fewest words that are still true. */
+export const PROPOSAL_WORDS: Record<"approve" | "reject" | "ask_person", string> = {
+  approve: "The agent would approve this",
+  reject: "The agent would reject this",
+  ask_person: "The agent wants a person to decide",
+};

@@ -19,7 +19,9 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button
   ref,
 ) {
   const base =
-    "inline-flex h-9 items-center justify-center rounded-control border px-3 text-body transition-colors duration-fast ease-standard disabled:cursor-not-allowed disabled:opacity-45";
+    // The height is fixed, so the label may never wrap: a two line label inside a
+    // 36 px box has its second line cut off, which is what a real run showed.
+    "inline-flex h-9 items-center justify-center whitespace-nowrap rounded-control border px-3 text-body transition-colors duration-fast ease-standard disabled:cursor-not-allowed disabled:opacity-45";
   const tones = {
     primary: "border-ink bg-ink text-paper hover:bg-ink/90",
     quiet: "border-control-border bg-surface text-ink hover:bg-bar",

@@ -730,6 +730,23 @@ export const CLOSE: CloseRead = {
   status: "needs_review",
   investigation_md:
     "The scale is 14 g heavier than the tickets account for. The gap opened between ticket 103 and ticket 104, when two things went in within a second of each other. Recount those two.",
+  investigation_steps: [
+    {
+      tool: "read_weight_trace",
+      args_summary: "tickets 101 to 105",
+      finding: "Two settles inside one second between ticket 103 and ticket 104.",
+    },
+    {
+      tool: "sum_ticket_mass",
+      args_summary: "the whole period",
+      finding: "Tickets account for 1,204 g. The scale moved 1,218 g.",
+    },
+    {
+      tool: "list_events",
+      args_summary: "bag changes in the period",
+      finding: "One bag change at 14:12, tared cleanly.",
+    },
+  ],
   totals: {
     period: { start: DAY, end: DAY },
     events: { tosses: 5, counted: 4, bag_changes: 1, removals: 0, asking: 1, void: 0 },
@@ -896,75 +913,100 @@ export const RULES: RuleRead[] = [
 ];
 
 // Trends. The same run the rest of these fixtures come from, bucketed.
-import type { StatsResponse } from "../derive";
-import type { ReviewListResponse } from "../review";
+import type { ReviewListResponse, StatsResponse } from "../types";
 
 export const STATS_DAY: StatsResponse = {
-  range: "day",
+  bucket: "day",
   period_start: "2026-09-19",
   period_end: "2026-09-19",
-  periods: 1,
-  totals: {
-    events: 27,
-    wasted_cents: 4183,
-    saved_if_followed_cents: 4180,
-    kg_diverted: 3.2,
-    open_asks: 2,
-    open_ask_cents: 2698,
-  },
-  averages: { events: 27, wasted_cents: 4183, kg_diverted: 3.2 },
-  categories: [
-    { category: "equipment", events: 4, wasted_cents: 2600, mass_g: 1102, kg_co2e: 0.41 },
-    { category: "e-waste", events: 6, wasted_cents: 1099, mass_g: 618, kg_co2e: 0.22 },
-    { category: "food", events: 11, wasted_cents: 414, mass_g: 1204, kg_co2e: 0.6 },
-    { category: "packaging", events: 5, wasted_cents: 70, mass_g: 498, kg_co2e: 0.09 },
-    { category: "other", events: 1, wasted_cents: 0, mass_g: 12, kg_co2e: 0 },
+  buckets: [
+    {
+      start: "2026-09-19",
+      tosses: 27,
+      wasted_cents: 1583,
+      book_loss_cents: 2000,
+      estimated_value_cents: 600,
+      kg_landfill: 3.2,
+      kg_co2e_avoided: 1.32,
+      asks: 2,
+      first_try_accuracy: 0.81,
+      by_category: [
+        { category: "equipment", tosses: 4, cents: 2600, kg: 1.102 },
+        { category: "e-waste", tosses: 6, cents: 1099, kg: 0.618 },
+        { category: "food", tosses: 11, cents: 414, kg: 1.204 },
+        { category: "packaging", tosses: 5, cents: 70, kg: 0.498 },
+        { category: "other", tosses: 1, cents: 0, kg: 0.012 },
+      ],
+    },
   ],
+  averages: { days: 1, tosses_per_day: 27, wasted_cents_per_day: 1583, kg_per_day: 3.2 },
   suggestions: [
-    "Equipment is the biggest line, at $26.00 across 4 tosses.",
-    "$12.00 of resale value went in the bin. The keyboard was the largest single one.",
-    "2 questions are still open, covering $26.98.",
+    "Equipment is the biggest group at 26.00 dollars across 4 tickets, 62 percent of the 41.83 dollars in the range.",
+    "12.00 dollars of resale value went in the bin across 1 ticket. The keyboard was the largest single one.",
+    "2 questions are still open in the range.",
   ],
   summary_md:
-    "Twenty seven tosses today, and $41.83 of them left the books. Equipment is where the money is: four items, $26.00, and a keyboard that would have fetched $12.00 secondhand. Food is the most frequent at eleven tosses but only $4.14. Two questions are still waiting on a person.",
+    "Twenty seven tosses today, and 41.83 dollars of them left the books. Equipment is where the money is: four items, 26.00 dollars, and a keyboard that would have fetched 12.00 dollars secondhand. Food is the most frequent at eleven tosses but only 4.14 dollars. Two questions are still waiting on a person.",
 };
 
 export const STATS_WEEK: StatsResponse = {
-  range: "week",
-  period_start: "2026-09-14",
+  bucket: "week",
+  period_start: "2026-09-07",
   period_end: "2026-09-20",
-  periods: 1,
-  totals: {
-    events: 61,
-    wasted_cents: 9240,
-    saved_if_followed_cents: 7310,
-    kg_diverted: 7.4,
-    open_asks: 2,
-    open_ask_cents: 2698,
-  },
-  averages: { events: 8.7, wasted_cents: 1320, kg_diverted: 1.06 },
-  categories: [
-    { category: "equipment", events: 9, wasted_cents: 5100, mass_g: 2480, kg_co2e: 0.92 },
-    { category: "e-waste", events: 13, wasted_cents: 2340, mass_g: 1410, kg_co2e: 0.51 },
-    { category: "food", events: 26, wasted_cents: 1520, mass_g: 2890, kg_co2e: 1.44 },
-    { category: "packaging", events: 12, wasted_cents: 280, mass_g: 1160, kg_co2e: 0.21 },
-    { category: "other", events: 1, wasted_cents: 0, mass_g: 12, kg_co2e: 0 },
+  buckets: [
+    {
+      start: "2026-09-07",
+      tosses: 34,
+      wasted_cents: 2420,
+      book_loss_cents: 1800,
+      estimated_value_cents: 840,
+      kg_landfill: 4.2,
+      kg_co2e_avoided: 1.81,
+      asks: 3,
+      first_try_accuracy: 0.74,
+      by_category: [
+        { category: "equipment", tosses: 5, cents: 2500, kg: 1.378 },
+        { category: "food", tosses: 15, cents: 1106, kg: 1.686 },
+        { category: "e-waste", tosses: 7, cents: 1241, kg: 0.792 },
+        { category: "packaging", tosses: 7, cents: 210, kg: 0.662 },
+      ],
+    },
+    {
+      start: "2026-09-14",
+      tosses: 27,
+      wasted_cents: 1583,
+      book_loss_cents: 2000,
+      estimated_value_cents: 600,
+      kg_landfill: 3.2,
+      kg_co2e_avoided: 1.32,
+      asks: 2,
+      first_try_accuracy: 0.81,
+      by_category: [
+        { category: "equipment", tosses: 4, cents: 2600, kg: 1.102 },
+        { category: "e-waste", tosses: 6, cents: 1099, kg: 0.618 },
+        { category: "food", tosses: 11, cents: 414, kg: 1.204 },
+        { category: "packaging", tosses: 5, cents: 70, kg: 0.498 },
+        { category: "other", tosses: 1, cents: 0, kg: 0.012 },
+      ],
+    },
   ],
+  averages: { days: 14, tosses_per_day: 4.357, wasted_cents_per_day: 286, kg_per_day: 0.5286 },
   suggestions: [
-    "Equipment is the biggest line, at $51.00 across 9 tosses.",
-    "The week averages $13.20 a day across 7 days.",
-    "Food is 26 of 61 tosses but $15.20 of $92.40.",
+    "Equipment is the biggest group at 51.00 dollars across 9 tickets, 55 percent of the 92.40 dollars in the range.",
+    "The range averages 2.86 dollars a day across 14 days.",
+    "Food is 26 of 61 tickets but 15.20 dollars of 92.40 dollars.",
   ],
   summary_md:
-    "Sixty one tosses this week and $92.40 off the books, which averages $13.20 a day. Equipment is nine tosses and more than half the money. Food is the most frequent by a distance and the cheapest per item. Packaging is twelve tosses and $2.80, so it is a carbon line rather than a money one.",
+    "Sixty one tosses over the fortnight and 92.40 dollars off the books. Equipment is nine tosses and more than half the money. Food is the most frequent by a distance and the cheapest per item. Packaging is twelve tosses and 2.80 dollars, so it is a carbon line rather than a money one.",
 };
 
 /** The read came back and there is nothing in it yet. */
 export const STATS_NONE: StatsResponse = {
-  range: "day",
-  totals: { events: 0, wasted_cents: 0, saved_if_followed_cents: 0, kg_diverted: 0 },
-  averages: { events: 0, wasted_cents: 0 },
-  categories: [],
+  bucket: "day",
+  period_start: "2026-09-19",
+  period_end: "2026-09-19",
+  buckets: [],
+  averages: { days: 1, tosses_per_day: 0, wasted_cents_per_day: 0, kg_per_day: 0 },
   suggestions: [],
   summary_md: null,
 };
@@ -996,6 +1038,27 @@ export const REVIEW: ReviewListResponse = {
       reason: "Valued by a model at $12.00, over the $10.00 that needs a person.",
       amount_cents: 1200,
       created_at: "2026-09-19T14:28:00",
+      proposal: {
+        decision: "approve",
+        reason:
+          "The catalog carries this charger at 12.00 dollars and two earlier tickets for the same label were approved at the same figure. Nothing about this one is out of line.",
+        steps: [
+          {
+            tool: "catalog_price",
+            args_summary: "usb-c charger",
+            finding: "12.00 dollars, from the catalog.",
+          },
+          {
+            tool: "list_events",
+            args_summary: "same label, last 30 days",
+            finding: "Two tickets, both approved at 12.00 dollars.",
+          },
+        ],
+        tool_calls: 2,
+        provider: "anthropic",
+        model: "claude-sonnet-4-5",
+        latency_ms: 1910,
+      },
     },
     {
       id: 3,
@@ -1017,6 +1080,33 @@ export const REVIEW: ReviewListResponse = {
       amount_cents: 12000,
       asset_tag: null,
       created_at: "2026-09-19T14:26:00",
+      proposal: {
+        decision: "ask_person",
+        reason:
+          "The register has no keyboard at any tag, and the catalog price for this model is 120.00 dollars, which is over the amount that needs a person. Whether it was ever capitalised is not something the books can answer.",
+        steps: [
+          {
+            tool: "search_register",
+            args_summary: "keyboard",
+            finding: "No asset on the register matches. Four assets exist in total.",
+          },
+          {
+            tool: "catalog_price",
+            args_summary: "mechanical keyboard",
+            finding: "120.00 dollars, from the catalog, last touched today.",
+          },
+          {
+            tool: "list_events",
+            args_summary: "same label, last 30 days",
+            finding: "One earlier ticket with this label, settled by a person.",
+          },
+        ],
+        tool_calls: 3,
+        evidence: ["asset register", "catalog"],
+        provider: "anthropic",
+        model: "claude-sonnet-4-5",
+        latency_ms: 2840,
+      },
     },
     {
       id: 5,
@@ -1035,10 +1125,8 @@ export const REVIEW: ReviewListResponse = {
 };
 
 // The four blocks a CFO reads, on the same close the rest of these fixtures use.
-import type { CloseWithBlocks } from "../cfo";
-
 export const CLOSE_BLOCKS: Pick<
-  CloseWithBlocks,
+  CloseRead,
   "memo_md" | "rollforward" | "reconciliation" | "form4797"
 > = {
   memo_md:

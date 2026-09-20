@@ -116,12 +116,24 @@ export function formatMicroUsd(microUsd: number): string {
   return fourDecimal.format(microUsd / 1_000_000);
 }
 
+/**
+ * A date, printed as the date it is.
+ *
+ * A string with no clock on it is a day, not an instant: a close period, a
+ * rollforward span, a Form 4797 line. `new Date("2026-09-20")` reads that as UTC
+ * midnight, and every reader west of Greenwich then sees the day before. So a
+ * date-only string is formatted in UTC and says what it says. A full timestamp is
+ * a real instant and still reads in the reader's own clock.
+ */
+const DATE_ONLY = /^\d{4}-\d{2}-\d{2}$/;
+
 export function formatDate(iso: string): string {
   const d = new Date(iso);
   return new Intl.DateTimeFormat("en-US", {
     month: "short",
     day: "numeric",
     year: "numeric",
+    ...(DATE_ONLY.test(iso.trim()) ? { timeZone: "UTC" } : {}),
   }).format(d);
 }
 
@@ -235,6 +247,22 @@ const METHOD_WORDS: Record<string, string> = {
 
 export function formatMethod(method: string): string {
   return METHOD_WORDS[method] ?? method;
+}
+
+/**
+ * Who actually served a call, in words a person outside the build can read.
+ *
+ * The row says which provider and which model answered, because that beats any
+ * startup log. What it never says is an internal name: "stub" is what the code
+ * calls its own fallback, and a reader seeing it learns nothing except that
+ * something inside is called stub. It reads as the plain fact instead, which is
+ * that no model was reached and this code wrote the words.
+ */
+export function formatProvider(provider?: string | null, model?: string | null): string {
+  const name = (provider ?? "").trim();
+  if (name === "" || name === "stub") return name === "stub" ? "Written without a model" : "";
+  const which = (model ?? "").trim();
+  return which === "" ? name : name + " " + which;
 }
 
 const STATUS_WORDS: Record<string, string> = {

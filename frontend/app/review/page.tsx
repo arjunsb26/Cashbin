@@ -2,15 +2,18 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { useReview, useReviewAnswer, useReviewDecision } from "@/lib/api";
-import { formatMoney, formatProbability, formatTag, formatTime, readLabel } from "@/lib/format";
+import * as Dialog from "@radix-ui/react-dialog";
+import { useReview, useReviewAnswer, useReviewDecision, useReviewRun } from "@/lib/api";
 import {
-  REVIEW_GROUPS,
-  REVIEW_KIND_WORDS,
-  type ReviewItemRead,
-  type ReviewKind,
-  type ReviewStatus,
-} from "@/lib/review";
+  formatMoney,
+  formatProbability,
+  formatProvider,
+  formatTag,
+  formatTime,
+  readLabel,
+} from "@/lib/format";
+import { PROPOSAL_WORDS, REVIEW_GROUPS, REVIEW_KIND_WORDS } from "@/lib/review";
+import type { ReviewItemRead, ReviewKind, ReviewStatus } from "@/lib/types";
 import {
   Button,
   EmptyState,
@@ -34,6 +37,7 @@ export default function ReviewPage() {
   const [refused, setRefused] = useState<Record<number, string>>({});
   const decide = useReviewDecision();
   const answer = useReviewAnswer();
+  const run = useReviewRun();
   const items = review.data?.items ?? [];
 
   /**
@@ -91,7 +95,25 @@ export default function ReviewPage() {
       <PageHeader
         title="Review"
         description="Everything the bin could not settle on its own, and everything a person should stand behind before it leaves the books."
+        right={
+          <Button loading={run.isPending} onClick={() => run.mutate()}>
+            Ask the agent to look
+          </Button>
+        }
       />
+
+      {/* The agent reads and proposes. It settles nothing, so the line under the
+          button says how many items it got to and stops there. */}
+      {run.isSuccess && run.data ? (
+        <p className="-mt-6 text-caption text-ink-soft">
+          The agent looked at{" "}
+          {run.data.proposed === 1 ? "one item" : (run.data.proposed ?? 0) + " items"}. Nothing was
+          decided: every reading below is still waiting on a person.
+        </p>
+      ) : null}
+      {run.isError ? (
+        <p className="-mt-6 text-caption text-red-ink">{(run.error as Error).message}</p>
+      ) : null}
 
       {review.isPending ? <QueueSkeleton /> : null}
 
@@ -177,8 +199,6 @@ function ReviewRow({
   onSettle: (item: ReviewItemRead, decision: "approve" | "reject", note: string) => void;
   onAnswer: (item: ReviewItemRead, label: string) => void;
 }) {
-  const [noting, setNoting] = useState<"approve" | "reject" | null>(null);
-  const [typed, setTyped] = useState("");
   const [other, setOther] = useState(false);
   const [raw, setRaw] = useState("");
   const read = readLabel(raw);
@@ -208,6 +228,8 @@ function ReviewRow({
       </p>
       {item.reason ? <p className="pt-1 text-body">{item.reason}</p> : null}
 
+      <Proposal item={item} />
+
       {settled ? (
         <p className="flex items-center gap-2 pt-2 text-body">
           <StatusDot tone={status === "approved" ? "kept" : "red"} />
@@ -226,9 +248,7 @@ function ReviewRow({
                 </span>
               </Button>
             ))}
-            {other ? null : (
-              <Button onClick={() => setOther(true)}>Something else</Button>
-            )}
+            {other ? null : <Button onClick={() => setOther(true)}>Something else</Button>}
           </div>
           {other ? (
             <div className="flex max-w-[360px] flex-col gap-2 pt-3">
@@ -265,43 +285,156 @@ function ReviewRow({
             </div>
           ) : null}
         </div>
-      ) : noting ? (
-        <div className="flex max-w-[420px] flex-col gap-2 pt-3">
-          <Field
-            label="Why"
-            hint="One line, for whoever reads the books after you. It is kept with the decision."
-            htmlFor={"review-note-" + item.id}
-          >
-            <Input
-              id={"review-note-" + item.id}
-              value={typed}
-              onChange={(e) => setTyped(e.target.value)}
-              placeholder={noting === "approve" ? "Checked against the receipt" : "Not ours"}
-            />
-          </Field>
-          <div className="flex gap-2">
-            <Button
-              tone={noting === "reject" ? "danger" : "primary"}
-              onClick={() => onSettle(item, noting, typed.trim().slice(0, 120))}
-            >
-              {noting === "approve" ? "Approve it" : "Reject it"}
-            </Button>
-            <Button onClick={() => setNoting(null)}>Cancel</Button>
-          </div>
-        </div>
       ) : (
         <div className="flex flex-wrap gap-2 pt-3">
-          <Button tone="primary" onClick={() => setNoting("approve")}>
-            Approve
-          </Button>
-          <Button tone="danger" onClick={() => setNoting("reject")}>
-            Reject
-          </Button>
+          <NoteDialog item={item} decision="approve" onSettle={onSettle} />
+          <NoteDialog item={item} decision="reject" onSettle={onSettle} />
         </div>
       )}
 
       {refused ? <p className="pt-2 text-body text-red-ink">{refused}</p> : null}
     </li>
+  );
+}
+
+/**
+ * What the review agent made of the row, and the lookups behind it.
+ *
+ * The agent proposes and never acts, so this block says what it would do and
+ * leaves the two buttons exactly where they were. Its words are model output, so
+ * they are printed as text and nothing in them is read back as an instruction.
+ * The working folds away, because a person who already agrees does not need it,
+ * and a person who does not can open it and read every lookup that was made.
+ */
+function Proposal({ item }: { item: ReviewItemRead }) {
+  const [open, setOpen] = useState(false);
+  const proposal = item.proposal;
+  if (!proposal) return null;
+  const steps = proposal.steps ?? [];
+  const served = formatProvider(proposal.provider, proposal.model);
+
+  return (
+    <div className="mt-2 border-l-2 border-rule pl-3">
+      <p className="text-body">
+        {proposal.decision ? PROPOSAL_WORDS[proposal.decision] : "The agent read this"}
+        {proposal.reason ? ". " + proposal.reason : "."}
+      </p>
+      {proposal.downgraded_reason ? (
+        <p className="pt-1 text-caption text-ink-soft">
+          It stopped short of a view: {proposal.downgraded_reason}
+        </p>
+      ) : null}
+      {steps.length > 0 ? (
+        <>
+          <button
+            type="button"
+            onClick={() => setOpen(!open)}
+            aria-expanded={open}
+            className="mt-1 block text-caption text-ink-soft underline underline-offset-2"
+          >
+            {open
+              ? "Hide the working"
+              : "Looked at " + (steps.length === 1 ? "one thing" : steps.length + " things")}
+          </button>
+          {open ? (
+            <ul className="m-0 list-none p-0 pt-2">
+              {steps.map((step, i) => (
+                <li key={i} className="border-t border-rule py-1 first:border-t-0">
+                  <p className="text-caption text-ink-soft">
+                    {step.tool ?? "Looked something up"}
+                    {step.args_summary ? ": " + step.args_summary : ""}
+                  </p>
+                  {step.finding ? <p className="text-body">{step.finding}</p> : null}
+                </li>
+              ))}
+            </ul>
+          ) : null}
+        </>
+      ) : null}
+      {served || proposal.latency_ms ? (
+        <p className="pt-1 text-caption text-ink-soft">
+          {served}
+          {served && proposal.latency_ms ? ", " : ""}
+          {proposal.latency_ms ? Math.round(proposal.latency_ms / 100) / 10 + " s" : ""}
+        </p>
+      ) : null}
+    </div>
+  );
+}
+
+/**
+ * The note that goes with a decision, in a dialog.
+ *
+ * Approving and rejecting are the page's whole job, but writing the sentence that
+ * goes with one is the secondary step, and a box that unfolds inside a list moves
+ * every row under it. The dialog takes the focus, keeps the row still, and says
+ * in its own title which row is being settled.
+ */
+function NoteDialog({
+  item,
+  decision,
+  onSettle,
+}: {
+  item: ReviewItemRead;
+  decision: "approve" | "reject";
+  onSettle: (item: ReviewItemRead, decision: "approve" | "reject", note: string) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [typed, setTyped] = useState("");
+  const approving = decision === "approve";
+
+  return (
+    <Dialog.Root open={open} onOpenChange={setOpen}>
+      <Dialog.Trigger asChild>
+        <Button tone={approving ? "primary" : "danger"}>
+          {approving ? "Approve" : "Reject"}
+        </Button>
+      </Dialog.Trigger>
+      <Dialog.Portal>
+        <Dialog.Overlay className="fixed inset-0 bg-[var(--scrim)]" />
+        <Dialog.Content
+          className="fixed left-1/2 top-1/2 max-h-[calc(100dvh-32px)] w-[440px] max-w-[calc(100vw-32px)] -translate-x-1/2 -translate-y-1/2 overflow-y-auto rounded-control border border-rule bg-surface p-5 shadow-overlay"
+          aria-describedby={undefined}
+        >
+          <Dialog.Title className="text-title">
+            {approving ? "Approve" : "Reject"} {item.label || "this ticket"}
+          </Dialog.Title>
+          <p className="pb-4 pt-1 text-caption text-ink-soft">
+            {approving
+              ? "The posting stands and the question closes. The ledger does not move."
+              : "What the ticket claimed is undone. The entries are reversed, never deleted."}
+          </p>
+          <div className="flex flex-col gap-3">
+            <Field
+              label="Why"
+              hint="One line, for whoever reads the books after you. It is kept with the decision."
+              htmlFor={"review-note-" + item.id}
+            >
+              <Input
+                id={"review-note-" + item.id}
+                value={typed}
+                onChange={(e) => setTyped(e.target.value)}
+                placeholder={approving ? "Checked against the receipt" : "Not ours"}
+              />
+            </Field>
+            <div className="flex gap-2">
+              <Button
+                tone={approving ? "primary" : "danger"}
+                onClick={() => {
+                  onSettle(item, decision, typed.trim().slice(0, 120));
+                  setOpen(false);
+                }}
+              >
+                {approving ? "Approve it" : "Reject it"}
+              </Button>
+              <Dialog.Close asChild>
+                <Button>Cancel</Button>
+              </Dialog.Close>
+            </div>
+          </div>
+        </Dialog.Content>
+      </Dialog.Portal>
+    </Dialog.Root>
   );
 }
 

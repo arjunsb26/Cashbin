@@ -2,6 +2,35 @@
 
 Newest first. Each lane writes under its own heading.
 
+## 2026-09-20, lane q2: the dashboard on the real contracts
+
+- Every wire shape the dashboard reads now comes from `contracts/api-types.ts`. The review
+  queue, the four close blocks and the stats response were restated inside `/frontend`
+  while the backend was being written; they are the contract's own types now, so a schema
+  change reaches the screens as a type error instead of as a wrong number.
+- Trends was rebuilt against what the route actually sends. `GET /api/stats` takes
+  `bucket`, not `range`, which is why the page had never loaded against a real backend, and
+  it answers day or week buckets with no totals on them, so the totals and the category
+  bars are summed from the buckets in one place and tested.
+- Review shows the agent's reading: what it would do, why, and the lookups behind it folded
+  away under "Looked at three things". "Ask the agent to look" runs it. The agent proposes
+  and settles nothing, and the page says so.
+- The note that goes with an approval or a rejection moved into a dialog. It used to unfold
+  inside the list and push every row under it down.
+- The close shows how its investigation looked: every lookup and what it found, under the
+  check that asked for it, collapsed by default.
+- A question the backend asks is now the heading of the ask, whatever it is asking. Where
+  the question carries choices of its own it is about a property rather than an identity,
+  so the answer travels as a detail and the ticket keeps its label.
+- A ticket takes the backend's category over the material mix guess, so a cardboard box
+  around something expensive stops reading as packaging the moment the category is on the
+  wire.
+- Four things a real run showed and fixed. A date with no clock on it printed as the day
+  before anywhere west of Greenwich, which made every close period, rollforward span and
+  Form 4797 line off by one. A button label wrapped inside a fixed height box and lost its
+  second line. A candidate label at 390 px collided with its percentage. The word the code
+  uses for having reached no model was printed at a person.
+
 ## 2026-09-20, lane q: the dashboard for two audiences
 
 - Five tabs, each with one job. Live and Trends answer what a person wasted. Review, Books
