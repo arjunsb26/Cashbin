@@ -184,6 +184,35 @@ async def corrections(request: Request) -> JSONResponse:
     return JSONResponse({"ok": True})
 
 
+@app.post("/api/sim/expect")
+async def sim_expect() -> JSONResponse:
+    """Stand in for the real simulator route, so the page draws its Add control.
+
+    The page only wants to know whether the route is there. A 404 keeps the
+    control off the screen, and anything else turns it on.
+    """
+    return JSONResponse({"label": "", "mass_g": None})
+
+
+@app.post("/api/sim/toss")
+async def sim_toss(request: Request) -> JSONResponse:
+    """Take a hand added toss and send back a ticket, the way the real one does."""
+    body = await request.body()
+    log(f"toss posted: {body.decode('utf-8', 'replace')}")
+    try:
+        data = json.loads(body or b"{}")
+    except ValueError:
+        data = {}
+    mass = data.get("mass_g")
+    grams = int(mass) if isinstance(mass, (int, float)) else 0
+    message = dict(RESULT_MESSAGE)
+    message["event_id"] = 20
+    message["title"] = "Keyboard"
+    message["mass_g"] = grams
+    await broadcast(message)
+    return JSONResponse({"event_id": 20, "status": "detected"})
+
+
 @app.post("/api/dev/send")
 async def dev_send(request: Request) -> JSONResponse:
     """Push one message to the phone. Used by the screenshot run."""

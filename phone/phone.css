@@ -413,6 +413,50 @@ body {
   line-height: 18px;
 }
 
+/* Adding a toss by hand. It is only rendered when the backend has its dev tools
+   on, so the demo build never draws it at all. */
+.add-toss {
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  bottom: calc(env(safe-area-inset-bottom) + 16px);
+  min-height: 44px;
+  padding: 10px 20px;
+  border: 1px solid var(--control-border);
+  border-radius: 6px;
+  background: var(--surface);
+  color: var(--ink);
+  font: inherit;
+  font-size: 15px;
+  line-height: 22px;
+  box-shadow: var(--shadow-ticket);
+  cursor: pointer;
+  transition: background var(--fast) var(--ease);
+}
+
+.add-toss:active {
+  background: var(--bar);
+}
+
+.add__note {
+  margin: 0;
+  color: var(--red-ink);
+  font-size: 12.5px;
+  line-height: 18px;
+}
+
+.add__actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.add__cancel,
+.add__send {
+  flex: 1 1 0;
+  justify-content: center;
+}
+
 /* Errors. DESIGN.md section 8. */
 .error {
   margin: 0;
