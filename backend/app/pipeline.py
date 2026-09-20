@@ -899,6 +899,7 @@ class PipelineDeps:
         session.commit()
 
         self._publish(session, event, record, ranking, words)
+        _raise_reviews(session, event_id)
         metrics.publish_metrics(session, self.bus)
         return "publish"
 
@@ -1326,6 +1327,25 @@ def _settled_class(
     if catalog is not None:
         return catalog.item_class
     return ItemClass(item_class.value)
+
+
+def _raise_reviews(session: Session, event_id: int) -> None:
+    """Put whatever this ticket owes a person on the review queue, as it finishes.
+
+    The close does the same pass over the whole period, so this only means a person sees
+    the donation to approve or the equipment to confirm now rather than at close. It never
+    raises into the toss: a queue that cannot be written is not a reason to lose a ticket.
+    """
+    from app.ledger import review as ledger_review
+
+    try:
+        made = ledger_review.create_for_event(session, event_id)
+        if made:
+            session.commit()
+            log.info("event %d raised %d review task(s)", event_id, len(made))
+    except Exception:
+        session.rollback()
+        log.exception("event %d could not raise its review tasks", event_id)
 
 
 def _food_question(

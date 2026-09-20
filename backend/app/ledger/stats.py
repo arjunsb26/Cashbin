@@ -340,6 +340,14 @@ def averages(buckets: list[Bucket], start: date, end: date) -> dict[str, float]:
 # Suggestions ---------------------------------------------------------------
 
 
+def _said(name: str) -> str:
+    """A stored category name as a person says it. "fixed_asset" is not a word."""
+    from app.agent.prose import human_words
+
+    words = human_words(name)
+    return words[:1].upper() + words[1:]
+
+
 def _plural(count: int, one: str, many: str) -> str:
     """Counted nouns read as a person would say them, never "1 tickets"."""
     return f"{count} {one if count == 1 else many}"
@@ -408,7 +416,7 @@ def suggestions(
             found.append(
                 (
                     cents,
-                    f"{name.capitalize()} is the biggest group at {money(cents)} dollars "
+                    f"{_said(name)} is the biggest group at {money(cents)} dollars "
                     f"across {_plural(count, 'ticket', 'tickets')}, {share:.0f} percent "
                     f"of the {money(base)} dollars in the range.",
                 )

@@ -44,6 +44,16 @@ Newest first. Each lane writes under its own heading.
   now ranks, and the harness counts four result screens because it reads the bin's copy
   rather than a list of it typed out last week.
 
+- A ticket that owes a person something now says so as it finishes rather than at the
+  close: the donation to approve, the equipment to confirm. How long a ticket may stand
+  waiting before it becomes a review task is a setting, at two minutes.
+- Nothing a person reads carries a field name any more. The close memo said "fixed_asset",
+  "book_loss_cents" and "bonus_100" at a finance lead, and the Trends paragraph said
+  "Over 14.0 days" and "2.2195 kg", because the data block handed the model raw keys and
+  raw floats and the figure rule then stopped it writing anything better. The block is now
+  written the way the memo should read, labels in words and figures with their units, and
+  the wall still matches on those same formatted figures.
+
 
 ## 2026-09-20, lane q: the dashboard for two audiences
 
