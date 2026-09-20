@@ -1097,5 +1097,46 @@ class Form4797Block(ApiModel):
     disclaimer: str = ""
 
 
+class CategoryStat(ApiModel):
+    category: Literal["food", "packaging", "equipment", "e-waste", "other"]
+    tosses: int = 0
+    cents: int = 0
+    kg: float = 0.0
+
+
+class StatsBucket(ApiModel):
+    """One day or one week of tickets, totalled."""
+
+    start: str
+    tosses: int = 0
+    wasted_cents: int = 0
+    book_loss_cents: int = 0
+    estimated_value_cents: int = 0
+    kg_landfill: float = 0.0
+    kg_co2e_avoided: float = 0.0
+    asks: int = 0
+    first_try_accuracy: float | None = None
+    by_category: list[CategoryStat] = Field(default_factory=list)
+
+
+class StatsAverages(ApiModel):
+    days: float = 0.0
+    tosses_per_day: float = 0.0
+    wasted_cents_per_day: float = 0.0
+    kg_per_day: float = 0.0
+
+
+class StatsResponse(ApiModel):
+    """What the bin saw over a range, by day or by week."""
+
+    bucket: Literal["day", "week"] = "day"
+    period_start: str = ""
+    period_end: str = ""
+    buckets: list[StatsBucket] = Field(default_factory=list)
+    averages: StatsAverages = Field(default_factory=StatsAverages)
+    suggestions: list[str] = Field(default_factory=list)
+    summary_md: str | None = None
+
+
 # CloseRead points forward at the three blocks above, so it is resolved here.
 CloseRead.model_rebuild()

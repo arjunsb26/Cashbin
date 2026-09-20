@@ -81,6 +81,7 @@ export interface BinBooksContracts {
   CatalogItemCreate?: CatalogItemCreate;
   CatalogItemRead?: CatalogItemRead;
   CatalogListResponse?: CatalogListResponse;
+  CategoryStat?: CategoryStat;
   CloseCheck?: CloseCheck;
   CloseRead?: CloseRead;
   CloseRequest?: CloseRequest;
@@ -142,6 +143,9 @@ export interface BinBooksContracts {
   SimExpectResponse?: SimExpectResponse;
   SimTossRequest?: SimTossRequest;
   SimTossResponse?: SimTossResponse;
+  StatsAverages?: StatsAverages;
+  StatsBucket?: StatsBucket;
+  StatsResponse?: StatsResponse;
   SummaryResponse?: SummaryResponse;
   TaxMethod?: TaxMethod;
   TrialBalanceRow?: TrialBalanceRow;
@@ -361,6 +365,16 @@ export interface CatalogItemRead {
  */
 export interface CatalogListResponse {
   items?: CatalogItemRead[];
+}
+/**
+ * This interface was referenced by `BinBooksContracts`'s JSON-Schema
+ * via the `definition` "CategoryStat".
+ */
+export interface CategoryStat {
+  category: "food" | "packaging" | "equipment" | "e-waste" | "other";
+  cents?: number;
+  kg?: number;
+  tosses?: number;
 }
 /**
  * This interface was referenced by `BinBooksContracts`'s JSON-Schema
@@ -1079,6 +1093,49 @@ export interface SimTossRequest {
 export interface SimTossResponse {
   event_id: number;
   status: EventStatus;
+}
+/**
+ * This interface was referenced by `BinBooksContracts`'s JSON-Schema
+ * via the `definition` "StatsAverages".
+ */
+export interface StatsAverages {
+  days?: number;
+  kg_per_day?: number;
+  tosses_per_day?: number;
+  wasted_cents_per_day?: number;
+}
+/**
+ * One day or one week of tickets, totalled.
+ *
+ * This interface was referenced by `BinBooksContracts`'s JSON-Schema
+ * via the `definition` "StatsBucket".
+ */
+export interface StatsBucket {
+  asks?: number;
+  book_loss_cents?: number;
+  by_category?: CategoryStat[];
+  estimated_value_cents?: number;
+  first_try_accuracy?: number | null;
+  kg_co2e_avoided?: number;
+  kg_landfill?: number;
+  start: string;
+  tosses?: number;
+  wasted_cents?: number;
+}
+/**
+ * What the bin saw over a range, by day or by week.
+ *
+ * This interface was referenced by `BinBooksContracts`'s JSON-Schema
+ * via the `definition` "StatsResponse".
+ */
+export interface StatsResponse {
+  averages?: StatsAverages;
+  bucket?: "day" | "week";
+  buckets?: StatsBucket[];
+  period_end?: string;
+  period_start?: string;
+  suggestions?: string[];
+  summary_md?: string | null;
 }
 /**
  * The four header numbers on the Live page.
