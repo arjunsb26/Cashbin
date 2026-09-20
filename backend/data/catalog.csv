@@ -6,7 +6,7 @@ id,label,class,unit_cost_cents,unit_mass_g,price_per_kg_cents,fmv_per_kg_cents,m
 5,apple,inventory,,182.0,87,174,"{""food_waste"":1.0}","[""food""]",182.0,11924.6,3,estimate: 50 percent of retail https://www.walmart.com/ip/Fresh-Gala-Apples-3-lb-Bag/44390958
 6,chips bag,inventory,30,33.0,,1818,"{""food_waste"":0.85,""mixed_plastics"":0.15}","[""food""]",33.0,392.0,3,estimate: 50 percent of retail https://www.walmart.com/ip/Lay-s-Classic-Potato-Snack-Chips-1-oz-Bags-10-Count-Multipack/285394056
 7,soda can,inventory,38,368.0,,204,"{""food_waste"":0.959,""aluminum_cans"":0.041}","[""food""]",368.0,48752.6,3,estimate: 50 percent of retail https://www.walmart.com/ip/Coca-Cola-Classic-Soda-Pop-12-fl-oz-Cans-12-Pack/6260323532
-8,water bottle full,inventory,150,512.0,,41,"{""food_waste"":0.976,""pet"":0.024}","[""food""]",512.0,94371.8,3,"estimate: single bottle vending price, user 2026-09-20"
+8,water bottle full,inventory,150,512.0,,41,"{""food_waste"":0.976,""pet"":0.024}","[""food""]",512.0,94371.8,3,"estimate: single bottle vending price https://www.walmart.com/ip/Dasani-Purified-Water-Bottles"
 9,water bottle empty,untracked,,12.0,,,"{""pet"":1.0}",[],12.0,51.8,3,NEEDS_HUMAN
 10,pasta box,inventory,92,494.0,,372,"{""food_waste"":0.919,""mixed_paper"":0.081}","[""food""]",494.0,87853.0,3,estimate: 50 percent of retail https://www.walmart.com/ip/Barilla-Spaghetti-Pasta-1-Lb/10309153
 11,wrap,inventory,297,244.0,,2434,"{""food_waste"":0.93,""mixed_plastics"":0.07}","[""food""]",244.0,21433.0,3,estimate: 50 percent of retail https://www.walmart.com/ip/Marketside-Chicken-Caesar-Wrap/141265177
