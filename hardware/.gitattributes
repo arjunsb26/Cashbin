@@ -1,0 +1,8 @@
+# These files are copied to the bin's Debian side and run there. Git on Windows would
+# otherwise check them out with carriage returns, and bash reads a trailing carriage
+# return as part of the command, so every line fails with a message that does not mention
+# it. Force the endings the board needs.
+*.sh text eol=lf
+*.env text eol=lf
+bridge.py text eol=lf
+webcam_client.py text eol=lf
