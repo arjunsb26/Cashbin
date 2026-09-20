@@ -39,7 +39,7 @@ import numpy as np  # noqa: E402
 from app.config import get_settings  # noqa: E402
 from app.detect.crop import CropParams, crop_item  # noqa: E402
 from app.engine.records import load_catalog  # noqa: E402
-from app.identify.cost import cost_microusd, price_for  # noqa: E402
+from app.identify.cost import price_for  # noqa: E402
 from app.identify.openai_provider import PROVIDER_NAME, OpenAIVisionProvider  # noqa: E402
 from app.identify.openai_request import build_vision_request  # noqa: E402
 from app.identify.pipeline import _distribution, top_two  # noqa: E402
@@ -306,10 +306,11 @@ def run(config: Config, per_item: int, repeat: int, only: tuple[str, ...],
             asset_tags=(),
         )
         decoded = cv2.imdecode(np.frombuffer(crop, np.uint8), cv2.IMREAD_COLOR)
+        size = f"{decoded.shape[1]}x{decoded.shape[0]}" if decoded is not None else "unknown"
         for index in range(1, repeat + 1):
             row = Row(file=shot["file"], item=shot["item"], expected=shot["expected_label"],
                       repeat=index, crop_quality=result.crop_quality,
-                      crop_px=f"{decoded.shape[1]}x{decoded.shape[0]}")
+                      crop_px=size)
             started = time.perf_counter()
             try:
                 vision = provider.identify(crop, context)
