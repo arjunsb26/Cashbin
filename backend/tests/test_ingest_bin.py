@@ -7,6 +7,7 @@ the database.
 
 from __future__ import annotations
 
+import json
 from typing import Any
 
 import pytest
@@ -323,3 +324,33 @@ def test_nothing_is_sent_before_the_hello(client: TestClient) -> None:
         time.sleep(wire.HEARTBEAT_S + 0.5)
         socket.send_json(HELLO)
         assert socket.receive_json() == {"type": "ping"}
+
+
+def test_a_tare_is_written_down_so_the_close_can_use_it(client: TestClient) -> None:
+    """Lane F concern 2. Without this row the close guesses the bin's zero."""
+    from app.db import session_scope
+    from app.ledger.close import TARE_SETTING_KEY
+    from app.models import Setting
+
+    with client.websocket_connect("/ws/bin") as socket:
+        socket.send_json(HELLO)
+        assert socket.receive_json() == {"type": "ping"}
+        assert client.post("/api/device/tare").json()["sent"] is True
+        assert socket.receive_json() == {"type": "tare"}
+
+    with session_scope() as session:
+        row = session.get(Setting, TARE_SETTING_KEY)
+        assert row is not None
+        stored = json.loads(row.value_json)
+    assert stored["weight_g"] == 0.0
+    assert stored["at"]
+
+
+def test_a_tare_nobody_received_is_not_written_down(client: TestClient) -> None:
+    from app.db import session_scope
+    from app.ledger.close import TARE_SETTING_KEY
+    from app.models import Setting
+
+    assert client.post("/api/device/tare").json()["sent"] is False
+    with session_scope() as session:
+        assert session.get(Setting, TARE_SETTING_KEY) is None

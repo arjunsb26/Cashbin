@@ -584,15 +584,24 @@ def check_mass_conservation(rows: PeriodRows, floor_g: float) -> CloseCheck:
             samples.append((t_s, grams))
     samples.sort(key=lambda point: point[0])
 
-    tare_source = "the last tare recorded by the bin"
+    tare_line = "The tare is the last tare recorded by the bin."
     tare_g = 0.0
     if rows.tare and isinstance(rows.tare.get("weight_g"), int | float):
         tare_g = float(rows.tare["weight_g"])
+        when = str(rows.tare.get("at") or "").strip()
+        tare_line = (
+            f"The tare recorded at {when} set the bin's zero to {_grams(tare_g)}."
+            if when
+            else f"The last tare recorded by the bin set its zero to {_grams(tare_g)}."
+        )
     elif samples:
         tare_g = samples[0][1]
-        tare_source = "the first weight sample of the period, because no tare was recorded"
+        tare_line = (
+            "The tare is the first weight sample of the period, "
+            "because no tare was recorded."
+        )
     else:
-        tare_source = "nothing, because the bin recorded no weight at all"
+        tare_line = "The tare is nothing, because the bin recorded no weight at all."
 
     scale_now_g = samples[-1][1] if samples else tare_g
     removed_g = sum(-(event.mass_g or 0.0) for event in rows.bag_changes + rows.removals)
@@ -612,7 +621,7 @@ def check_mass_conservation(rows: PeriodRows, floor_g: float) -> CloseCheck:
                 f"within +/- {_grams(tolerance_g)}    {'Pass' if within else 'Fail'}",
             ),
             "",
-            f"The tare is {tare_source}.",
+            tare_line,
             f"{_plural(len(tosses), 'ticket', 'tickets')}, "
             f"{_plural(len(rows.bag_changes), 'bag change', 'bag changes')}, "
             f"{_plural(len(rows.removals), 'removal', 'removals')}, "
