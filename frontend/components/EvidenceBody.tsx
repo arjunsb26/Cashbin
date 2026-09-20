@@ -10,6 +10,7 @@ import {
   formatProbability,
 } from "@/lib/format";
 import { CropFrame } from "./CropFrame";
+import { Term } from "./Term";
 import { ProbabilityBars } from "./ProbabilityBars";
 import { TraceChart } from "./TraceChart";
 import { SectionTitle, StatusDot } from "./ui";
@@ -97,7 +98,9 @@ export function EvidenceBody({ evidence }: { evidence: EvidenceBundle }) {
           <dl className="m-0 grid grid-cols-[128px_1fr] gap-x-3 gap-y-1">
             {evidence.formula.map((step) => (
               <div key={step.label} className="contents">
-                <dt className="text-caption text-ink-soft">{step.label}</dt>
+                <dt className="text-caption text-ink-soft">
+                  <Term>{step.label}</Term>
+                </dt>
                 <dd className="m-0 text-body">{step.expression}</dd>
               </div>
             ))}

@@ -6,7 +6,9 @@ import * as Dialog from "@radix-ui/react-dialog";
 import { useAddAsset, useAssets } from "@/lib/api";
 import { formatDate, formatTag, readLabel } from "@/lib/format";
 import type { AssetCreate, AssetRead, AssetStatus } from "@/lib/types";
+import { REGISTER_LINE } from "@/lib/copy";
 import { Money } from "@/components/Figure";
+import { Term } from "@/components/Term";
 import {
   Button,
   EmptyState,
@@ -42,7 +44,7 @@ export default function AssetsPage() {
     <div>
       <PageHeader
         title="Asset register"
-        description="Tagged equipment. The tag is what the camera reads when something goes in the bin."
+        description={REGISTER_LINE}
         right={
           <>
             <label className="flex items-center gap-2 text-caption text-ink-soft">
@@ -97,8 +99,12 @@ export default function AssetsPage() {
                 <th className="py-1 font-normal">Description</th>
                 <th className="py-1 text-right font-normal">Cost ($)</th>
                 <th className="py-1 font-normal">In service</th>
-                <th className="py-1 text-right font-normal">Book value ($)</th>
-                <th className="py-1 text-right font-normal">Tax basis ($)</th>
+                <th className="py-1 text-right font-normal">
+                  <Term>book value</Term> ($)
+                </th>
+                <th className="py-1 text-right font-normal">
+                  <Term>tax basis</Term> ($)
+                </th>
                 <th className="py-1 font-normal">Status</th>
               </tr>
             </thead>

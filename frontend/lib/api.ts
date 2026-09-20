@@ -144,6 +144,21 @@ export function useAssets() {
   return useQuery({ queryKey: keys.assets, queryFn: source.assets });
 }
 
+/**
+ * The tag on a ticket's asset. The event read carries the asset id and not the
+ * tag, and the line under a ticket's label has to name the tag a person can see
+ * on the thing. It shares the register's own read, so it costs nothing extra.
+ */
+export function useAssetTag(assetId: number | null | undefined): string | null {
+  const assets = useQuery({
+    queryKey: keys.assets,
+    queryFn: source.assets,
+    enabled: assetId !== null && assetId !== undefined,
+  });
+  if (assetId === null || assetId === undefined) return null;
+  return (assets.data ?? []).find((asset) => asset.id === assetId)?.tag ?? null;
+}
+
 export function useRounds() {
   return useQuery({ queryKey: keys.rounds, queryFn: source.rounds });
 }

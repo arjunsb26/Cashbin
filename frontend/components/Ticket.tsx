@@ -7,17 +7,20 @@ import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
 import { MoreHorizontal } from "lucide-react";
 import type { EventDetail, EventSummary, OptionScoreRead } from "@/lib/types";
 import { bestOption, ticketFigure } from "@/lib/derive";
-import { imageSrc, useAnswerAsk, useVoidEvent } from "@/lib/api";
+import { imageSrc, useAnswerAsk, useAssetTag, useVoidEvent } from "@/lib/api";
+import { classLine } from "@/lib/copy";
 import {
   ESTIMATE_MARKER,
   formatMass,
   formatMassError,
   formatMoney,
   formatOption,
+  formatTag,
   isNegativeCents,
   readLabel,
 } from "@/lib/format";
 import { Co2, Mass, Money } from "./Figure";
+import { Term } from "./Term";
 import { CropFrame } from "./CropFrame";
 import { Button, Field, Input, cx } from "./ui";
 
@@ -75,6 +78,8 @@ export function Ticket({
 }) {
   const record = detail?.item_record ?? null;
   const figure = ticketFigure(event, record);
+  const tag = useAssetTag(record?.asset_id);
+  const sort = classLine(record?.class ?? event.class, tag ? formatTag(tag) : null);
   const counted = useCountUp(figure.cents, arrival, phase === "identified" && arrival > 0);
   const identified = phase === "identified" && event.label !== null;
   const options = detail?.options ?? [];
@@ -101,6 +106,9 @@ export function Ticket({
         )}
         <div className="flex-1">
           <h2 className="text-section">{identified ? event.label : "Identifying"}</h2>
+          {identified && sort ? (
+            <p className="pt-1 text-caption text-ink-soft">{sort}</p>
+          ) : null}
           <p className="pt-1 text-body text-ink-soft">
             <Mass grams={mass} eventId={event.id} focus="mass" />{" "}
             <span className="text-ink-soft">{formatMassError(event.mass_err_g ?? 0)}</span>
@@ -124,7 +132,7 @@ export function Ticket({
               {identified ? formatMoney(counted, { symbol: true }) : formatMass(mass)}
             </span>
             <span className="pb-2 text-body text-ink-soft">
-              {identified ? figure.caption : "on the scale"}
+              {identified ? <Term>{figure.caption}</Term> : "on the scale"}
               {identified && figure.estimate ? (
                 <span className="pl-1">{ESTIMATE_MARKER}</span>
               ) : null}
