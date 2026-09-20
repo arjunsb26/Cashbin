@@ -90,3 +90,18 @@ export type UiMessage =
 
 /** Which device the status line is about. */
 export type DeviceName = "bin" | "phone";
+
+/**
+ * A tax rule in plain language, with its citation.
+ *
+ * `GET /api/rules` is being added as this is written, and the generated contract
+ * does not carry the shape yet, so it is stated here from the rules file the
+ * backend serves. Move it to the generated import the moment it appears there.
+ */
+export type RuleRead = {
+  id: string;
+  title: string;
+  plain_text: string;
+  citation_url: string | null;
+  needs_human_review?: boolean;
+};

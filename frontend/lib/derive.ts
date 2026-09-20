@@ -14,6 +14,7 @@ import type {
   JournalEntryRead,
   OptionKind,
   OptionScoreRead,
+  RuleRead,
   VisionCandidate,
 } from "./types";
 
@@ -67,6 +68,26 @@ export function ticketFigure(
     return { cents: fmv, caption: "resale value", estimate, known: record != null };
   }
   return { cents: 0, caption: "nothing on the books", estimate, known: false };
+}
+
+/**
+ * What the tape prints for a row.
+ *
+ * `posted_cents` is what the journal actually posted against the ticket, which is
+ * the honest number for a printed tape: a ticket whose entry moved nothing says
+ * nothing. The field is newer than this screen, so where the backend does not send
+ * it the ticket's own figure stands in and the tape reads exactly as it did.
+ */
+export function tapeAmount(
+  event: EventSummary,
+  record: ItemRecordRead | null | undefined,
+): TicketFigure {
+  const posted = (event as { posted_cents?: unknown }).posted_cents;
+  if (typeof posted === "number") {
+    const figure = ticketFigure(event, record);
+    return { ...figure, cents: posted, known: true };
+  }
+  return ticketFigure(event, record);
 }
 
 /**
@@ -154,6 +175,11 @@ export function co2eAvoided(option: OptionScoreRead): number | null {
   if (typeof sent === "number") return sent;
   if (option.kg_co2e == null) return null;
   return -option.kg_co2e;
+}
+
+/** The rules by the code the engine cites, so a drawer can look one up. */
+export function ruleMap(rules: RuleRead[] | null | undefined): Map<string, RuleRead> {
+  return new Map((rules ?? []).map((rule) => [rule.id, rule]));
 }
 
 /** The identification the pipeline settled on, newest final one first. */

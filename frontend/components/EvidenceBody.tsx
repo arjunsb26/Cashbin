@@ -1,7 +1,8 @@
 "use client";
 
 import type { EvidenceBundle } from "@/lib/derive";
-import { imageSrc } from "@/lib/api";
+import { imageSrc, useRules } from "@/lib/api";
+import { ruleMap } from "@/lib/derive";
 import {
   formatEstimateSource,
   formatMass,
@@ -21,6 +22,7 @@ import { SectionTitle, StatusDot } from "./ui";
  */
 export function EvidenceBody({ evidence }: { evidence: EvidenceBundle }) {
   const id = evidence.identification;
+  const rules = ruleMap(useRules().data);
   return (
     <div className="flex flex-col gap-6">
       <section className="flex flex-col gap-2">
@@ -133,15 +135,33 @@ export function EvidenceBody({ evidence }: { evidence: EvidenceBundle }) {
       {evidence.rule_ids.length > 0 ? (
         <section className="flex flex-col gap-2">
           <SectionTitle>The rules applied</SectionTitle>
-          <ul className="m-0 flex list-none flex-wrap gap-2 p-0">
-            {evidence.rule_ids.map((rule) => (
-              <li
-                key={rule}
-                className="border border-rule bg-bar px-2 py-1 text-caption text-ink-soft"
-              >
-                {rule}
-              </li>
-            ))}
+          <ul className="m-0 flex list-none flex-col gap-3 p-0">
+            {evidence.rule_ids.map((id) => {
+              const rule = rules.get(id) ?? null;
+              return (
+                <li key={id} className="border-l-2 border-rule pl-3">
+                  <p className="text-body">{rule ? rule.title : id}</p>
+                  {rule ? (
+                    <p className="pt-1 text-caption text-ink-soft">{rule.plain_text}</p>
+                  ) : null}
+                  <p className="pt-1 text-caption text-ink-soft">
+                    {rule?.citation_url ? (
+                      <a
+                        className="underline underline-offset-2"
+                        href={rule.citation_url}
+                        target="_blank"
+                        rel="noreferrer"
+                      >
+                        Read the source
+                      </a>
+                    ) : (
+                      `Rule ${id}`
+                    )}
+                    {rule?.needs_human_review ? ", worth a person's eye" : ""}
+                  </p>
+                </li>
+              );
+            })}
           </ul>
         </section>
       ) : null}

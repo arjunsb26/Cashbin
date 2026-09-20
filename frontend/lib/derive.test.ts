@@ -19,6 +19,7 @@ import {
   mediaSrc,
   posteriorCandidates,
   co2eAvoided,
+  tapeAmount,
   ticketTone,
   ticketFigure,
   traceView,
@@ -589,4 +590,12 @@ test("carbon avoided is the positive form of a negative WARM factor", () => {
 test("the backend's own avoided figure wins over the flipped sign", () => {
   const sent = { ...option({ option: "recycle", kg_co2e: -5.66 }), kg_co2e_avoided: 5.0 };
   assert.equal(co2eAvoided(sent as OptionScoreRead), 5.0);
+});
+
+test("the tape prints what the journal posted where the backend says so", () => {
+  const keyboard = event({ id: 7, class: "fixed_asset", net_book_cents: 2000 });
+  assert.equal(tapeAmount(keyboard, null).cents, -2000);
+  const posted = { ...keyboard, posted_cents: -1750 } as typeof keyboard;
+  assert.equal(tapeAmount(posted, null).cents, -1750);
+  assert.equal(tapeAmount(posted, null).known, true);
 });

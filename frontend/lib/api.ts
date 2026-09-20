@@ -17,6 +17,7 @@ import type {
   JournalResponse,
   RoundListResponse,
   RoundRead,
+  RuleRead,
   SettingsRead,
   SettingsUpdate,
   SetupResponse,
@@ -75,6 +76,10 @@ const source = MOCK
       settings: () => get<SettingsRead>("/api/settings"),
       close: () => getOrNull<CloseRead>("/api/close/latest"),
       setup: () => get<SetupResponse>("/api/setup").then((body) => body.items ?? []),
+      // The rules route is newer than this screen. A backend without it answers
+      // 404, and the drawer then prints the rule's code on its own, as it did.
+      rules: () =>
+        getOrNull<{ rules?: RuleRead[] }>("/api/rules").then((body) => body?.rules ?? []),
     };
 
 /**
@@ -96,6 +101,7 @@ export const keys = {
   settings: ["settings"] as const,
   close: ["close"] as const,
   setup: ["setup"] as const,
+  rules: ["rules"] as const,
 };
 
 export function useSummary() {
@@ -169,6 +175,11 @@ export function useSettings() {
 
 export function useClose() {
   return useQuery({ queryKey: keys.close, queryFn: source.close });
+}
+
+/** The rules in plain language, keyed by the code the engine cites. */
+export function useRules() {
+  return useQuery({ queryKey: keys.rules, queryFn: source.rules, staleTime: Infinity });
 }
 
 export function useSetup() {

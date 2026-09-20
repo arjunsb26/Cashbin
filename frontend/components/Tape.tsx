@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import type { EventDetail, EventSummary } from "@/lib/types";
-import { ticketFigure, trashBlocked } from "@/lib/derive";
+import { tapeAmount, trashBlocked } from "@/lib/derive";
 import { ESTIMATE_MARKER, formatMoney, formatTime } from "@/lib/format";
 import { useEvidence } from "./Providers";
 import { EmptyState, cx } from "./ui";
@@ -67,7 +67,7 @@ function TapeRow({
   selected: boolean;
   onOpen: () => void;
 }) {
-  const figure = ticketFigure(event, detail?.item_record);
+  const figure = tapeAmount(event, detail?.item_record);
   const blocked = trashBlocked(detail?.options);
   const pending = event.status === "asking" || event.status === "detected";
 

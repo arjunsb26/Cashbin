@@ -6,7 +6,7 @@ import * as Dialog from "@radix-ui/react-dialog";
 import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
 import { MoreHorizontal } from "lucide-react";
 import type { EventDetail, EventSummary, OptionScoreRead } from "@/lib/types";
-import { bestOption, ticketFigure, ticketTone } from "@/lib/derive";
+import { bestOption, co2eAvoided, ticketFigure, ticketTone } from "@/lib/derive";
 import { imageSrc, useAnswerAsk, useAssetTag, useSettings, useVoidEvent } from "@/lib/api";
 import { classLine } from "@/lib/copy";
 import {
@@ -324,7 +324,7 @@ export function OptionTable({
             <tr className="border-b border-rule bg-bar text-caption text-ink-soft">
               <th className="py-1 font-normal">Option</th>
               <th className="py-1 text-right font-normal">After tax ($)</th>
-              <th className="py-1 text-right font-normal">CO2e (kg)</th>
+              <th className="py-1 text-right font-normal">CO2e avoided (kg)</th>
               <th className="py-1 text-right font-normal">Landfill (g)</th>
             </tr>
           </thead>
@@ -362,7 +362,7 @@ export function OptionTable({
                   </td>
                   <td className="text-right">
                     <Co2
-                      kg={option.kg_co2e ?? null}
+                      kg={co2eAvoided(option)}
                       eventId={eventId}
                       focus={`${option.option} carbon`}
                       unit={false}
