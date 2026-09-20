@@ -39,7 +39,15 @@ from app.models import (
     OptionScore,
     TaxMethod,
 )
-from app.pipeline import advice_line, headline_cents, lcd_big, signed_money, title_for
+from app.pipeline import (
+    VALUING_BIG,
+    VALUING_LINE,
+    advice_line,
+    headline_cents,
+    lcd_big,
+    signed_money,
+    title_for,
+)
 from tests.ingest_helpers import ScriptedClock, weight_frames
 from tests.test_detect_steps import Signal
 
@@ -193,6 +201,11 @@ def collect_screens(socket: WebSocketTestSession, count: int) -> list[dict[str, 
     raise AssertionError(f"only {len(found)} answer screens arrived, wanted {count}")
 
 
+# The charger and the phone are untracked and the catalog does not price them, so each one
+# is answered twice: the label now, the value when the second model call lands.
+VALUED_TOSSES = 2
+
+
 # Fixtures ---------------------------------------------------------------------
 
 
@@ -261,10 +274,15 @@ def run_demo(client: TestClient, app: FastAPI) -> dict[str, list[dict[str, Any]]
         for frame in weight_frames(signal.samples):
             bin_sock.send_json(frame)
         seen = collect_topics(
-            ui, {"event.created": 5, "event.updated": 4, "journal.posted": 1}
+            ui,
+            {
+                "event.created": 5,
+                "event.updated": 4 + VALUED_TOSSES,
+                "journal.posted": 1,
+            },
         )
-        screens = collect_screens(bin_sock, 4)
-        results = collect(phone, "result", 4)
+        screens = collect_screens(bin_sock, 4 + VALUED_TOSSES)
+        results = collect(phone, "result", 4 + VALUED_TOSSES)
     return {
         "created": seen["event.created"],
         "updated": seen["event.updated"],
@@ -340,13 +358,28 @@ def test_the_demo_scenario_ends_as_posted_balanced_tickets(demo_settings: Settin
             row["credit_cents"] for row in journal["trial_balance"]
         )
 
-        # Every surface heard about it.
-        assert len(seen["screens"]) == 4
+        # Every surface heard about it, and the two unpriced tickets were answered twice:
+        # once with the label, and again when the value landed. PLAN.md 21a item 25.
+        assert len(seen["screens"]) == 4 + VALUED_TOSSES
         assert {screen["s"] for screen in seen["screens"]} == {"result"}
-        assert len(seen["results"]) == 4
+        assert len(seen["results"]) == 4 + VALUED_TOSSES
         assert {result["type"] for result in seen["results"]} == {"result"}
-        assert len(seen["updated"]) == 4
+        assert len(seen["updated"]) == 4 + VALUED_TOSSES
+        assert {message["event"]["id"] for message in seen["updated"]} == {
+            row["id"] for row in tosses
+        }
         assert seen["journal"]
+
+        # The first answer for an unpriced thing carries no figure, and says so.
+        valuing = [screen for screen in seen["screens"] if screen["big"] == VALUING_BIG]
+        assert len(valuing) == VALUED_TOSSES
+        assert {screen["l2"] for screen in valuing} == {VALUING_LINE}
+        waiting = [result for result in seen["results"] if result["big"] == VALUING_BIG]
+        assert {result["event_id"] for result in waiting} == {
+            result["event_id"]
+            for result in seen["results"]
+            if result["big"] != VALUING_BIG
+        } & {result["event_id"] for result in waiting}
 
         # The header adds up.
         summary = client.get("/api/summary").json()

@@ -26,6 +26,7 @@ import json
 import logging
 import time
 from collections.abc import Callable, Sequence
+from dataclasses import dataclass
 from datetime import UTC, date, datetime
 
 from sqlalchemy import delete, select
@@ -103,6 +104,10 @@ BLOCKED_ADVICE: dict[Option, str] = {
     Option.resell: "Resell it",
     Option.repair: "Repair it",
 }
+# User copy, for the moment between knowing what a thing is and knowing what it is worth.
+VALUING_BIG = "..."
+VALUING_LINE = "Working out value"
+
 BINNED: dict[ItemClass, str] = {
     ItemClass.fixed_asset: "Removed from books",
     ItemClass.inventory: "Written off as waste",
@@ -215,6 +220,21 @@ def to_catalog_item(row: models.CatalogItem) -> CatalogItem:
             "mass_prior_n": row.mass_prior_n,
         }
     )
+
+
+@dataclass(frozen=True)
+class _Pricing:
+    """Everything a pricing pass needs that does not change between the two passes."""
+
+    event_id: int
+    label: str
+    cls: ItemClass
+    mass_g: float
+    when: date
+    catalog: CatalogItem | None
+    asset: AssetInfo | None
+    asset_row: models.Asset | None
+    condition: Condition
 
 
 def _early_crop(frames: Sequence[Frame], opened_ms: float, at_ms: float) -> bytes | None:
@@ -495,10 +515,16 @@ class PipelineDeps:
             stage = "estimate"
             seen = self.vision.of(event_id)
             condition = _condition_of(seen)
-            estimate = await self._estimate(cls, display, mass_g, seen)
+            # PLAN.md 21a item 25. The value estimate is a second model call, and Lane K
+            # measured it slower than the vision call every single time, which is what put
+            # an unpriced ticket at six seconds. It comes off the critical path: the label
+            # and the mass reach all three surfaces now, and the figure follows.
+            cached = (
+                estimate_cache.read_estimate(display) if cls is ItemClass.untracked else None
+            )
+            valuing = cls is ItemClass.untracked and cached is None
 
-            stage = "record"
-            record = _build_record(
+            parts = _Pricing(
                 event_id=event_id,
                 label=display,
                 cls=cls,
@@ -506,44 +532,30 @@ class PipelineDeps:
                 when=when,
                 catalog=catalog,
                 asset=asset,
+                asset_row=asset_row,
                 condition=condition,
-                estimate=estimate,
             )
+            stage = self._post_pass(session, event, parts, cached, valuing=valuing)
+            if not valuing:
+                log.info("event %d is posted", event_id)
+                return
 
-            stage = "score"
-            engine_settings = EngineSettings.from_settings(self.settings)
-            scores = engine_options.score_options(record, engine_settings, asset)
-            ranking = engine_options.summarise(scores, engine_settings)
-            log.info(
-                "event %d scored: best=%s greenest=%s saved=%d tone=%s",
-                event_id,
-                ranking.best_option.value if ranking.best_option is not None else None,
-                ranking.greenest_option.value if ranking.greenest_option is not None else None,
-                ranking.saved_if_followed_cents,
-                ranking.tone,
-            )
-
-            stage = "write"
-            _write_item_record(session, record)
-            _write_option_scores(session, event_id, scores)
-
-            stage = "post"
-            posted = _post_entries(session, record, asset, engine_settings)
-            log.info("event %d posted %d journal entries", event_id, posted)
-
-            stage = "register"
-            if asset_row is not None:
-                asset_row.status = models.AssetStatus.disposed
-                asset_row.disposed_event_id = event_id
-                log.info("asset %s is off the register on event %d", asset_row.tag, event_id)
-
-            event.status = models.EventStatus.posted
-            session.commit()
-
-            stage = "publish"
-            self._publish(session, event, record, ranking, scores)
-            metrics.publish_metrics(session, self.bus)
-            log.info("event %d is posted", event_id)
+            stage = "estimate"
+            estimate = await self._estimate(cls, display, mass_g, seen)
+            if estimate is None:
+                log.info("event %d has no estimate, the ticket stands as it is", event_id)
+                return
+            written = session.get(models.ItemRecord, event_id)
+            if written is None or written.label != display[:40]:
+                # A person answered again while the estimate was out. The figure belongs to
+                # the label that was asked about, not to whatever the ticket says now.
+                log.info(
+                    "event %d was relabelled while it was valued, so the estimate is dropped",
+                    event_id,
+                )
+                return
+            stage = self._post_pass(session, event, parts, estimate, valuing=False)
+            log.info("event %d is posted with its value", event_id)
         except Exception:
             session.rollback()
             log.exception(
@@ -554,6 +566,66 @@ class PipelineDeps:
             )
         finally:
             session.close()
+
+    def _post_pass(
+        self,
+        session: Session,
+        event: models.Event,
+        parts: _Pricing,
+        estimate: ValueEstimate | None,
+        *,
+        valuing: bool,
+    ) -> str:
+        """Price the ticket, write it, post it and say so. Returns the stage it reached.
+
+        Runs once for a ticket the catalog prices, and twice for one it does not: first
+        with no figure, so the bin and the phone answer at once, then again with it.
+        Re-posting reverses the first pass's entries, which is `_post_entries` doing what
+        PLAN.md section 11 asks, and an untracked item posts nothing to reverse.
+        """
+        event_id = parts.event_id
+        record = _build_record(
+            event_id=event_id,
+            label=parts.label,
+            cls=parts.cls,
+            mass_g=parts.mass_g,
+            when=parts.when,
+            catalog=parts.catalog,
+            asset=parts.asset,
+            condition=parts.condition,
+            estimate=estimate,
+        )
+
+        engine_settings = EngineSettings.from_settings(self.settings)
+        scores = engine_options.score_options(record, engine_settings, parts.asset)
+        ranking = engine_options.summarise(scores, engine_settings)
+        log.info(
+            "event %d scored: best=%s greenest=%s saved=%d tone=%s%s",
+            event_id,
+            ranking.best_option.value if ranking.best_option is not None else None,
+            ranking.greenest_option.value if ranking.greenest_option is not None else None,
+            ranking.saved_if_followed_cents,
+            ranking.tone,
+            " (still being valued)" if valuing else "",
+        )
+
+        _write_item_record(session, record)
+        _write_option_scores(session, event_id, scores)
+
+        posted = _post_entries(session, record, parts.asset, engine_settings)
+        log.info("event %d posted %d journal entries", event_id, posted)
+
+        if parts.asset_row is not None:
+            parts.asset_row.status = models.AssetStatus.disposed
+            parts.asset_row.disposed_event_id = event_id
+            log.info("asset %s is off the register on event %d", parts.asset_row.tag, event_id)
+
+        event.status = models.EventStatus.posted
+        session.commit()
+
+        self._publish(session, event, record, ranking, scores, valuing=valuing)
+        metrics.publish_metrics(session, self.bus)
+        return "publish"
 
     # The pieces ------------------------------------------------------------
 
@@ -597,6 +669,7 @@ class PipelineDeps:
         record: ItemRecord,
         ranking: engine_options.Ranking,
         scores: list[OptionScore],
+        valuing: bool = False,
     ) -> None:
         """Tell the dashboard, the phone and the bin, in that order."""
         event_id = int(event.id)
@@ -611,13 +684,21 @@ class PipelineDeps:
         title = title_for(record.label)
         line = advice_line(record, ranking, blocked)
         cents = headline_cents(record)
+        big_money = signed_money(cents)[:16]
+        lcd_money = lcd_big(cents)
+        if valuing:
+            # No figure yet, so none is drawn. DESIGN.md section 8: say what is happening.
+            big_money = VALUING_BIG
+            lcd_money = VALUING_BIG
+            line = VALUING_LINE
+            tone = "neutral"
 
         if ranking.best_option is not None:
             self.bus.publish(
                 PhoneResult(
                     event_id=event_id,
                     title=title[:60],
-                    big=signed_money(cents)[:16],
+                    big=big_money,
                     line=line,
                     tone=tone,
                     best_option=models.OptionKind(ranking.best_option.value),
@@ -626,7 +707,7 @@ class PipelineDeps:
             )
         else:
             log.warning("event %d has no allowed option, so the phone gets no result", event_id)
-        self.bus.publish(lcd.result(title, lcd_big(cents), line, tone), CHANNEL_BIN)
+        self.bus.publish(lcd.result(title, lcd_money, line, tone), CHANNEL_BIN)
 
 
 # Lookups --------------------------------------------------------------------
