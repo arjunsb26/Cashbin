@@ -140,22 +140,21 @@ def test_the_m3_story_reads_off_the_api_and_the_phone(
             stored = session.query(Asset).filter(Asset.tag == KEYBOARD_TAG).one()
             assert stored.status is AssetStatus.disposed
 
-        # 2. The bagel: a bagel out of a bin is nobody's donation, and the ticket says
-        # why rather than leaving the option off. PLAN.md 21a item 48.
+        # 2. The bagel: nobody said it was opened, so the donation is offered with the
+        # flag that puts it in front of a person. PLAN.md 21a item 53.
         bagel = client.get(f"/api/events/{by_label['bagel']['id']}").json()
         by_kind = {row["option"]: row for row in bagel["options"]}
         donate = by_kind[OptionKind.donate]
-        assert donate["allowed"] is False
-        assert "donated" in donate["blocked_reason"]
+        assert donate["allowed"] is True
+        assert donate["rank"] == 1
         assert by_kind[OptionKind.trash]["allowed"] is True
-        # The arithmetic behind the option is untouched, and the drawer still shows it.
         assert donate["needs_human_review"] is True
         assert "DONATE_FOOD" in donate["rule_ids"]
         assert donate["tax_effect_cents"] > 0
-        # Nothing beats the bin on money for an opened bagel. Composting it is the one
-        # thing left that is better than landfill, and it costs the same.
-        assert by_label["bagel"]["saved_if_followed_cents"] == 0
-        assert by_label["bagel"]["best_option"] in {OptionKind.trash, OptionKind.recycle}
+        assert by_label["bagel"]["saved_if_followed_cents"] > 0
+        assert by_label["bagel"]["best_option"] == OptionKind.donate
+        # And the ticket says what the toss meant, in one sentence with its figure in it.
+        assert by_label["bagel"]["headline"].startswith("Wasted $")
 
         # 3. The charger and the phone: the landfill is closed, and the phone said so in red.
         for label in ("usb-c charger", "phone"):
@@ -172,6 +171,13 @@ def test_the_m3_story_reads_off_the_api_and_the_phone(
         for result in seen["results"]:
             assert result["line"], "every phone result says what to do"
 
-        screens = {screen["l1"].lower(): screen for screen in seen["screens"]}
-        assert screens["usb-c charger"]["c"] == "red"
-        assert screens["phone"]["c"] == "red"
+        # The bin leads with what the toss meant rather than with the item's name, which
+        # the phone is already showing. PLAN.md 21a item 41.
+        from app.notify.lcd import HEADLINES
+
+        words = {str(word) for word in HEADLINES.values()}
+        drawn = [screen for screen in seen["screens"] if screen["l2"] != "Working out value"]
+        assert drawn, "the bin drew no finished result"
+        for screen in drawn:
+            assert screen["l1"] in words, screen["l1"]
+        assert len([screen for screen in drawn if screen["c"] == "red"]) == 2

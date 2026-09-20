@@ -53,12 +53,18 @@ class SummaryReply(BaseModel):
 def build_block(
     suggestions: list[str], totals: dict[str, Any], averages: dict[str, float]
 ) -> dict[str, Any]:
-    """Only what the model is allowed to talk about: the findings and their totals."""
-    return {
-        "findings": list(suggestions),
-        "totals": totals,
-        "averages_per_day": averages,
-    }
+    """Only what the model is allowed to talk about, in the words it should use.
+
+    The findings are already sentences. The totals were field names and long floats, which
+    is how "Over 14.0 days" and "2.2195 kg" ended up in a paragraph a person reads.
+    """
+    return prose.humanise_block(
+        {
+            "findings": list(suggestions),
+            "totals": totals,
+            "averages_per_day": averages,
+        }
+    )
 
 
 def stub_paragraph(suggestions: list[str]) -> str:

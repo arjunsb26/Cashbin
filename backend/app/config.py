@@ -117,6 +117,10 @@ class Settings(BaseSettings):
     question_timeout_s: float = Field(default=2.0, gt=0.0)
     # How many questions one toss may ever ask a person. PLAN.md 21a item 38.
     max_questions_per_toss: int = Field(default=2, ge=0, le=4)
+    # How long a ticket may stand waiting on a person before it becomes a review task, so
+    # a question nobody answered turns into something the close can see rather than a row
+    # that waits forever. The review queue reads it.
+    review_after_s: int = Field(default=120, ge=0)
     # How the host is asked to schedule the call. "fast" is the low latency queue; "default"
     # turns the request back into an ordinary one.
     llm_service_tier: str = "fast"

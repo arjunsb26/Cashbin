@@ -535,6 +535,7 @@ export interface CloseRequest {
 export interface CorrectionCreate {
   by?: string;
   class?: ItemClass | null;
+  detail?: string | null;
   event_id: number;
   /**
    * Lowercase label. Letters, digits, spaces and hyphens only.
@@ -651,6 +652,7 @@ export interface EventSummary {
   crop_quality?: CropQuality | null;
   crop_url?: string | null;
   flags?: string[];
+  headline?: string | null;
   id: number;
   is_estimate?: boolean;
   kind: EventKind;
@@ -1356,6 +1358,7 @@ export interface VisionResult {
   label: string;
   material?: string | null;
   model?: string;
+  needs_detail?: boolean;
   provider?: string;
   visible_text?: string;
 }

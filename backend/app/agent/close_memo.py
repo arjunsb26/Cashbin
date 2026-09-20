@@ -66,9 +66,14 @@ def build_block(
     rollforward: dict[str, Any] | None = None,
     reconciliation: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
-    """The only thing the model is allowed to talk about."""
+    """The only thing the model is allowed to talk about, written the way it should read.
+
+    Every label is words and every figure carries its unit, because a model handed
+    `book_loss_cents: 8600` writes "book_loss_cents of 8600" at a CFO and the figure rule
+    is what stops it doing anything better with it.
+    """
     totals = result.totals
-    return {
+    return prose.humanise_block({
         "period": {"start": result.period_start, "end": result.period_end},
         "status": result.status,
         "events": totals.get("events", {}),
@@ -106,7 +111,7 @@ def build_block(
             {"description": row.get("description"), "reason": row.get("reason")}
             for row in (reconciliation or {}).get("rows", [])[:5]
         ],
-    }
+    })
 
 
 def _plural(count: int, one: str, many: str) -> str:

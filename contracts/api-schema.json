@@ -893,6 +893,20 @@
           ],
           "default": null
         },
+        "detail": {
+          "anyOf": [
+            {
+              "description": "Lowercase label. Letters, digits, spaces and hyphens only.",
+              "maxLength": 40,
+              "pattern": "^[a-z0-9 -]+$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
         "event_id": {
           "type": "integer"
         },
@@ -1259,6 +1273,18 @@
             "type": "string"
           },
           "type": "array"
+        },
+        "headline": {
+          "anyOf": [
+            {
+              "maxLength": 120,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
         },
         "id": {
           "type": "integer"
@@ -3994,6 +4020,10 @@
           "default": "",
           "maxLength": 80,
           "type": "string"
+        },
+        "needs_detail": {
+          "default": false,
+          "type": "boolean"
         },
         "provider": {
           "default": "",

@@ -31,6 +31,58 @@ Newest first. Each lane writes under its own heading.
   second line. A candidate label at 390 px collided with its percentage. The word the code
   uses for having reached no model was printed at a person.
 
+## 2026-09-20, lane v: the question that matters
+
+- The camera may now say it cannot price what it is looking at. `needs_detail` on a vision
+  answer means the figure turns on something a photograph cannot show: how many gigabytes
+  a stick holds, how big a monitor is, whether a battery still works. It opens one
+  question and decides nothing on its own.
+- The question and its two to four answers are written by a cheap call at low effort under
+  its own two second limit. Food and packaging are never asked about. The same label is
+  asked about once a session. No model, a host that is down, or a reply a phone could not
+  draw all mean the same thing: the ticket finishes without the detail.
+- The answers are buttons at equal weight, because none of them is a guess the bin is
+  making. The bin draws "Quick question" rather than "Not sure", which is the ordinary ask
+  and a different thing.
+- An answer to a question is a detail, not a label. It is filed beside the numbers on the
+  identification row, it reaches the estimator as data, it keys the estimate cache, and
+  the condition pair sets the item's condition. The label the camera gave stands.
+- One toss may be asked at most two questions, ever.
+- A toss now says what it meant above the figure rather than repeating the item's name,
+  which the phone is already showing. Food reads "Wasted", a register asset "Written off",
+  anything else "Worth about", and packaging leads with the CO2e it keeps out of the air.
+  The words come from the one builder in `notify/lcd.py`; the second copy of that ladder
+  in the pipeline is gone, and so is the copy the acceptance harness kept of line 2.
+- The ticket carries that sentence with its figure in it, so a reloaded page says what the
+  bin said at the time instead of working it out again.
+- Something cheap that nothing is wrong with reads "Still usable" rather than "Fine to
+  bin". The user's words: for a pencil it said resell, which is reasonable, but you could
+  just use it.
+- Food nobody priced is asked what the whole thing cost and how much of it went in, and
+  the two answers multiply out to the cost basis: ten dollars and a quarter is $2.50.
+  Food the catalog prices is asked nothing.
+- Food is refused for donation only when somebody says it was opened. Nobody having said
+  anything is not the same as opened, and refusing on that meant refusing every piece of
+  food there was. Unknown is offered with the flag that puts it in front of a person.
+- An empty drink can is a can, not six cents of wasted drink. Under a fifth of the unit
+  mass of something mostly food or drink, the toss is the container: no cost basis, no
+  journal entry, the material is what the container is made of, and the line says
+  "Recycle, not trash".
+
+- `scripts/acceptance.py --scenario demo` passes all fifteen checks. The bagel's donation
+  now ranks, and the harness counts four result screens because it reads the bin's copy
+  rather than a list of it typed out last week.
+
+- A ticket that owes a person something now says so as it finishes rather than at the
+  close: the donation to approve, the equipment to confirm. How long a ticket may stand
+  waiting before it becomes a review task is a setting, at two minutes.
+- Nothing a person reads carries a field name any more. The close memo said "fixed_asset",
+  "book_loss_cents" and "bonus_100" at a finance lead, and the Trends paragraph said
+  "Over 14.0 days" and "2.2195 kg", because the data block handed the model raw keys and
+  raw floats and the figure rule then stopped it writing anything better. The block is now
+  written the way the memo should read, labels in words and figures with their units, and
+  the wall still matches on those same formatted figures.
+
 ## 2026-09-20, lane q: the dashboard for two audiences
 
 - Five tabs, each with one job. Live and Trends answer what a person wasted. Review, Books

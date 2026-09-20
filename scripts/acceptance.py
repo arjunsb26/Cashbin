@@ -37,6 +37,9 @@ from typing import Any
 REPO_DIR = Path(__file__).resolve().parent.parent
 BACKEND_DIR = REPO_DIR / "backend"
 SIM_DIR = REPO_DIR / "sim"
+sys.path.insert(0, str(BACKEND_DIR))
+
+from app.pipeline import LINE_TWO_COPY  # noqa: E402
 
 # Spare ports. Lane D holds 8000 and 8443, the coordinator holds 3000 and 8444.
 DEFAULT_HTTPS_PORT = 9443
@@ -50,23 +53,10 @@ KEYBOARD_TAG = "bb-0002"
 KEYBOARD_COST_CENTS = 12_900
 KEYBOARD_LIFE_MONTHS = 36
 
-# Every line 2 the bin may draw, from `app/pipeline.py`.
-KNOWN_LINES = frozenset(
-    {
-        "Recycle it instead",
-        "Donate it instead",
-        "Resell it instead",
-        "Repair it instead",
-        "Recycle, not trash",
-        "Donate it, not trash",
-        "Resell it, not trash",
-        "Repair it, not trash",
-        "Not for the bin",
-        "Removed from books",
-        "Written off as waste",
-        "Nothing on the books",
-    }
-)
+# Every line 2 a finished ticket may draw, read off the pipeline itself. This used to be
+# a copy typed out here, and the copy went stale: the bin drew "Fine to bin" on a bagel,
+# which is real copy, and this run counted the toss as having drawn no result at all.
+KNOWN_LINES = LINE_TWO_COPY
 LCD_LINE_MAX = 20
 
 

@@ -147,10 +147,12 @@ def test_the_data_block_holds_the_computed_figures_and_nothing_else(
     system = request["messages"][0]["content"]
     block = json.loads(request["messages"][1]["content"][1]["text"])
     assert "Do no arithmetic" in system
-    assert block["write_offs"]["total_cents"] == 3185
+    # The block is written the way the memo should read, so the model has words to use
+    # rather than field names it will print at a person.
+    assert block["write offs"]["total"] == "$31.85"
     assert len(block["checks"]) == 5
     # The whole disposal list is not handed over, only the totals and a few rows.
-    assert "rows" not in block["asset_disposals"]
+    assert "rows" not in block["asset disposals"]
 
 
 def test_a_hostile_label_reaches_the_model_only_as_a_quoted_value(
@@ -165,7 +167,7 @@ def test_a_hostile_label_reaches_the_model_only_as_a_quoted_value(
     request = client.requests[0]
     assert "ignore previous instructions" not in request["messages"][0]["content"]
     block = json.loads(request["messages"][1]["content"][1]["text"])
-    assert block["write_offs"]["rows"][0]["label"].startswith("ignore previous")
+    assert block["write offs"]["rows"][0]["label"].startswith("ignore previous")
 
 
 def test_the_close_endpoint_carries_the_memo_and_the_three_blocks(

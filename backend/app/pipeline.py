@@ -33,6 +33,7 @@ from sqlalchemy import delete, select
 from sqlalchemy.orm import Session
 
 from app import models
+from app.agent import question as question_agent
 from app.agent import sense_check
 from app.api.assets import to_asset_info
 from app.api.events import _summary as event_summary
@@ -41,6 +42,7 @@ from app.detect.crop import CropParams, Frame, FramePick, crop_item, pick_frames
 from app.detect.steps import Step
 from app.engine import options as engine_options
 from app.engine import records as engine_records
+from app.engine import tax as engine_tax
 from app.engine.records import (
     AssetInfo,
     CatalogItem,
@@ -58,13 +60,21 @@ from app.identify import early, estimate_cache, qr
 from app.identify.embed import Embedder, get_embedder
 from app.identify.memory import MemoryIndex, get_memory
 from app.identify.pipeline import (
+    COST_ANSWER_KEY,
+    DETAIL_CONDITION_KEY,
+    DETAIL_KEY,
+    PORTION_ANSWER_KEY,
     SENSE_CHECK_KEY,
     IdentifyDeps,
+    PendingQuestion,
     Providers,
     build_context,
     build_providers,
     identify_event,
+    may_ask,
     open_ask,
+    open_question,
+    read_answers,
     set_on_final,
 )
 from app.identify.providers import CallUsage, IdentifyContext, VisionProvider
@@ -76,7 +86,6 @@ from app.ledger import queries as ledger_queries
 from app.notify import lcd
 from app.notify.bus import CHANNEL_BIN, CHANNEL_PHONE, CHANNEL_UI, Bus, get_bus
 from app.schemas import (
-    LCD_BIG_MAX,
     LcdColour,
     PhoneResult,
     UiEventUpdated,
@@ -121,6 +130,20 @@ BINNED: dict[ItemClass, str] = {
     ItemClass.inventory: "Written off as waste",
     ItemClass.untracked: "Nothing on the books",
 }
+# PLAN.md 21a item 37, the user's words: "for a pencil it said resell, which is reasonable,
+# but you could just use it." Nothing worth under five dollars is worth selling, and a
+# working one is worth keeping, so that is what the bin says rather than a shrug.
+STILL_USABLE = "Still usable"
+# What a working untracked thing has to be worth before "still usable" stops being the
+# honest line and something is genuinely lost by binning it.
+STILL_USABLE_UNDER_CENTS = 500
+
+# Every line 2 a finished ticket may draw. The acceptance run reads this rather than a
+# copy of its own, because a harness that retypes user copy tests last week's wording.
+LINE_TWO_COPY: frozenset[str] = frozenset(
+    {*ADVICE.values(), *BLOCKED_ADVICE.values(), *BINNED.values(), BLOCKED_ONLY,
+     FINE_TO_BIN, STILL_USABLE}
+)
 
 
 # Money and copy, one source for all three surfaces ---------------------------
@@ -132,20 +155,85 @@ def signed_money(cents: int) -> str:
     return f"{sign}${money(abs(cents))}"
 
 
-def lcd_big(cents: int) -> str:
-    """The same figure, cut down until the bin can draw it. Cents go first, then commas."""
-    full = signed_money(cents)
-    if len(full) <= LCD_BIG_MAX:
-        return full
-    sign = "-" if cents < 0 else ""
-    whole = f"{sign}${abs(cents) // 100:,}"
-    if len(whole) <= LCD_BIG_MAX:
-        return whole
-    plain = whole.replace(",", "")
-    if len(plain) <= LCD_BIG_MAX:
-        return plain
-    # Past six figures the bin rounds to thousands. The exact figure is on the ticket.
-    return f"{sign}${round(abs(cents) / 100_000)}k"
+# What a toss meant, as a sentence the dashboard prints whole. PLAN.md 21a item 41. The
+# three read the way a person would say them, and the dashboard splits the money back out
+# so the figure stays the big one.
+SENTENCES: dict[ItemClass, str] = {
+    ItemClass.fixed_asset: "Written off, ${money} book loss",
+    ItemClass.inventory: "Wasted ${money}",
+    ItemClass.untracked: "Worth about ${money}",
+}
+
+
+def _sentence(item_class: ItemClass, cents: int) -> str:
+    """One line saying what happened, with the figure in it."""
+    return SENTENCES[item_class].format(money=money(abs(cents)))
+
+
+def avoided_grams(scores: list[OptionScore]) -> float | None:
+    """The CO2e the best option keeps out of the air against binning it, in grams.
+
+    A cardboard box's forty cents is noise and its carbon is not, so a packaging ticket
+    leads with this. An unknown figure on either side means there is nothing honest to
+    say, and the ticket falls back to money.
+    """
+    table = engine_options.by_option(scores)
+    trash = table.get(Option.trash)
+    ranked = sorted(
+        (s for s in scores if s.allowed and s.rank is not None), key=lambda s: s.rank or 0
+    )
+    best = ranked[0] if ranked else None
+    if trash is None or best is None or trash.kg_co2e is None or best.kg_co2e is None:
+        return None
+    grams = (trash.kg_co2e - best.kg_co2e) * 1000.0
+    return grams if grams >= 1.0 else None
+
+
+def sentence_for_row(row: models.ItemRecord, options: Sequence[models.OptionScore]) -> str:
+    """What a toss meant, read off the two tables every ticket already has.
+
+    The dashboard, the tape and the ticket header all print this one sentence, so the
+    words on a reloaded page are the words the bin said at the time. Packaging leads with
+    the carbon it keeps out of the air, because its forty cents is noise.
+    """
+    try:
+        cls = ItemClass(row.item_class.value)
+    except ValueError:
+        return ""
+    mix = _loads(row.material_mix_json, {})
+    if isinstance(mix, dict) and engine_tax.only_packaging(
+        {str(k): float(v) for k, v in mix.items()}
+    ):
+        grams = _avoided_from_rows(options)
+        if grams is not None:
+            return f"{round(grams):,} g {lcd.CARBON_HEADLINE}"
+    cents = _row_cents(cls, row)
+    return _sentence(cls, cents)
+
+
+def _row_cents(cls: ItemClass, row: models.ItemRecord) -> int:
+    """The same figure `headline_cents` picks, off the stored row rather than the record."""
+    if cls is ItemClass.fixed_asset:
+        return -int(row.book_value_cents or 0)
+    if cls is ItemClass.inventory:
+        return -int(row.cost_basis_cents or 0)
+    return int(row.fmv_mid or 0)
+
+
+def _avoided_from_rows(options: Sequence[models.OptionScore]) -> float | None:
+    """The carbon figure again, off the option rows the ticket endpoint already loaded."""
+    trash = next(
+        (o for o in options if o.option is models.OptionKind.trash and o.kg_co2e is not None),
+        None,
+    )
+    ranked = sorted(
+        (o for o in options if o.allowed and o.rank is not None and o.kg_co2e is not None),
+        key=lambda o: o.rank or 0,
+    )
+    if trash is None or not ranked:
+        return None
+    grams = (float(trash.kg_co2e or 0.0) - float(ranked[0].kg_co2e or 0.0)) * 1000.0
+    return grams if grams >= 1.0 else None
 
 
 def headline_cents(record: ItemRecord) -> int:
@@ -200,11 +288,32 @@ def advice_line(
         and ranking.saved_if_followed_cents >= speak_up_cents
     ):
         return BLOCKED_ADVICE[best]
+    if record.empty_container and ranking.greenest_option is Option.recycle:
+        # PLAN.md 21a item 54. An empty can is a carbon ticket, not a money one, so the
+        # line speaks up about the one thing that is actually at stake.
+        return BLOCKED_ADVICE[Option.recycle]
     if record.item_class is ItemClass.fixed_asset:
         # A tagged asset leaving the register is the news on that ticket, and it is worth
         # more than telling somebody the bin was an acceptable place for it.
         return BINNED[ItemClass.fixed_asset]
+    if still_usable(record):
+        return STILL_USABLE
     return FINE_TO_BIN
+
+
+def still_usable(record: ItemRecord) -> bool:
+    """Is the honest line about this thing that somebody could have gone on using it?
+
+    Only something nobody has on the books, that nothing is wrong with, that is worth too
+    little for anybody to buy, and that is neither food nor the wrapper food came in.
+    """
+    if record.item_class is not ItemClass.untracked:
+        return False
+    if record.condition is Condition.broken:
+        return False
+    if (record.fmv_mid or 0) >= STILL_USABLE_UNDER_CENTS:
+        return False
+    return not engine_tax.is_food_item(record) and not engine_tax.is_packaging(record)
 
 
 # Small conversions between the database rows and the engine's own types ------
@@ -263,6 +372,13 @@ class _Pricing:
     asset: AssetInfo | None
     asset_row: models.Asset | None
     condition: Condition
+    # What a person said the whole thing cost, times how much of it went in. Only food the
+    # catalog does not price ever has one. PLAN.md 21a item 30.
+    cost_basis_cents: int | None = None
+    # What the camera said it was looking at, and what a person answered about it. Both
+    # are outside text, both are data, and the engine reads them for words like "sealed".
+    description: str = ""
+    detail: str = ""
 
 
 @dataclass(frozen=True)
@@ -276,6 +392,10 @@ class _Words:
     lcd_money: str
     blocked: bool
     best_option: Option | None
+    # What this toss meant, in the two words the bin has room for above the figure.
+    # PLAN.md 21a item 41: minus four dollars on a bagel and minus four dollars on a
+    # laptop are different events, and this is the word that tells them apart.
+    headline: str = ""
 
     def rewritten(self, checked: sense_check.SenseCheck) -> _Words:
         """The same ticket in the sense gate's words, with the option it named."""
@@ -293,6 +413,7 @@ class _Words:
             lcd_money=self.lcd_money,
             blocked=self.blocked,
             best_option=best,
+            headline=self.headline,
         )
 
 
@@ -623,19 +744,35 @@ class PipelineDeps:
 
             stage = "estimate"
             seen = self.vision.of(event_id)
-            condition = _condition_of(seen)
+            # What a person answered when the bin asked. PLAN.md 21a item 38: the answer
+            # is the difference between a sixteen gigabyte stick and a two hundred and
+            # fifty six gigabyte one, so it is read before anything is priced.
+            answers = read_answers(session, event_id)
+            detail = answers.get(DETAIL_KEY, "")
+            condition = _condition_of(seen, answers.get(DETAIL_CONDITION_KEY))
             # PLAN.md 21a item 25. The value estimate is a second model call, and Lane K
             # measured it slower than the vision call every single time, which is what put
             # an unpriced ticket at six seconds. It comes off the critical path: the label
             # and the mass reach all three surfaces now, and the figure follows.
             cached = (
                 estimate_cache.read_estimate(
-                    estimate_cache.estimate_key(display, seen or _vision_stand_in(display, cls))
+                    estimate_cache.estimate_key(
+                        display, seen or _vision_stand_in(display, cls), detail
+                    )
                 )
                 if cls is ItemClass.untracked
                 else None
             )
             valuing = cls is ItemClass.untracked and cached is None
+
+            # PLAN.md 21a item 30. The user's words: "8 slices of pizza, 8 dollars, u
+            # throw 3 away, you effectively wasted 3 dollars." The catalog prices a bagel.
+            # It does not price whatever somebody brought in, so the bin asks.
+            wanted = _food_question(cls, catalog, mass_g, answers)
+            if wanted is not None and may_ask(event_id, self.settings):
+                self._ask_about_food(session, event, wanted, display, cls, method)
+                log.info("event %d waits on %s before it is priced", event_id, wanted.kind)
+                return
 
             parts = _Pricing(
                 event_id=event_id,
@@ -647,6 +784,9 @@ class PipelineDeps:
                 asset=asset,
                 asset_row=asset_row,
                 condition=condition,
+                description=seen.description if seen is not None else "",
+                detail=detail,
+                cost_basis_cents=_answered_cost(answers),
             )
             stage = await self._post_pass(session, event, parts, cached, valuing=valuing)
             if not valuing:
@@ -658,7 +798,7 @@ class PipelineDeps:
             # word alone, which is how a hundred and fifty dollar mouse came back at
             # twelve dollars. PLAN.md 21a item 29.
             estimate = await self._estimate(
-                cls, display, mass_g, seen, read_jpeg(event_id, "crop", self.settings)
+                cls, display, mass_g, seen, read_jpeg(event_id, "crop", self.settings), detail
             )
             if estimate is None:
                 log.info("event %d has no estimate, the ticket stands as it is", event_id)
@@ -712,6 +852,9 @@ class PipelineDeps:
             asset=parts.asset,
             condition=parts.condition,
             estimate=estimate,
+            description=parts.description,
+            detail=parts.detail,
+            cost_basis_cents=parts.cost_basis_cents,
         )
 
         engine_settings = EngineSettings.from_settings(self.settings)
@@ -756,10 +899,39 @@ class PipelineDeps:
         session.commit()
 
         self._publish(session, event, record, ranking, words)
+        _raise_reviews(session, event_id)
         metrics.publish_metrics(session, self.bus)
         return "publish"
 
     # The pieces ------------------------------------------------------------
+
+    def _ask_about_food(
+        self,
+        session: Session,
+        event: models.Event,
+        wanted: question_agent.Question,
+        label: str,
+        cls: ItemClass,
+        method: models.IdentifyMethod,
+    ) -> None:
+        """Put one food question on the phone and stop. The ticket prices when it is back."""
+        open_question(
+            session,
+            event,
+            self.identify,
+            PendingQuestion(
+                event_id=int(event.id),
+                label=label,
+                item_class=models.ItemClass(cls.value),
+                method=method,
+                kind=wanted.kind,
+                question=wanted.question,
+                choices=tuple(wanted.choices),
+            ),
+        )
+        session.commit()
+        self.bus.publish(UiEventUpdated(event=event_summary(session, event)), CHANNEL_UI)
+        metrics.publish_metrics(session, self.bus)
 
     async def _estimate(
         self,
@@ -768,6 +940,7 @@ class PipelineDeps:
         mass_g: float,
         seen: VisionResult | None,
         crop: bytes | None = None,
+        detail: str = "",
     ) -> ValueEstimate | None:
         """What an untracked object is worth, from the cache when it was priced before.
 
@@ -778,13 +951,14 @@ class PipelineDeps:
         if cls is not ItemClass.untracked:
             return None
         vision = seen or _vision_stand_in(label, cls)
-        cached = estimate_cache.read_estimate(estimate_cache.estimate_key(label, vision))
+        key = estimate_cache.estimate_key(label, vision, detail)
+        cached = estimate_cache.read_estimate(key)
         if cached is not None:
             return cached
         try:
             estimate = await asyncio.wait_for(
                 asyncio.to_thread(
-                    self.providers.estimator.estimate, label, vision, mass_g, crop
+                    self.providers.estimator.estimate, label, vision, mass_g, crop, detail
                 ),
                 timeout=self.settings.llm_timeout_s,
             )
@@ -794,7 +968,7 @@ class PipelineDeps:
         except Exception:
             log.exception("the estimate for %s failed", label)
             return None
-        estimate_cache.write_estimate(estimate_cache.estimate_key(label, vision), estimate)
+        estimate_cache.write_estimate(key, estimate)
         return estimate
 
     def _words(
@@ -822,7 +996,15 @@ class PipelineDeps:
             tone = "green"
         cents = headline_cents(record)
         big_money = signed_money(cents)[:16]
-        lcd_money = lcd_big(cents)
+        # PLAN.md 21a item 41. The class decides the word and the word decides the figure:
+        # packaging leads with the carbon nobody had to emit, everything else with money.
+        grams = avoided_grams(scores) if engine_tax.is_packaging(record) else None
+        if grams is not None:
+            headline, lcd_money = lcd.headline_for(
+                record.item_class, round(grams), kind=lcd.PACKAGING
+            )
+        else:
+            headline, lcd_money = lcd.headline_for(record.item_class, cents)
         if valuing:
             # No figure yet, so none is drawn. DESIGN.md section 8: say what is happening.
             big_money = VALUING_BIG
@@ -837,6 +1019,7 @@ class PipelineDeps:
             lcd_money=lcd_money,
             blocked=blocked,
             best_option=ranking.best_option,
+            headline=headline,
         )
 
     async def _sense_gate(
@@ -927,7 +1110,8 @@ class PipelineDeps:
         else:
             log.warning("event %d has no allowed option, so the phone gets no result", event_id)
         self.bus.publish(
-            lcd.result(words.title, words.lcd_money, words.line, words.tone), CHANNEL_BIN
+            lcd.result(words.headline or words.title, words.lcd_money, words.line, words.tone),
+            CHANNEL_BIN,
         )
 
 
@@ -977,6 +1161,9 @@ def _build_record(
     asset: AssetInfo | None,
     condition: Condition,
     estimate: ValueEstimate | None,
+    description: str = "",
+    detail: str = "",
+    cost_basis_cents: int | None = None,
 ) -> ItemRecord:
     """Assemble what the engine scores. The catalog wins on materials, the model fills gaps."""
     mix: dict[str, float] = {}
@@ -1011,6 +1198,9 @@ def _build_record(
         scrap_source=EstimateSource.model_estimate if estimate is not None else None,
         material_mix=mix or None,
         regulatory_flags=flags or None,
+        description=description,
+        detail=detail,
+        cost_basis_cents=cost_basis_cents,
     )
 
 
@@ -1139,13 +1329,72 @@ def _settled_class(
     return ItemClass(item_class.value)
 
 
-def _condition_of(seen: VisionResult | None) -> Condition:
-    if seen is None:
-        return Condition.unknown
+def _raise_reviews(session: Session, event_id: int) -> None:
+    """Put whatever this ticket owes a person on the review queue, as it finishes.
+
+    The close does the same pass over the whole period, so this only means a person sees
+    the donation to approve or the equipment to confirm now rather than at close. It never
+    raises into the toss: a queue that cannot be written is not a reason to lose a ticket.
+    """
+    from app.ledger import review as ledger_review
+
     try:
-        return Condition(seen.condition)
-    except ValueError:
-        return Condition.unknown
+        made = ledger_review.create_for_event(session, event_id)
+        if made:
+            session.commit()
+            log.info("event %d raised %d review task(s)", event_id, len(made))
+    except Exception:
+        session.rollback()
+        log.exception("event %d could not raise its review tasks", event_id)
+
+
+def _food_question(
+    cls: ItemClass,
+    catalog: CatalogItem | None,
+    mass_g: float,
+    answers: dict[str, str],
+) -> question_agent.Question | None:
+    """Which question this food still owes, or none when nothing is owed.
+
+    Food the catalog prices is never asked about: the figure is already there. Food nobody
+    priced is two questions, what the whole thing cost and how much of it went in, and
+    the answers multiply out to the cost basis. An empty container is asked nothing,
+    because nothing was wasted.
+    """
+    if cls is not ItemClass.inventory:
+        return None
+    if engine_records.is_empty_container(cls, catalog, mass_g):
+        return None
+    priced = catalog is not None and (
+        catalog.price_per_kg_cents is not None or catalog.unit_cost_cents is not None
+    )
+    if priced:
+        return None
+    if COST_ANSWER_KEY not in answers:
+        return question_agent.cost_question()
+    if PORTION_ANSWER_KEY not in answers:
+        return question_agent.portion_question()
+    return None
+
+
+def _answered_cost(answers: dict[str, str]) -> int | None:
+    """What a person's two answers say this cost. Nothing asked means nothing claimed."""
+    whole = question_agent.cost_cents(answers.get(COST_ANSWER_KEY, ""))
+    if whole is None:
+        return None
+    return round(whole * question_agent.portion_of(answers.get(PORTION_ANSWER_KEY, "")))
+
+
+def _condition_of(seen: VisionResult | None, answered: str | None = None) -> Condition:
+    """What condition this thing is in. A person who was asked beats the camera."""
+    for candidate in (answered, seen.condition if seen is not None else None):
+        if not candidate:
+            continue
+        try:
+            return Condition(candidate)
+        except ValueError:
+            continue
+    return Condition.unknown
 
 
 def _vision_stand_in(label: str, cls: ItemClass) -> VisionResult:
@@ -1201,12 +1450,14 @@ __all__ = [
     "PipelineDeps",
     "VisionRecorder",
     "advice_line",
+    "avoided_grams",
     "build_default_pipeline",
     "build_pipeline",
     "frame_bytes",
     "headline_cents",
-    "lcd_big",
+    "sentence_for_row",
     "signed_money",
+    "still_usable",
     "title_for",
     "to_catalog_item",
 ]

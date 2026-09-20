@@ -454,6 +454,10 @@ class VisionResult(ApiModel):
     # the thing is not in the catalog.
     description: str = Field(default="", max_length=DESCRIPTION_MAX)
     visible_text: str = Field(default="", max_length=VISIBLE_TEXT_MAX)
+    # True when what this thing is worth turns on something the photograph cannot show:
+    # the capacity of a flash drive, the size of a monitor, whether a battery still works.
+    # PLAN.md 21a item 38. It opens one question, it never decides anything on its own.
+    needs_detail: bool = False
     provider: str = Field(default="", max_length=40)
     model: str = Field(default="", max_length=80)
 
@@ -559,6 +563,10 @@ class EventSummary(ApiModel):
     # can act on them. Today the only one is possible_unrecorded_asset.
     flags: list[str] = Field(default_factory=list)
     round_id: int | None = None
+    # What this toss meant, in one sentence with its figure in it: "Wasted $3.00",
+    # "Written off, $65.00 book loss", "Worth about $12.00". PLAN.md 21a item 41. Null on
+    # a ticket that has not been priced yet, where inventing a sentence would be a lie.
+    headline: str | None = Field(default=None, max_length=120)
 
 
 class EventListResponse(ApiModel):
@@ -687,6 +695,10 @@ class CorrectionCreate(ApiModel):
     event_id: int
     label: ValidatedLabel
     item_class: ItemClass | None = Field(default=None, alias="class")
+    # The answer to the bin's own question: how many gigabytes, what the whole thing cost,
+    # how much of it went in. A detail says more about the thing that was already named, so
+    # sending one never changes the label. PLAN.md 21a item 38.
+    detail: ValidatedLabel | None = None
     by: str = Field(default="person", max_length=40)
 
 
