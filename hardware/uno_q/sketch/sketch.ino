@@ -333,11 +333,14 @@ static void reportWeight() {
 // The Linux side calls these three by name. Arduino_RouterBridge registers them with
 // Bridge.provide, and the Python side reaches them with Bridge.call and Bridge.notify.
 //
-// NEEDS_HARDWARE_CHECK: does provide_safe accept a handler of five String arguments?
-// The library's README shows handlers of nought, one and two arguments only. If the
-// five argument form does not compile, send the screen as one JSON string instead:
-// change show_screen to take a single String, and call handleLine on it, which is the
-// same parser the serial path uses.
+// Answered: provide_safe does accept a handler of five String arguments. Built clean
+// against Arduino_RouterBridge 0.4.3 on arduino:zephyr 1.0.0, with both panel drivers.
+// The fallback below is therefore not needed and is kept only as a note.
+//
+// NEEDS_HARDWARE_CHECK: the five argument form compiles, but nothing has called it yet.
+// If a call from the Linux side misbehaves on the real board, send the screen as one
+// JSON string instead: change show_screen to take a single String, and call handleLine
+// on it, which is the same parser the serial path uses.
 
 float rpcReadGrams() {
   lastHostAt = millis();
