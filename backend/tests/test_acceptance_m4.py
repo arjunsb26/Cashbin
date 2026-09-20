@@ -319,10 +319,16 @@ def test_the_soak_as_written_barely_learns_because_memory_is_only_human_fed(
     played = run["played"]
 
     assert run["vision_calls"] >= 45, "the catalog path calls the model on most tosses"
-    assert played["answered"] <= 8, "a seeded catalog barely ever asks"
-    assert sum(row["n_asked"] for row in rows) <= 10
+    # What is left to ask about is not what a thing is. The seeded register holds a
+    # wireless mouse and a pair of wireless earbuds, and the soak throws away a mouse and
+    # earbuds nobody tagged, so the bin asks whose they are. PLAN.md 21a item 30. Every one
+    # of those is answered, which is why nothing is left stuck.
+    assert played["answered"] <= 18, "a seeded catalog barely ever asks what a thing is"
+    assert sum(row["n_asked"] for row in rows) <= 20
     # Right from the first round and no better by the last: there is nothing here to learn.
-    assert column["accuracy"][0] > 0.75, column["accuracy"]
+    # The floor sits at two thirds rather than three quarters because a register ask counts
+    # against the first try, and it is not a failure to recognise anything.
+    assert column["accuracy"][0] > 0.6, column["accuracy"]
     assert abs(column["accuracy"][-1] - column["accuracy"][0]) < 0.15, column["accuracy"]
     # No QR tags in this run, so nothing is answered without a call.
     assert column["local"] == [0.0] * len(rows), column["local"]

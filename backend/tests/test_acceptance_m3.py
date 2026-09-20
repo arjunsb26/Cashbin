@@ -173,10 +173,16 @@ def test_the_m3_story_reads_off_the_api_and_the_phone(
 
         # The bin leads with what the toss meant rather than with the item's name, which
         # the phone is already showing. PLAN.md 21a item 41.
-        from app.notify.lcd import HEADLINES
+        from app.notify.lcd import HEADLINES, IDLE_HEADLINE
 
         words = {str(word) for word in HEADLINES.values()}
-        drawn = [screen for screen in seen["screens"] if screen["l2"] != "Working out value"]
+        # The running total the bin rests on between tosses is not one of the results.
+        # PLAN.md 21a item 45.
+        drawn = [
+            screen
+            for screen in seen["screens"]
+            if screen["l2"] != "Working out value" and screen["l1"] != IDLE_HEADLINE
+        ]
         assert drawn, "the bin drew no finished result"
         for screen in drawn:
             assert screen["l1"] in words, screen["l1"]
