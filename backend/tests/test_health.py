@@ -8,7 +8,7 @@ import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import inspect
 
-from app.config import APP_VERSION, Settings
+from app.config import load_brand, APP_VERSION, Settings
 from app.db import get_engine, init_db
 from app.models import ALL_TABLES, CHART_OF_ACCOUNTS
 
@@ -20,18 +20,14 @@ def test_health_says_ok(client: TestClient) -> None:
     assert body["status"] == "ok"
     assert body["version"] == APP_VERSION
     assert body["db"] is True
-    assert body["product_name"] == "BinBooks"
+    assert body["product_name"] == load_brand()["name"]
 
 
 def test_brand_is_served_and_not_cached(client: TestClient) -> None:
     response = client.get("/brand.json")
     assert response.status_code == 200
     assert response.headers["cache-control"] == "no-store"
-    assert response.json() == {
-        "name": "BinBooks",
-        "short_name": "BinBooks",
-        "tagline": "A trash can that does the books",
-    }
+    assert response.json() == load_brand()
 
 
 def test_database_file_is_created(client: TestClient, settings: Settings) -> None:
