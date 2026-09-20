@@ -79,6 +79,7 @@ class ScriptedCompletions:
     def __init__(self) -> None:
         self.label = "unknown object"
         self.known = False
+        self.visible_text = ""
         self.vision_calls = 0
         self.text_calls = 0
 
@@ -100,7 +101,7 @@ class ScriptedCompletions:
                 "candidates": [{"label": self.label, "p": p}],
                 "material": "mixed_plastics",
                 "condition": "unknown",
-                "visible_text": "",
+                "visible_text": self.visible_text,
             }
         )
 
