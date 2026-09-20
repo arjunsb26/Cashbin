@@ -41,6 +41,7 @@ BACKEND_TRIES = 3
 HEALTH_WAIT_S = 45.0
 DASHBOARD_WAIT_S = 90.0
 WATCH_PERIOD_S = 5.0
+WATCH_RETRY_S = 1.0
 WATCH_MISSES = 3
 
 ERROR_WORDS = re.compile(r"Traceback|ERROR|Error:|error -|FATAL|WinError", re.IGNORECASE)
@@ -407,14 +408,20 @@ class Launcher:
     # Watching
 
     def watch(self) -> None:
+        """Poll health every five seconds. Once a poll misses, look again every second,
+        so three misses in a row is a verdict in seconds rather than most of a minute."""
         misses = 0
-        while not self.stopping.wait(WATCH_PERIOD_S):
+        wait = WATCH_PERIOD_S
+        while not self.stopping.wait(wait):
             if http_ok(HEALTH_URL) is not None:
                 misses = 0
+                wait = WATCH_PERIOD_S
             else:
                 misses += 1
+                wait = WATCH_RETRY_S
                 if misses >= WATCH_MISSES:
                     misses = 0
+                    wait = WATCH_PERIOD_S
                     self.restart_backend()
             self.check_hotspot()
 
@@ -428,12 +435,15 @@ class Launcher:
         )
         if self.backend is not None:
             self.backend.stop()
-        if self.start_backend():
-            print("the backend is back. The camera and the bin reconnect on their own.", flush=True)
-        else:
-            print(
-                "the backend would not come back. Stop with quit and look at the log.", flush=True
-            )
+        if not self.start_backend():
+            print("the backend would not come back. Type quit and read the log.", flush=True)
+            return
+        print("the backend is back. The camera reconnects on its own.", flush=True)
+        if self.bin_sim is not None:
+            # The bin simulator holds one socket and does not come back after it drops,
+            # so the launcher gives it a new process. The real bin reconnects itself.
+            self.bin_sim.stop()
+            self.start_bin_sim()
 
     def check_hotspot(self) -> None:
         now = hotspot_address(local_addresses()) is not None
