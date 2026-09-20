@@ -285,6 +285,8 @@ def build_item_record(
     scrap_source: EstimateSource | None = None,
     material_mix: dict[str, float] | None = None,
     regulatory_flags: list[str] | None = None,
+    description: str = "",
+    detail: str = "",
 ) -> ItemRecord:
     """Assemble the record the engine scores.
 
@@ -348,6 +350,8 @@ def build_item_record(
         scrap_cents=scrap_cents,
         scrap_source=scrap_source,
         condition=condition,
+        description=description,
+        detail=detail,
     )
 
 

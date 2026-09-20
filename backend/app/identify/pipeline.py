@@ -314,15 +314,19 @@ def reset_providers() -> None:
 def reset_identify() -> None:
     """Forget the providers, the memory index and anything the simulator queued.
 
-    Everything identification holds between events lives in three process globals. A test,
-    or a database swap, starts from nothing by calling this.
+    Everything identification holds between events lives in a handful of process globals,
+    including the open questions and the questions already written. A test, or a database
+    swap, starts from nothing by calling this.
     """
+    from app.agent import question as question_agent
     from app.identify.memory import reset_memory
     from app.identify.stub import reset_expect_queue
 
     reset_providers()
     reset_memory()
     reset_expect_queue()
+    reset_questions()
+    question_agent.reset_cache()
 
 
 # Rows and messages ----------------------------------------------------------
@@ -411,6 +415,33 @@ def read_candidates(raw: object) -> list[dict[str, Any]]:
 # It carries an underscore, and a validated label cannot, so it can never collide with one.
 SENSE_CHECK_KEY = "sense_check"
 
+# Where a person's answer to the bin's own question is filed. Every one of these carries
+# an underscore or is a reserved word, and a validated label cannot, so none of them can
+# collide with a real label in the posterior map.
+DETAIL_KEY = "detail"
+DETAIL_CONDITION_KEY = "detail_condition"
+COST_ANSWER_KEY = "cost_answer"
+PORTION_ANSWER_KEY = "portion_answer"
+
+# Which key each kind of question writes its answer to.
+ANSWER_KEYS: dict[str, str] = {
+    "detail": DETAIL_KEY,
+    "condition": DETAIL_KEY,
+    "cost": COST_ANSWER_KEY,
+    "portion": PORTION_ANSWER_KEY,
+}
+
+# What the condition pair means to the engine's own condition field.
+CONDITION_FROM_ANSWER: dict[str, str] = {
+    "dead or broken": "broken",
+    "still works": "working",
+}
+
+# What the bin draws while it waits for an answer to a question about a thing it has
+# already named. The ordinary ask says "Not sure", and this is not that: the bin knows
+# what it is looking at and wants one fact about it.
+QUESTION_SCREEN = ("Quick question", "Answer on your phone")
+
 
 def read_posterior(raw: object) -> dict[str, float]:
     """The numeric part of a `posterior_json` value.
@@ -444,6 +475,149 @@ def read_description(raw: object) -> str | None:
         if isinstance(text, str) and text:
             return text
     return None
+
+
+# One question about a thing the bin has already named -----------------------
+
+
+@dataclass(frozen=True)
+class PendingQuestion:
+    """A question the bin has put to a person about a ticket it has already decided.
+
+    PLAN.md 21a item 38. This is not an ask: the label, the class and the method are
+    settled, and the answer says one more thing about the same object. Carrying them here
+    is what lets the answer finalise the ticket without changing what it is.
+    """
+
+    event_id: int
+    label: str
+    item_class: ItemClass
+    method: IdentifyMethod
+    kind: str
+    question: str
+    choices: tuple[str, ...]
+
+
+_PENDING: dict[int, PendingQuestion] = {}
+_ASKED: dict[int, int] = {}
+
+
+def pending_question(event_id: int) -> PendingQuestion | None:
+    """The question this event is waiting on an answer to, if it is waiting on one."""
+    return _PENDING.get(event_id)
+
+
+def questions_asked(event_id: int) -> int:
+    """How many questions this toss has ever put to a person."""
+    return _ASKED.get(event_id, 0)
+
+
+def may_ask(event_id: int, settings: Settings) -> bool:
+    """Whether this toss has a question left. PLAN.md 21a item 38 caps it at two."""
+    return questions_asked(event_id) < settings.max_questions_per_toss
+
+
+def clear_question(event_id: int) -> None:
+    """Forget the open question. The count of questions asked is kept on purpose."""
+    _PENDING.pop(event_id, None)
+
+
+def reset_questions() -> None:
+    """Forget every open question and every count. Tests call this."""
+    _PENDING.clear()
+    _ASKED.clear()
+
+
+def open_question(
+    session: Session, event: Event, deps: IdentifyDeps, pending: PendingQuestion
+) -> list[AskCandidate]:
+    """Put one question about an identified ticket on the phone and the dashboard.
+
+    The choices are the answers, drawn as the buttons an ask already draws, at equal
+    weight: none of them is a guess the bin is making, they are the options it is offering.
+    """
+    share = round(1.0 / len(pending.choices), 4) if pending.choices else 0.0
+    candidates = ask_candidates(dict.fromkeys(pending.choices, share))
+    _PENDING[event.id] = pending
+    _ASKED[event.id] = questions_asked(event.id) + 1
+    event.status = EventStatus.asking
+    session.flush()
+    url = crop_url(event, deps.media_prefix)
+    deps.bus.publish(
+        UiAskOpened(
+            event_id=event.id,
+            candidates=candidates,
+            crop_url=url,
+            question=pending.question,
+        ),
+        CHANNEL_UI,
+    )
+    deps.bus.publish(
+        PhoneAsk(
+            event_id=event.id,
+            candidates=candidates,
+            crop_url=url,
+            question=pending.question,
+        ),
+        CHANNEL_PHONE,
+    )
+    deps.bus.publish(lcd.ask(*QUESTION_SCREEN), CHANNEL_BIN)
+    log.info(
+        "event %s asks question %d of %d: %s",
+        event.id,
+        questions_asked(event.id),
+        deps.settings.max_questions_per_toss,
+        pending.question,
+    )
+    return candidates
+
+
+def store_answer(session: Session, event_id: int, kind: str, answer: str) -> None:
+    """File one answer on the identification row this ticket was decided by.
+
+    It lands in `posterior_json` beside the numbers and the sense verdict, so the evidence
+    drawer shows what was asked and what came back without a table of its own.
+    """
+    row = session.scalars(
+        select(Identification)
+        .where(Identification.event_id == event_id)
+        .order_by(Identification.id.desc())
+    ).first()
+    if row is None:
+        return
+    posterior = _loads_posterior(row.posterior_json)
+    posterior[ANSWER_KEYS.get(kind, DETAIL_KEY)] = answer
+    if kind == "condition" and answer in CONDITION_FROM_ANSWER:
+        posterior[DETAIL_CONDITION_KEY] = CONDITION_FROM_ANSWER[answer]
+    row.posterior_json = json.dumps(posterior)
+    session.flush()
+
+
+def read_answers(session: Session, event_id: int) -> dict[str, str]:
+    """Every answer a person gave about this ticket, newest row first."""
+    rows = session.scalars(
+        select(Identification)
+        .where(Identification.event_id == event_id)
+        .order_by(Identification.id.desc())
+    ).all()
+    found: dict[str, str] = {}
+    for row in rows:
+        posterior = _loads_posterior(row.posterior_json)
+        for key in (DETAIL_KEY, DETAIL_CONDITION_KEY, COST_ANSWER_KEY, PORTION_ANSWER_KEY):
+            value = posterior.get(key)
+            if isinstance(value, str) and value and key not in found:
+                found[key] = value
+    return found
+
+
+def _loads_posterior(raw: str | None) -> dict[str, Any]:
+    if not raw:
+        return {}
+    try:
+        found = json.loads(raw)
+    except json.JSONDecodeError:
+        return {}
+    return found if isinstance(found, dict) else {}
 
 
 def _confident_candidates(vision: VisionResult, floor: float = ASK_CANDIDATE_FLOOR
@@ -808,6 +982,11 @@ async def identify_event(
                 # The drawer says "two candidates, same treatment" off this.
                 row.posterior_json = json.dumps({**final_dist, SAME_TREATMENT_KEY: 1.0})
             session.flush()
+            # PLAN.md 21a item 38. The bin knows what it is and still cannot price it, so
+            # it asks the one question a buyer would ask before it says a figure.
+            wanted = await _detail_question(session, event, row, vision, active, mass_g)
+            if wanted is not None:
+                return _ask_question(session, event, active, started, row, wanted)
             return await _finalise(session, event, row, active, started)
         return await _ask(
             session, event, final_dist, active, started, row, vision.description
@@ -1083,6 +1262,98 @@ async def _finalise(
     )
 
 
+async def _detail_question(
+    session: Session,
+    event: Event,
+    row: Identification,
+    vision: VisionResult,
+    deps: IdentifyDeps,
+    mass_g: float | None,
+) -> PendingQuestion | None:
+    """Write the one question this object needs, when the camera says it needs one.
+
+    Off the event loop and under its own limit, like every other call between a person and
+    the bin drawing something. Nothing to ask, no model, or a call that does not land all
+    mean the same thing: the ticket finalises without the detail.
+    """
+    from app.agent import question as question_agent
+
+    if not vision.needs_detail:
+        return None
+    label = str(row.label or vision.label)
+    item_class = row.item_class or ItemClass.untracked
+    if not question_agent.worth_asking(label, item_class.value, vision.description):
+        return None
+    if not may_ask(event.id, deps.settings):
+        log.info("event %s has had its questions, so nothing more is asked", event.id)
+        return None
+    try:
+        asked = await asyncio.wait_for(
+            asyncio.to_thread(
+                question_agent.ask,
+                label,
+                vision.description,
+                item_class.value,
+                vision.condition,
+                float(mass_g or 0.0),
+                deps.settings,
+            ),
+            timeout=deps.settings.question_timeout_s + 0.5,
+        )
+    except TimeoutError:
+        log.warning("the question for event %s timed out, so it finalises without it", event.id)
+        return None
+    except Exception:
+        log.exception("the question for event %s failed, so it finalises without it", event.id)
+        return None
+    if asked is None:
+        return None
+    return PendingQuestion(
+        event_id=int(event.id),
+        label=label,
+        item_class=item_class,
+        method=row.method,
+        kind=asked.kind,
+        question=asked.question,
+        choices=tuple(asked.choices),
+    )
+
+
+def _ask_question(
+    session: Session,
+    event: Event,
+    deps: IdentifyDeps,
+    started: float,
+    row: Identification,
+    pending: PendingQuestion,
+) -> Outcome:
+    """Open a question about an identified ticket and count it against the round.
+
+    The round counts it as asked, because a person is standing there answering, and as
+    confident, because the bin was not unsure about what the thing is.
+    """
+    from app.learn import metrics, rounds
+
+    candidates = open_question(session, event, deps, pending)
+    rounds.record_event(
+        session,
+        deps.settings,
+        event=event,
+        asked=True,
+        confident=True,
+        latency_ms=_elapsed(started),
+        cost_microusd=spend_on(session, event.id),
+    )
+    session.commit()
+    metrics.publish_metrics(session, deps.bus)
+    return Outcome(
+        final=False,
+        method=row.method,
+        identification_id=row.id,
+        candidates=tuple(candidates),
+    )
+
+
 async def _ask(
     session: Session,
     event: Event,
@@ -1154,11 +1425,18 @@ def mass_fit_scores(
 
 
 __all__ = [
+    "ANSWER_KEYS",
+    "CONDITION_FROM_ANSWER",
+    "COST_ANSWER_KEY",
+    "DETAIL_CONDITION_KEY",
+    "DETAIL_KEY",
+    "PORTION_ANSWER_KEY",
     "SAME_TREATMENT_KEY",
     "SENSE_CHECK_KEY",
     "CatalogFacts",
     "IdentifyDeps",
     "Outcome",
+    "PendingQuestion",
     "Providers",
     "Treatment",
     "ask_candidates",
@@ -1166,11 +1444,17 @@ __all__ = [
     "build_providers",
     "catalog_facts",
     "class_for",
+    "clear_question",
     "get_deps",
     "get_providers",
     "identify_event",
     "mass_fit_scores",
+    "may_ask",
     "open_ask",
+    "open_question",
+    "pending_question",
+    "questions_asked",
+    "read_answers",
     "read_candidates",
     "read_description",
     "read_posterior",
@@ -1178,8 +1462,10 @@ __all__ = [
     "remember_vision",
     "reset_identify",
     "reset_providers",
+    "reset_questions",
     "set_on_final",
     "spend_on",
+    "store_answer",
     "store_exemplar",
     "top_two",
     "write_identification",

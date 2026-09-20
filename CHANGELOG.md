@@ -2,6 +2,24 @@
 
 Newest first. Each lane writes under its own heading.
 
+## 2026-09-20, lane v: the question that matters
+
+- The camera may now say it cannot price what it is looking at. `needs_detail` on a vision
+  answer means the figure turns on something a photograph cannot show: how many gigabytes
+  a stick holds, how big a monitor is, whether a battery still works. It opens one
+  question and decides nothing on its own.
+- The question and its two to four answers are written by a cheap call at low effort under
+  its own two second limit. Food and packaging are never asked about. The same label is
+  asked about once a session. No model, a host that is down, or a reply a phone could not
+  draw all mean the same thing: the ticket finishes without the detail.
+- The answers are buttons at equal weight, because none of them is a guess the bin is
+  making. The bin draws "Quick question" rather than "Not sure", which is the ordinary ask
+  and a different thing.
+- An answer to a question is a detail, not a label. It is filed beside the numbers on the
+  identification row, it reaches the estimator as data, it keys the estimate cache, and
+  the condition pair sets the item's condition. The label the camera gave stands.
+- One toss may be asked at most two questions, ever.
+
 ## 2026-09-20, lane q: the dashboard for two audiences
 
 - Five tabs, each with one job. Live and Trends answer what a person wasted. Review, Books

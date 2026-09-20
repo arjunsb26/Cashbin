@@ -58,6 +58,8 @@ from app.identify import early, estimate_cache, qr
 from app.identify.embed import Embedder, get_embedder
 from app.identify.memory import MemoryIndex, get_memory
 from app.identify.pipeline import (
+    DETAIL_CONDITION_KEY,
+    DETAIL_KEY,
     SENSE_CHECK_KEY,
     IdentifyDeps,
     Providers,
@@ -65,6 +67,7 @@ from app.identify.pipeline import (
     build_providers,
     identify_event,
     open_ask,
+    read_answers,
     set_on_final,
 )
 from app.identify.providers import CallUsage, IdentifyContext, VisionProvider
@@ -263,6 +266,10 @@ class _Pricing:
     asset: AssetInfo | None
     asset_row: models.Asset | None
     condition: Condition
+    # What the camera said it was looking at, and what a person answered about it. Both
+    # are outside text, both are data, and the engine reads them for words like "sealed".
+    description: str = ""
+    detail: str = ""
 
 
 @dataclass(frozen=True)
@@ -623,14 +630,21 @@ class PipelineDeps:
 
             stage = "estimate"
             seen = self.vision.of(event_id)
-            condition = _condition_of(seen)
+            # What a person answered when the bin asked. PLAN.md 21a item 38: the answer
+            # is the difference between a sixteen gigabyte stick and a two hundred and
+            # fifty six gigabyte one, so it is read before anything is priced.
+            answers = read_answers(session, event_id)
+            detail = answers.get(DETAIL_KEY, "")
+            condition = _condition_of(seen, answers.get(DETAIL_CONDITION_KEY))
             # PLAN.md 21a item 25. The value estimate is a second model call, and Lane K
             # measured it slower than the vision call every single time, which is what put
             # an unpriced ticket at six seconds. It comes off the critical path: the label
             # and the mass reach all three surfaces now, and the figure follows.
             cached = (
                 estimate_cache.read_estimate(
-                    estimate_cache.estimate_key(display, seen or _vision_stand_in(display, cls))
+                    estimate_cache.estimate_key(
+                        display, seen or _vision_stand_in(display, cls), detail
+                    )
                 )
                 if cls is ItemClass.untracked
                 else None
@@ -647,6 +661,8 @@ class PipelineDeps:
                 asset=asset,
                 asset_row=asset_row,
                 condition=condition,
+                description=seen.description if seen is not None else "",
+                detail=detail,
             )
             stage = await self._post_pass(session, event, parts, cached, valuing=valuing)
             if not valuing:
@@ -658,7 +674,7 @@ class PipelineDeps:
             # word alone, which is how a hundred and fifty dollar mouse came back at
             # twelve dollars. PLAN.md 21a item 29.
             estimate = await self._estimate(
-                cls, display, mass_g, seen, read_jpeg(event_id, "crop", self.settings)
+                cls, display, mass_g, seen, read_jpeg(event_id, "crop", self.settings), detail
             )
             if estimate is None:
                 log.info("event %d has no estimate, the ticket stands as it is", event_id)
@@ -712,6 +728,8 @@ class PipelineDeps:
             asset=parts.asset,
             condition=parts.condition,
             estimate=estimate,
+            description=parts.description,
+            detail=parts.detail,
         )
 
         engine_settings = EngineSettings.from_settings(self.settings)
@@ -768,6 +786,7 @@ class PipelineDeps:
         mass_g: float,
         seen: VisionResult | None,
         crop: bytes | None = None,
+        detail: str = "",
     ) -> ValueEstimate | None:
         """What an untracked object is worth, from the cache when it was priced before.
 
@@ -778,13 +797,14 @@ class PipelineDeps:
         if cls is not ItemClass.untracked:
             return None
         vision = seen or _vision_stand_in(label, cls)
-        cached = estimate_cache.read_estimate(estimate_cache.estimate_key(label, vision))
+        key = estimate_cache.estimate_key(label, vision, detail)
+        cached = estimate_cache.read_estimate(key)
         if cached is not None:
             return cached
         try:
             estimate = await asyncio.wait_for(
                 asyncio.to_thread(
-                    self.providers.estimator.estimate, label, vision, mass_g, crop
+                    self.providers.estimator.estimate, label, vision, mass_g, crop, detail
                 ),
                 timeout=self.settings.llm_timeout_s,
             )
@@ -794,7 +814,7 @@ class PipelineDeps:
         except Exception:
             log.exception("the estimate for %s failed", label)
             return None
-        estimate_cache.write_estimate(estimate_cache.estimate_key(label, vision), estimate)
+        estimate_cache.write_estimate(key, estimate)
         return estimate
 
     def _words(
@@ -977,6 +997,8 @@ def _build_record(
     asset: AssetInfo | None,
     condition: Condition,
     estimate: ValueEstimate | None,
+    description: str = "",
+    detail: str = "",
 ) -> ItemRecord:
     """Assemble what the engine scores. The catalog wins on materials, the model fills gaps."""
     mix: dict[str, float] = {}
@@ -1011,6 +1033,8 @@ def _build_record(
         scrap_source=EstimateSource.model_estimate if estimate is not None else None,
         material_mix=mix or None,
         regulatory_flags=flags or None,
+        description=description,
+        detail=detail,
     )
 
 
@@ -1139,13 +1163,16 @@ def _settled_class(
     return ItemClass(item_class.value)
 
 
-def _condition_of(seen: VisionResult | None) -> Condition:
-    if seen is None:
-        return Condition.unknown
-    try:
-        return Condition(seen.condition)
-    except ValueError:
-        return Condition.unknown
+def _condition_of(seen: VisionResult | None, answered: str | None = None) -> Condition:
+    """What condition this thing is in. A person who was asked beats the camera."""
+    for candidate in (answered, seen.condition if seen is not None else None):
+        if not candidate:
+            continue
+        try:
+            return Condition(candidate)
+        except ValueError:
+            continue
+    return Condition.unknown
 
 
 def _vision_stand_in(label: str, cls: ItemClass) -> VisionResult:

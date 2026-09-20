@@ -18,7 +18,16 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.config import Settings
-from app.identify.pipeline import IdentifyDeps, catalog_facts, get_deps, store_exemplar
+from app.identify.pipeline import (
+    IdentifyDeps,
+    PendingQuestion,
+    catalog_facts,
+    clear_question,
+    get_deps,
+    pending_question,
+    store_answer,
+    store_exemplar,
+)
 from app.identify.priors import MassPrior, welford_update
 from app.learn import metrics, rounds
 from app.models import (
@@ -90,6 +99,76 @@ def update_mass_prior(session: Session, label: str, item_class: ItemClass, mass_
     session.flush()
 
 
+def detail_answer(body: CorrectionCreate, pending: PendingQuestion | None) -> str | None:
+    """The answer to the bin's own question, when that is what this is.
+
+    A detail sent on its own is always a detail. A label is one only when the bin is
+    waiting on a question and the label is one of the answers it offered, because that is
+    what the phone sends when a person taps a button.
+    """
+    if pending is None:
+        return None
+    if body.detail is not None:
+        return str(body.detail)
+    label = str(body.label)
+    return label if label in pending.choices else None
+
+
+async def apply_detail(
+    session: Session,
+    deps: IdentifyDeps,
+    event: Event,
+    pending: PendingQuestion,
+    answer: str,
+    body: CorrectionCreate,
+) -> CorrectionResponse:
+    """Take one answer about a thing the bin has already named, then price it again.
+
+    A detail never changes the label. It is filed beside the numbers, the question is
+    closed, and the ticket goes back through the engine with the answer in hand.
+    """
+    session.add(
+        Correction(
+            event_id=event.id,
+            field=pending.kind,
+            old_value=None,
+            new_value=answer,
+            by=body.by,
+        )
+    )
+    store_answer(session, int(event.id), pending.kind, answer)
+    clear_question(int(event.id))
+    event.status = EventStatus.identified
+    session.flush()
+    correction_id = (
+        session.execute(
+            select(Correction.id)
+            .where(Correction.event_id == event.id)
+            .order_by(Correction.id.desc())
+        ).scalars().first()
+        or 0
+    )
+    status = event.status
+    session.commit()
+
+    log.info("event %s answered %s with %s", event.id, pending.kind, answer)
+    deps.bus.publish(
+        UiAskResolved(event_id=event.id, label=pending.label, by=body.by), CHANNEL_UI
+    )
+    deps.bus.publish(PhoneIdle(), CHANNEL_PHONE)
+    metrics.publish_metrics(session, deps.bus)
+    await deps.on_final(event.id, pending.label, pending.item_class, pending.method)
+    return CorrectionResponse.model_validate(
+        {
+            "event_id": event.id,
+            "label": pending.label,
+            "class": pending.item_class,
+            "correction_id": int(correction_id),
+            "status": status,
+        }
+    )
+
+
 async def apply_correction(
     body: CorrectionCreate, deps: IdentifyDeps | None = None
 ) -> CorrectionResponse:
@@ -102,6 +181,14 @@ async def apply_correction(
             raise CorrectionRefusedError("That ticket does not exist.")
         if event.status not in ANSWERABLE:
             raise CorrectionRefusedError("That ticket is not waiting for an answer.")
+
+        pending = pending_question(int(event.id))
+        answer = detail_answer(body, pending)
+        if pending is not None and answer is not None:
+            return await apply_detail(session, active, event, pending, answer, body)
+        # A person who names the thing instead of answering the question has settled it,
+        # so the question is closed rather than left open against the next answer.
+        clear_question(int(event.id))
 
         label = str(body.label)
         facts = catalog_facts(session)
