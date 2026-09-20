@@ -1021,6 +1021,27 @@ export const REVIEW: ReviewListResponse = {
       reason: "Valued by a model at $12.00, over the $10.00 that needs a person.",
       amount_cents: 1200,
       created_at: "2026-09-19T14:28:00",
+      proposal: {
+        decision: "approve",
+        reason:
+          "The catalog carries this charger at 12.00 dollars and two earlier tickets for the same label were approved at the same figure. Nothing about this one is out of line.",
+        steps: [
+          {
+            tool: "catalog_price",
+            args_summary: "usb-c charger",
+            finding: "12.00 dollars, from the catalog.",
+          },
+          {
+            tool: "list_events",
+            args_summary: "same label, last 30 days",
+            finding: "Two tickets, both approved at 12.00 dollars.",
+          },
+        ],
+        tool_calls: 2,
+        provider: "anthropic",
+        model: "claude-sonnet-4-5",
+        latency_ms: 1910,
+      },
     },
     {
       id: 3,
@@ -1042,6 +1063,33 @@ export const REVIEW: ReviewListResponse = {
       amount_cents: 12000,
       asset_tag: null,
       created_at: "2026-09-19T14:26:00",
+      proposal: {
+        decision: "ask_person",
+        reason:
+          "The register has no keyboard at any tag, and the catalog price for this model is 120.00 dollars, which is over the amount that needs a person. Whether it was ever capitalised is not something the books can answer.",
+        steps: [
+          {
+            tool: "search_register",
+            args_summary: "keyboard",
+            finding: "No asset on the register matches. Four assets exist in total.",
+          },
+          {
+            tool: "catalog_price",
+            args_summary: "mechanical keyboard",
+            finding: "120.00 dollars, from the catalog, last touched today.",
+          },
+          {
+            tool: "list_events",
+            args_summary: "same label, last 30 days",
+            finding: "One earlier ticket with this label, settled by a person.",
+          },
+        ],
+        tool_calls: 3,
+        evidence: ["asset register", "catalog"],
+        provider: "anthropic",
+        model: "claude-sonnet-4-5",
+        latency_ms: 2840,
+      },
     },
     {
       id: 5,

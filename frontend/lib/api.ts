@@ -193,6 +193,26 @@ export function useReviewAnswer() {
   });
 }
 
+/**
+ * Ask the review agent to look at every open item that has no reading yet.
+ *
+ * It proposes and nothing else: every item comes back still open, with what the
+ * agent thinks and the lookups it made attached. Nothing is decided by it, so the
+ * button is a plain one and not a primary.
+ */
+export function useReviewRun() {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: async () => {
+      if (MOCK) return null;
+      return send<ReviewRunResponse>("/api/review/run", "POST", {});
+    },
+    onSettled: () => {
+      void client.invalidateQueries({ queryKey: keys.review });
+    },
+  });
+}
+
 export function useSummary() {
   return useQuery({ queryKey: keys.summary, queryFn: source.summary });
 }
