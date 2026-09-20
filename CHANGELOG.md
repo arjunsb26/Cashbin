@@ -2,6 +2,34 @@
 
 Newest first. Each lane writes under its own heading.
 
+## 2026-09-19, lane k: realistic testing with real photographs
+
+- `sim/assets/real/` holds 42 freely licensed photographs of the seventeen things the
+  demo throws, plus three bin backgrounds, each with its author, licence and page URL
+  in `SOURCES.md`. No person is in frame. Every file is at most 800 px on the long
+  side and under 150 kB. `sprites/` holds each item at 220 px, which is the size the
+  phone simulator composites at inside a 640 px frame.
+- `scripts/vision_bench.py` runs the real model over those photographs the way the bin
+  will see them: composited onto a bin background, cut out by `detect.crop.crop_item`
+  against the empty-bin frame, sent through the shipped request builder and the
+  shipped reply validation. The confident-or-ask decision is imported from
+  `identify.pipeline`, so a threshold change on main changes the table. It takes
+  `--effort`, `--service-tier`, `--max-px`, `--detail`, `--repeat`, `--per-item` and
+  `--sprite-px`, writes a CSV and a markdown table per run, and saves every crop.
+  Nothing under `/backend` was edited: the three knobs the adapter does not expose yet
+  are set on the request body inside the bench.
+- `sim/scenarios/demo_real.yaml` is `demo.yaml` step for step on photographs.
+  `sim/scenarios/bench.yaml` is thirty tosses in five blocks, built so that one run
+  measures the cold case, the same photograph again, and a different photograph of the
+  same object.
+- Findings, with the numbers behind them, are in
+  `briefs/reports/lane-k-realistic-vision-test.md`. In short: 86.8 percent accuracy at
+  effort `low` over 68 live calls, a 2.9 to 6.1 second wait from scale to LCD with the
+  value estimate rather than the vision call as the bigger half of it, service tier
+  `fast` cutting the vision call from 1310 ms to 854 ms, and exemplar memory unable to
+  match two photographs of the same object at any threshold. Every change those point
+  at is a proposal for the coordinator; none was made.
+
 ## 2026-09-19, lane i: the M1 to M5 acceptance pass and hardening
 
 - PLAN.md 21a item 17. Repair is offered when the condition is `broken`, or when it
