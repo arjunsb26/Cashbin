@@ -19,6 +19,8 @@ const TOOLTIP_MS = 4000;
 const BACKOFF_MIN_MS = 500;
 const BACKOFF_MAX_MS = 8000;
 const LABEL_MAX = 40;
+const LOOKS_MAX = 120; // what the camera saw, in the model's words
+const QUESTION_MAX = 80;
 const MASS_DEFAULT = "150";
 const MASS_MAX_G = 100000;
 
@@ -51,6 +53,8 @@ const resultWaiting = el("resultWaiting");
 const askSheet = el("askSheet");
 const askCrop = el("askCrop");
 const askOptions = el("askOptions");
+const askHeading = el("askHeading");
+const askLooks = el("askLooks");
 const askOther = el("askOther");
 const askField = el("askField");
 const askInput = el("askInput");
@@ -711,6 +715,18 @@ function onAsk(message) {
     button.addEventListener("click", () => answer(name));
     askOptions.append(button);
   });
+
+  // Both of these are written by a model, so they are drawn as text and nothing
+  // else: trimmed, capped, never read as markup and never sent anywhere.
+  const heading = text(message.question, QUESTION_MAX);
+  askHeading.textContent = heading || "Which is it?";
+  const looks = text(message.description || message.looks_like, LOOKS_MAX);
+  // Counted off the buttons that were actually drawn, not off what was sent.
+  if (!askOptions.childElementCount && looks) {
+    show(askLooks, "Looks like: " + looks);
+  } else {
+    hide(askLooks);
+  }
 
   askCrop.hidden = true;
   if (eventId !== null) {

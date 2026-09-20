@@ -445,6 +445,14 @@ body {
   line-height: 18px;
 }
 
+/* What the camera saw, in the model's words, when it had no guess to offer. */
+.ask__looks {
+  margin: 0;
+  color: var(--ink-soft);
+  font-size: 12.5px;
+  line-height: 18px;
+}
+
 /* The way out of a question for someone who does not want to answer it. */
 .ask__not-now {
   margin-top: 4px;

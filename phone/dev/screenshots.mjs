@@ -330,6 +330,34 @@ async function main() {
   await page.waitForSelector('#resultSheet[data-open="false"]', { state: "attached", timeout: 8000 });
   console.log("the ticket with no figure left on its own");
 
+  // 8ja. a question with no candidates: no buttons, the model's own words above
+  // the two ways out of it.
+  await chaos("ask-no-candidates");
+  await page.waitForSelector('#askSheet[data-open="true"]', { timeout: 4000 });
+  const buttons = await page.locator("#askOptions button").count();
+  if (buttons !== 0) throw new Error(`a question with no candidates drew ${buttons} buttons`);
+  console.log("a question with no candidates drew no buttons");
+  await is(page, "#askHeading", "Which is it?");
+  await is(
+    page,
+    "#askLooks",
+    "Looks like: a black plastic handle with a frayed cable coming out of it"
+  );
+  await wait(400);
+  await shot(page, "c9-ask-no-candidates");
+  await page.click("#askNotNow");
+  await page.waitForSelector('#askSheet[data-open="false"]', { state: "attached", timeout: 2000 });
+
+  // 8jb. a question the backend wrote itself takes the place of the heading
+  await chaos("ask-question");
+  await page.waitForSelector('#askSheet[data-open="true"]', { timeout: 4000 });
+  await is(page, "#askHeading", "Is this the broken monitor from the meeting room?");
+  await hidden(page, "#askLooks", "the looks line beside a candidate button");
+  await wait(400);
+  await shot(page, "c10-ask-question");
+  await page.click("#askNotNow");
+  await page.waitForSelector('#askSheet[data-open="false"]', { state: "attached", timeout: 2000 });
+
   // 8k. an idle from the backend clears whatever is on the screen
   await post("/api/dev/send", {
     type: "result",
