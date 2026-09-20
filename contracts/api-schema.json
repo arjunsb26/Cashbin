@@ -1863,7 +1863,6 @@
             "$ref": "#/$defs/AskCandidate"
           },
           "maxItems": 4,
-          "minItems": 1,
           "type": "array"
         },
         "crop_url": {
@@ -1899,8 +1898,7 @@
         }
       },
       "required": [
-        "event_id",
-        "candidates"
+        "event_id"
       ],
       "type": "object"
     },
@@ -2288,6 +2286,17 @@
         "disposal_fee_cents": {
           "type": "integer"
         },
+        "llm_estimate_effort": {
+          "default": "low",
+          "enum": [
+            "none",
+            "minimal",
+            "low",
+            "medium",
+            "high"
+          ],
+          "type": "string"
+        },
         "llm_service_tier": {
           "default": "fast",
           "enum": [
@@ -2338,6 +2347,10 @@
           "type": "integer"
         },
         "settle_ms": {
+          "type": "integer"
+        },
+        "speak_up_cents": {
+          "default": 100,
           "type": "integer"
         },
         "step_min_g": {
@@ -2411,6 +2424,24 @@
             {
               "minimum": 0,
               "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "llm_estimate_effort": {
+          "anyOf": [
+            {
+              "enum": [
+                "none",
+                "minimal",
+                "low",
+                "medium",
+                "high"
+              ],
+              "type": "string"
             },
             {
               "type": "null"
@@ -2539,6 +2570,18 @@
           "anyOf": [
             {
               "exclusiveMinimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "speak_up_cents": {
+          "anyOf": [
+            {
+              "minimum": 0,
               "type": "integer"
             },
             {
@@ -2768,7 +2811,6 @@
             "$ref": "#/$defs/AskCandidate"
           },
           "maxItems": 4,
-          "minItems": 1,
           "type": "array"
         },
         "crop_url": {
@@ -2804,8 +2846,7 @@
         }
       },
       "required": [
-        "event_id",
-        "candidates"
+        "event_id"
       ],
       "type": "object"
     },

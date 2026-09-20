@@ -23,15 +23,21 @@ from pydantic import BaseModel, ValidationError
 from app.config import Settings
 from app.detect.crop import downscale_jpeg
 from app.identify.cost import cost_microusd, price_for
-from app.identify.estimate_cache import read_estimate, write_estimate
-from app.identify.openai_request import build_estimate_request, build_vision_request
+from app.identify.estimate_cache import estimate_key, read_estimate, write_estimate
+from app.identify.openai_request import (
+    UNKNOWN_CHOICE,
+    build_estimate_request,
+    build_vision_request,
+)
 from app.identify.providers import CallUsage, IdentifyContext
-from app.schemas import ValueEstimate, VisionResult, normalise_label
+from app.schemas import ValueEstimate, VisionResult
 
 log = logging.getLogger(__name__)
 
 PROVIDER_NAME = "openai"
 FALLBACK_CONFIDENCE = 0.3
+# What a second go costs: a little thinking, on the same picture, once.
+RETRY_EFFORT = "low"
 
 
 class _Adapter:
@@ -131,6 +137,7 @@ class OpenAIVisionProvider(_Adapter):
             self.settings.llm_service_tier,
         )
         parsed = self._parse(request, model, VisionResult)
+        parsed = self._retry_unknown(parsed, picture, context, model)
         if parsed is None:
             return VisionResult.model_validate(
                 {"label": "unknown object", "class": "untracked",
@@ -139,21 +146,63 @@ class OpenAIVisionProvider(_Adapter):
         result: VisionResult = parsed
         return result.model_copy(update={"provider": PROVIDER_NAME, "model": model})
 
+    def _retry_unknown(
+        self, parsed: Any, picture: bytes, context: IdentifyContext, model: str
+    ) -> Any:
+        """One more go, thinking a little, at something it described but would not name.
+
+        PLAN.md 21a item 51. Lane R's bench: at effort `none` the model said "unknown" for
+        a battery and then described it exactly; at effort `low` it named the battery, the
+        pen and the flash drive every time. A reply that describes the thing has seen the
+        thing, so the answer is in there and it is worth one cheap second to get it out.
+        """
+        if parsed is None:
+            return None
+        effort = self.settings.llm_vision_effort
+        described = bool(getattr(parsed, "description", "").strip())
+        if str(getattr(parsed, "label", "")) != UNKNOWN_CHOICE or not described:
+            return parsed
+        if effort == RETRY_EFFORT:
+            return parsed
+        log.info("the model described it but would not name it, retried at low")
+        again = self._parse(
+            build_vision_request(
+                picture, context, model, RETRY_EFFORT, self.settings.llm_service_tier
+            ),
+            model,
+            VisionResult,
+        )
+        if again is None or str(getattr(again, "label", "")) == UNKNOWN_CHOICE:
+            return parsed
+        return again
+
 
 class OpenAIEstimatorProvider(_Adapter):
     """Value estimates, cached by normalised label so no object is ever priced twice."""
 
-    def estimate(self, label: str, vision: VisionResult, mass_g: float) -> ValueEstimate:
-        key = normalise_label(label)
+    def estimate(
+        self, label: str, vision: VisionResult, mass_g: float, crop: bytes | None = None
+    ) -> ValueEstimate:
+        key = estimate_key(label, vision)
         cached = self._memo.get(key) or read_estimate(key)
         if cached is not None:
             self._memo[key] = cached
             self.last_call = None
             return cached
-        model, effort = self.settings.llm_text_model, self.settings.llm_text_effort
+        model = self.settings.llm_text_model
+        # It is off the critical path since PLAN.md 21a item 25, and pricing a specific
+        # product off a photograph is the one thing here worth thinking about.
+        effort = self.settings.llm_estimate_effort
+        picture = (
+            downscale_jpeg(
+                crop, self.settings.vision_image_max_px, self.settings.vision_image_quality
+            )
+            if crop
+            else None
+        )
         parsed = self._parse(
             build_estimate_request(
-                key, vision, mass_g, model, effort, self.settings.llm_service_tier
+                key, vision, mass_g, model, effort, self.settings.llm_service_tier, picture
             ),
             model,
             ValueEstimate,

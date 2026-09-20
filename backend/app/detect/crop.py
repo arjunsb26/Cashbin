@@ -113,6 +113,18 @@ def pick_frames(
     return FramePick(before=before, after=after, peak=peak)
 
 
+def whole_frame(image: bytes, params: CropParams | None = None) -> CropResult:
+    """The picture as it stands, with no diff.
+
+    The diff exists to find the thing that just landed in a bin full of other things. When
+    somebody holds an item up and presses Add, the picture is the item: diffing it against
+    a frame from two seconds earlier found the table, because the table is what changed
+    least. The quality is `low`, which is honest: nothing was isolated.
+    """
+    p = params or CropParams()
+    return _whole_frame(_decode(image, "added item"), 0.0, p)
+
+
 def crop_item(before: bytes, after: bytes, params: CropParams | None = None) -> CropResult:
     """Cut the thing that appeared between two frames out of the second one.
 

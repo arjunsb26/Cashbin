@@ -92,6 +92,71 @@ Newest first. Each lane writes under its own heading.
 - An empty scale reads 0 g rather than -0 g, and the trace stays inside its own column
   when the layout settles.
 
+## 2026-09-20, lane j: what the first hands-on test found
+
+- `sim/phone_sim.py` refuses to run a scenario that names a picture it cannot find, and says
+  which flag is usually the reason. A missing asset used to be a log line and an empty bin,
+  which meant every frame was a photograph of nothing, every ticket opened an ask, and the
+  whole run read as a backend bug.
+- An early vision call that answers "unknown" is not an answer. The settled crop, which is a
+  better picture of the same thing, gets its own call. A QR tag is read off the settled
+  frames before any vision answer is looked at, as it always was.
+- Nothing pays for a call that cannot win. A step whose weight is going down is a bag change
+  or a removal and starts nothing; a tag already in shot means no early call at all. In the
+  demo_real run that took eight live calls down to six, because a request on the wire cannot
+  be unsent when the step settles the wrong way.
+- The timeout belongs to the toss, not to each call. An early call that has already been
+  running for 700 ms gets 700 ms less, so a slow host cannot cost the wait twice.
+- PLAN.md 21a item 31. LCD line 2 says what to do and what not to do in one clause:
+  "Repair it, not trash". "No bin. Repair it" read as a bug to the first person who used it.
+- PLAN.md 21a item 32, which reverses item 27. The catalog is what the model is told, not
+  what it is allowed to say. Holding the label to an enum of the catalog made the bin answer
+  "laptop charger" for a USB stick, because a wrong catalog label was the only thing it was
+  allowed to say. `normalise_label` is the wall, as it always was, and the vision result
+  carries a required `description` in plain words.
+- PLAN.md 21a item 34. `POST /api/sim/toss` with a mass and no image makes a ticket out of
+  whatever the camera can see, so the Add button works without a scale. With fewer than two
+  frames it says "No camera frames yet. Start the camera first."
+- PLAN.md 21a items 35 and 51. `llm_timeout_s` is 5.0. On a cellular link calls took ten and fourteen
+  seconds and a person stood there holding something over a bin.
+- PLAN.md 21a item 33(b). Twenty more catalog rows for the things a table actually holds,
+  every material a WARM key and every mass prior deliberately wide. No price is filled in and
+  all twenty say NEEDS_HUMAN, because there was no time to check twenty prices and nothing is
+  invented. `/api/setup` lists them.
+- PLAN.md 21a item 29. The estimator sees the item: the same picture the vision call saw,
+  the description, and whatever was legible on it. It used to see the word alone, which is
+  how a hundred and fifty dollar mouse came back at twelve dollars.
+- PLAN.md 21a item 36. A picture somebody took on purpose is the item, so an added toss uses
+  the whole newest frame rather than a diff. A hand-held phone diffed against a frame from
+  two seconds earlier finds the table. And an ask offers only the model's own guesses at 0.3
+  or better, and nothing at all when it had none: "laptop charger, power bank, pencil at 33
+  percent each" was three catalog rows that weighed about the same.
+- PLAN.md 21a item 37. "Fine to bin" unless there is something worth saying. `speak_up_cents`,
+  default 100, is a live setting. A bin that argues about three cents is a bin nobody listens
+  to the fourth time.
+- PLAN.md 21a item 47. An estimate is the same figure twice: the cache key carries what is
+  written on the thing, its condition and any detail answered about it. And the middle of
+  each range is rounded to money a person would say, fifty cents under twenty dollars up to
+  ten dollars above a thousand, while low and high keep every cent for the drawer.
+- PLAN.md 21a item 49. A label the scale has never weighed is taken on the model's word. Mass
+  fusion applies only when the top label has a usable catalog prior, and never adds a label
+  the model did not offer. A battery named at 0.98 was opening an ask because catalog rows
+  that merely weigh the same were being fused against it.
+- PLAN.md 21a item 48, (a) to (f). One place, `engine/tax.makes_no_sense`, decides that an
+  option is not a real answer, and a refused option stays on the ticket with its reason so
+  the drawer shows what was considered. Resell wants five dollars, a working item and
+  something that is not food or packaging. Repair wants the thing broken, twenty dollars to
+  replace, and under sixty percent of that to fix. Donate wants food sealed. Recycle wants a
+  material with somewhere to go. The live case: a battery now ends with trash blocked,
+  recycle best and "Recycle, not trash", instead of "Repair it instead".
+- PLAN.md 21a item 51, off Lane R's bench. A reply that describes the thing and then says
+  "unknown" gets one more go at effort `low`, on the same picture: luna at low named the
+  battery, the pen and the flash drive every time. The class is decided here and not by the
+  model, because it flipped between identical crops and the class is which ledger account a
+  toss posts to: the catalog decides for a label it knows, everything else is untracked
+  unless the words used about it are food words. `llm_timeout_s` is 5.0, because p90 is
+  3.1 s and five of sixty eight calls crossed four.
+
 ## 2026-09-19, lane l: a webcam camera and a one-command launcher
 
 - `hardware/webcam_client.py` makes any webcam the eye over the bin. It speaks the same

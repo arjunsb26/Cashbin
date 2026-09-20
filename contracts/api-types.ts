@@ -651,10 +651,10 @@ export interface MoneyRange {
  */
 export interface PhoneAsk {
   /**
-   * @minItems 1
    * @maxItems 4
    */
-  candidates:
+  candidates?:
+    | []
     | [AskCandidate]
     | [AskCandidate, AskCandidate]
     | [AskCandidate, AskCandidate, AskCandidate]
@@ -817,6 +817,7 @@ export interface SettingsRead {
   capitalization_threshold_cents: number;
   confident_p: number;
   disposal_fee_cents: number;
+  llm_estimate_effort?: "none" | "minimal" | "low" | "medium" | "high";
   llm_service_tier?: "auto" | "default" | "flex" | "scale" | "priority" | "fast";
   llm_text_effort?: "none" | "minimal" | "low" | "medium" | "high";
   llm_timeout_s: number;
@@ -826,6 +827,7 @@ export interface SettingsRead {
   recycle_fee_cents: number;
   round_size: number;
   settle_ms: number;
+  speak_up_cents?: number;
   step_min_g: number;
   tax_rate: number;
   tone_co2e_kg: number;
@@ -839,6 +841,7 @@ export interface SettingsUpdate {
   capitalization_threshold_cents?: number | null;
   confident_p?: number | null;
   disposal_fee_cents?: number | null;
+  llm_estimate_effort?: ("none" | "minimal" | "low" | "medium" | "high") | null;
   llm_service_tier?: ("auto" | "default" | "flex" | "scale" | "priority" | "fast") | null;
   llm_text_effort?: ("none" | "minimal" | "low" | "medium" | "high") | null;
   llm_timeout_s?: number | null;
@@ -848,6 +851,7 @@ export interface SettingsUpdate {
   recycle_fee_cents?: number | null;
   round_size?: number | null;
   settle_ms?: number | null;
+  speak_up_cents?: number | null;
   step_min_g?: number | null;
   tax_rate?: number | null;
   tone_co2e_kg?: number | null;
@@ -926,10 +930,10 @@ export interface SummaryResponse {
  */
 export interface UiAskOpened {
   /**
-   * @minItems 1
    * @maxItems 4
    */
-  candidates:
+  candidates?:
+    | []
     | [AskCandidate]
     | [AskCandidate, AskCandidate]
     | [AskCandidate, AskCandidate, AskCandidate]

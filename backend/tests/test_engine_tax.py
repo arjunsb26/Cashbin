@@ -405,3 +405,33 @@ def test_every_option_for_every_class_returns_an_effect_or_nothing(
         assert effect is not None
         for rule_id in effect.rule_ids:
             assert rules.get(rule_id).id == rule_id
+
+
+# Money a person would say out loud --------------------------------------------
+
+
+def test_an_estimate_is_rounded_to_a_figure_somebody_would_say() -> None:
+    """PLAN.md 21a item 47. 11.73 reads as measured; 11.50 reads as estimated, which it is."""
+    from app.engine.tax import round_money
+
+    # Under twenty dollars, to the nearest fifty cents.
+    assert round_money(1173) == 1150
+    assert round_money(45) == 50
+    assert round_money(1999) == 2000
+    # Twenty to a hundred, to the nearest dollar.
+    assert round_money(2149) == 2100
+    assert round_money(9987) == 10000
+    # A hundred to a thousand, to the nearest five dollars.
+    assert round_money(12345) == 12500
+    assert round_money(50120) == 50000
+    # Above a thousand, to the nearest ten.
+    assert round_money(123_456) == 123_000
+    assert round_money(99_999) == 100_000
+
+
+def test_rounding_keeps_the_sign_and_lets_nothing_through_as_zero() -> None:
+    from app.engine.tax import round_money
+
+    assert round_money(None) is None
+    assert round_money(0) == 0
+    assert round_money(-1173) == -1150

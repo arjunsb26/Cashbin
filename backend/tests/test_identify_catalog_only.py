@@ -21,7 +21,7 @@ from app.identify.openai_request import (
     build_vision_request,
     strict_schema,
 )
-from app.identify.pipeline import ASK_CANDIDATE_FLOOR, _confident_candidates
+from app.identify.pipeline import ASK_CANDIDATE_FLOOR, Outcome, _confident_candidates
 from app.identify.providers import IdentifyContext
 from app.schemas import DESCRIPTION_MAX, UiAskOpened, VisionResult
 from tests.test_identify_openai import FakeClient
@@ -250,3 +250,228 @@ def test_the_ticket_read_carries_what_the_camera_saw() -> None:
     assert read_description(old_shape) is None
     assert read_candidates(new_shape) == old_shape
     assert read_description(new_shape) == "a plain bagel"
+
+
+async def test_a_vision_call_that_gave_nothing_offers_no_buttons_at_all(
+    settings: Settings,
+) -> None:
+    """PLAN.md 21a item 36. The screenshot showed laptop charger, power bank and pencil
+    at 33 percent each for a USB stick: three catalog rows that weigh about the same, with
+    nothing behind them. Buttons the bin does not believe are worse than no buttons."""
+    from app.db import session_scope
+    from app.identify.pipeline import Providers, identify_event
+    from app.identify.stub import StubEstimatorProvider
+    from app.notify.bus import CHANNEL_UI
+    from tests.test_identify_pipeline import ScriptedVision
+    from tests.test_identify_support import Listener, make_deps, make_event, setup_db
+
+    setup_db(settings)
+    with session_scope() as session:
+        # A mass every one of those three catalog rows would have fitted.
+        event_id = make_event(session, mass_g=62.0, mass_err_g=40.0).id
+
+    providers = Providers(
+        vision=ScriptedVision(None, error=RuntimeError("the call failed")),
+        estimator=StubEstimatorProvider(),
+        name="stub",
+    )
+    listener = Listener(CHANNEL_UI)
+    outcome = await identify_event(
+        event_id, make_jpeg(), [], 62.0, 40.0, make_deps(settings, providers=providers)
+    )
+
+    assert outcome.final is False
+    assert outcome.candidates == (), "nothing was guessed, so nothing is offered"
+    asked = [m for m in listener.messages() if isinstance(m, UiAskOpened)]
+    assert asked and asked[0].candidates == []
+
+
+# The scale judges the catalog's labels and nothing else -------------------------
+
+
+async def _decide(
+    settings: Settings, answer: VisionResult, mass_g: float, err_g: float = 2.0
+) -> Outcome:
+    from app.db import session_scope
+    from app.identify.pipeline import Providers, identify_event
+    from app.identify.stub import StubEstimatorProvider
+    from tests.test_identify_pipeline import ScriptedVision
+    from tests.test_identify_support import make_deps, make_event, setup_db
+
+    setup_db(settings)
+    with session_scope() as session:
+        event_id = make_event(session, mass_g=mass_g, mass_err_g=err_g).id
+    providers = Providers(
+        vision=ScriptedVision(answer), estimator=StubEstimatorProvider(), name="stub"
+    )
+    return await identify_event(
+        event_id, make_jpeg(), [], mass_g, err_g, make_deps(settings, providers=providers)
+    )
+
+
+async def test_a_label_the_catalog_never_heard_of_is_taken_on_the_model_alone(
+    settings: Settings,
+) -> None:
+    """PLAN.md 21a item 49. The live case: a battery named at 0.98 that still asked.
+
+    "aa battery" is in the catalog now but carries no priced row; what matters here is
+    that a label with no usable prior is not pushed down by catalog rows that merely weigh
+    about the same.
+    """
+    answer = VisionResult.model_validate(
+        {
+            "label": "brass door hinge",
+            "class": "untracked",
+            "confidence": 0.98,
+            "candidates": [
+                {"label": "brass door hinge", "p": 0.98},
+                {"label": "usb cable", "p": 0.01},
+            ],
+            "description": "a small brass hinge",
+        }
+    )
+    # A mass several catalog rows would have fitted.
+    outcome = await _decide(settings, answer, mass_g=40.0, err_g=8.0)
+    assert outcome.final is True, "the model was sure and the scale had nothing to add"
+    assert outcome.label == "brass door hinge"
+
+
+async def test_a_catalog_label_is_still_judged_by_the_scale(settings: Settings) -> None:
+    """The fusion stage is not gone, it is only pointed at labels the scale knows about."""
+    answer = VisionResult.model_validate(
+        {
+            "label": "water bottle empty",
+            "class": "inventory",
+            "confidence": 0.55,
+            "candidates": [
+                {"label": "water bottle empty", "p": 0.55},
+                {"label": "water bottle full", "p": 0.44},
+            ],
+        }
+    )
+    # 512 g is a full bottle, whatever the picture looked like.
+    outcome = await _decide(settings, answer, mass_g=512.0, err_g=5.0)
+    assert outcome.label == "water bottle full"
+
+
+async def test_the_scale_never_adds_a_guess_the_model_did_not_make(
+    settings: Settings,
+) -> None:
+    answer = VisionResult.model_validate(
+        {
+            "label": "bagel",
+            "class": "inventory",
+            "confidence": 0.50,
+            "candidates": [{"label": "bagel", "p": 0.50}, {"label": "cookie", "p": 0.30}],
+        }
+    )
+    outcome = await _decide(settings, answer, mass_g=95.0, err_g=30.0)
+    offered = {str(c.label) for c in outcome.candidates}
+    assert offered <= {"bagel", "cookie"}, offered
+
+
+# A second go at something it described but would not name ------------------------
+
+
+def test_a_described_unknown_is_asked_again_at_a_little_more_effort() -> None:
+    """PLAN.md 21a item 51. Lane R's bench: at effort none the model said unknown for a
+    battery and then described it exactly. At low it named the battery every time."""
+    from app.identify.openai_provider import OpenAIVisionProvider
+
+    client = FakeClient(
+        [
+            _reply(UNKNOWN_CHOICE, "a single AA alkaline battery, copper top"),
+            _reply("aa battery", "a single AA alkaline battery, copper top"),
+        ]
+    )
+    provider = OpenAIVisionProvider(
+        Settings(_env_file=None, llm_vision_model="m", openai_api_key="x",
+                 llm_vision_effort="none"),
+        client=client,
+    )
+    answer = provider.identify(make_jpeg(), _context())
+
+    assert len(client.calls) == 2
+    assert client.calls[0]["reasoning_effort"] == "none"
+    assert client.calls[1]["reasoning_effort"] == "low"
+    assert str(answer.label) == "aa battery"
+
+
+def test_an_unknown_with_nothing_to_go_on_is_not_asked_twice() -> None:
+    """No description means it never saw the thing, and asking harder will not help."""
+    from app.identify.openai_provider import OpenAIVisionProvider
+
+    client = FakeClient([_reply(UNKNOWN_CHOICE, "")])
+    provider = OpenAIVisionProvider(
+        Settings(_env_file=None, llm_vision_model="m", openai_api_key="x",
+                 llm_vision_effort="none"),
+        client=client,
+    )
+    provider.identify(make_jpeg(), _context())
+    assert len(client.calls) == 1
+
+
+def test_a_second_unknown_is_taken_as_the_answer() -> None:
+    from app.identify.openai_provider import OpenAIVisionProvider
+
+    client = FakeClient([_reply(UNKNOWN_CHOICE, "something dark"), _reply(UNKNOWN_CHOICE, "x")])
+    provider = OpenAIVisionProvider(
+        Settings(_env_file=None, llm_vision_model="m", openai_api_key="x",
+                 llm_vision_effort="none"),
+        client=client,
+    )
+    answer = provider.identify(make_jpeg(), _context())
+    assert len(client.calls) == 2
+    assert str(answer.label) == UNKNOWN_CHOICE
+
+
+def test_nothing_is_retried_when_it_was_already_thinking() -> None:
+    from app.identify.openai_provider import OpenAIVisionProvider
+
+    client = FakeClient([_reply(UNKNOWN_CHOICE, "something dark")])
+    provider = OpenAIVisionProvider(
+        Settings(_env_file=None, llm_vision_model="m", openai_api_key="x",
+                 llm_vision_effort="low"),
+        client=client,
+    )
+    provider.identify(make_jpeg(), _context())
+    assert len(client.calls) == 1
+
+
+# The class is the catalog's, never the model's -----------------------------------
+
+
+def test_the_catalog_decides_the_class_for_a_label_it_knows(settings: Settings) -> None:
+    """PLAN.md 21a item 51. The class flipped between identical crops, and the class is
+    which ledger account a toss posts to."""
+    from app.db import session_scope
+    from app.identify.pipeline import catalog_facts, class_for
+    from app.models import ItemClass
+    from tests.test_identify_support import setup_db
+
+    setup_db(settings)
+    with session_scope() as session:
+        facts = catalog_facts(session)
+
+    assert class_for("bagel", facts) is ItemClass.inventory
+    assert class_for("usb cable", facts) is ItemClass.untracked
+    # And the model saying otherwise about a catalog label changes nothing.
+    assert class_for("bagel", facts, "a small electronic device") is ItemClass.inventory
+
+
+def test_a_label_nobody_knows_is_untracked_unless_it_sounds_like_food(
+    settings: Settings,
+) -> None:
+    from app.db import session_scope
+    from app.identify.pipeline import catalog_facts, class_for
+    from app.models import ItemClass
+    from tests.test_identify_support import setup_db
+
+    setup_db(settings)
+    with session_scope() as session:
+        facts = catalog_facts(session)
+
+    assert class_for("brass door hinge", facts, "a small brass hinge") is ItemClass.untracked
+    assert class_for("brass door hinge", facts) is ItemClass.untracked
+    assert class_for("pain au chocolat", facts, "a pastry, food") is ItemClass.inventory
+    assert class_for("smoothie", facts, "a paper cup of a fruit drink") is ItemClass.inventory

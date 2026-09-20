@@ -361,6 +361,28 @@ def write_identification(
     return row
 
 
+# Words that make something food when the catalog has never heard of it. Short on purpose:
+# a wrong guess here puts a toss through the wrong ledger account.
+FOOD_WORDS = ("food", "snack", "fruit", "bread", "drink", "cup of", "slice", "edible")
+
+
+def class_for(label: str, facts: CatalogFacts, description: str = "") -> ItemClass:
+    """What this is, on the books, decided the same way every time.
+
+    PLAN.md 21a item 51. The model was returning a class of its own and it flipped between
+    identical crops, which moves a toss from inventory to untracked and changes which
+    account it posts to. The catalog decides for anything it knows. Everything else is
+    untracked, unless the words the model used about it are food words.
+    """
+    known = facts.classes.get(label)
+    if known is not None:
+        return known
+    words = description.lower()
+    if any(word in words for word in FOOD_WORDS):
+        return ItemClass.inventory
+    return ItemClass.untracked
+
+
 def read_candidates(raw: object) -> list[dict[str, Any]]:
     """The candidate list out of a `candidates_json` value of either shape."""
     if isinstance(raw, dict):
@@ -397,7 +419,12 @@ def top_two(distribution: dict[str, float]) -> tuple[tuple[str, float], tuple[st
 
 
 def ask_candidates(distribution: dict[str, float]) -> list[AskCandidate]:
-    """The buttons a person sees, best first. DESIGN.md section 4.4 draws two to four."""
+    """The buttons a person sees, best first. DESIGN.md section 4.4 draws up to four.
+
+    An empty list is a real answer: the model had no guess worth showing, so the question
+    is the picture, what the model says it is looking at, and Something else. A button
+    reading "unknown object" was never an answer anybody could give.
+    """
     ordered = sorted(distribution.items(), key=lambda kv: (-kv[1], kv[0]))[:MAX_ASK_CANDIDATES]
     out: list[AskCandidate] = []
     for name, p in ordered:
@@ -405,8 +432,6 @@ def ask_candidates(distribution: dict[str, float]) -> list[AskCandidate]:
             out.append(AskCandidate(label=name, p=max(0.0, min(1.0, p))))
         except ValueError:
             continue
-    if not out:
-        out.append(AskCandidate(label=UNKNOWN_LABEL, p=0.0))
     return out
 
 
@@ -568,7 +593,10 @@ async def identify_event(
             # Only what a remembered example says. The scale's own guesses used to fill
             # this in, which is how a battery came back offering "laptop charger, pencil,
             # power bank": three catalog rows that weigh about the same and nothing else.
-            fallback = _neighbour_votes(neighbours)
+            # Nothing came back, so there is nothing to offer. A remembered exemplar or
+            # a catalog row that weighs about the same is not the model's guess, and
+            # drawing it as a button says the bin believes something it does not.
+            fallback: dict[str, float] = {}
             row = write_identification(
                 session,
                 event_id=event_id,
@@ -592,7 +620,7 @@ async def identify_event(
                 event_id,
                 vision.description or "no description",
             )
-            fallback = _neighbour_votes(neighbours) or _confident_candidates(vision)
+            fallback = _confident_candidates(vision)
             row = write_identification(
                 session,
                 event_id=event_id,
@@ -616,7 +644,7 @@ async def identify_event(
             event_id=event_id,
             method=method,
             label=vision.label,
-            item_class=vision.item_class,
+            item_class=class_for(str(vision.label), facts, vision.description),
             confidence=vision.confidence,
             candidates=[(c.label, c.p) for c in vision.candidates],
             posterior=raw_dist,
@@ -649,21 +677,31 @@ async def identify_event(
                 vision.label,
             )
 
-        # 4. Mass prior fusion, when a prior has enough weighings behind it to count.
+        # 4. Mass prior fusion, but only when the scale has something to say about the
+        # answer. PLAN.md 21a item 49: a label the catalog has never heard of has no prior,
+        # so fusing pushed it down against catalog rows that merely weigh about the same,
+        # and a battery the model named at 0.98 opened an ask. The scale judges the
+        # catalog's own labels, and nothing else.
         final_dist = vision_dist
-        if any(facts.priors.get(label, _NO_PRIOR).usable for label in vision_dist):
+        top_label = str(vision.label)
+        in_the_catalog = facts.priors.get(top_label, _NO_PRIOR).usable
+        if in_the_catalog:
             # Fusion works on a normalised distribution, so the share the model left
             # unspoken for is put back afterwards rather than quietly filled in.
             claimed = min(sum(vision_dist.values()), 1.0)
             fused = fuse(vision_dist, mass_g, mass_err_g, facts.priors)
-            final_dist = {label: p * claimed for label, p in fused.items()}
+            # And never a label the model did not itself offer: the scale reweighs the
+            # model's guesses, it does not add guesses of its own.
+            final_dist = {
+                label: p * claimed for label, p in fused.items() if label in vision_dist
+            }
             best, _ = top_two(final_dist)
             row = write_identification(
                 session,
                 event_id=event_id,
                 method=method,
                 label=best[0],
-                item_class=facts.classes.get(best[0], vision.item_class),
+                item_class=class_for(best[0], facts, vision.description),
                 confidence=best[1],
                 candidates=sorted(final_dist.items(), key=lambda kv: -kv[1])[:5],
                 posterior=final_dist,
@@ -681,32 +719,26 @@ async def identify_event(
         sure = best[1] >= settings.confident_p
         clear = margin >= settings.min_margin
         same_books = second is not None and facts.same_treatment(best[0], second[0])
-        if sure and not clear and same_books:
-            log.info(
-                "event %s: %s and %s are too close to call and come out the same on the "
-                "books, so %s is taken",
-                event_id,
-                best[0],
-                second[0] if second else None,
-                best[0],
-            )
+        log.info(
+            "event %s decided: label=%s p=%.2f margin=%.2f prior=%s treatment=%s -> %s",
+            event_id,
+            best[0],
+            best[1],
+            margin,
+            "catalog" if in_the_catalog else "none",
+            "same" if same_books else "differs",
+            "accepted" if sure and (clear or same_books) else "asking",
+        )
         if sure and (clear or same_books):
             row.is_final = True
             row.label = best[0]
-            row.item_class = facts.classes.get(best[0], vision.item_class)
+            row.item_class = class_for(best[0], facts, vision.description)
             row.confidence = best[1]
             if not clear:
                 # The drawer says "two candidates, same treatment" off this.
                 row.posterior_json = json.dumps({**final_dist, SAME_TREATMENT_KEY: 1.0})
             session.flush()
             return await _finalise(session, event, row, active, started)
-        log.info(
-            "event %s: asking, p=%.2f margin=%.2f same treatment=%s",
-            event_id,
-            best[1],
-            margin,
-            same_books,
-        )
         return await _ask(
             session, event, final_dist, active, started, row, vision.description
         )
@@ -966,6 +998,7 @@ __all__ = [
     "build_context",
     "build_providers",
     "catalog_facts",
+    "class_for",
     "get_deps",
     "get_providers",
     "identify_event",

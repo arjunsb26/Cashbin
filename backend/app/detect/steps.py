@@ -64,6 +64,9 @@ class Step(BaseModel):
     baseline_before_g: float
     baseline_after_g: float
     trace: list[list[float]] = Field(default_factory=list)
+    # True when a person held the item up and pressed Add rather than dropping it in. The
+    # detector never sets this; only `/api/sim/toss` does.
+    whole_frame: bool = False
 
 
 def samples_from_pairs(pairs: Iterable[tuple[float, float]]) -> list[Sample]:
