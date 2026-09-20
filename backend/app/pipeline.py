@@ -146,9 +146,17 @@ def headline_cents(record: ItemRecord) -> int:
     return record.fmv_mid or 0
 
 
+# Words nobody writes in lower case. "Usb-c charger" was what the bin drew before this, and
+# a judge reading it sees a bug rather than a charger. Keep it to what the catalog holds.
+ACRONYMS = frozenset({"usb", "usb-c", "hdmi", "led", "lcd", "sd", "hd"})
+
+
 def title_for(label: str) -> str:
     """The label as a person reads it. Labels are stored lowercase; sentences are not."""
-    return label[:1].upper() + label[1:]
+    words = label.split(" ")
+    shown = [word.upper() if word.lower() in ACRONYMS else word for word in words]
+    joined = " ".join(shown)
+    return joined[:1].upper() + joined[1:]
 
 
 def advice_line(record: ItemRecord, ranking: engine_options.Ranking, blocked: bool) -> str:
