@@ -13,6 +13,7 @@ const FRAME_BYTES_GUESS = 24000; // used before the first frame is measured
 const RESULT_MS = 6000; // a ticket leaves after this long with no update
 const VALUING_MS = 8000; // how long a ticket waits for its figure before it gives up
 const ASK_WAIT_MS = 20000; // when a question starts saying it is still waiting
+const ASK_DROP_MS = 10000; // how long a question survives a dropped connection
 const LEARNED_MS = 2500;
 const TOOLTIP_MS = 4000;
 const BACKOFF_MIN_MS = 500;
@@ -97,6 +98,7 @@ let askEventId = null;
 let resultTimer = 0;
 let valuingTimer = 0;
 let askWaitTimer = 0;
+let askDropTimer = 0;
 
 const canvas = document.createElement("canvas");
 const context = canvas.getContext("2d", { alpha: false });
@@ -179,28 +181,16 @@ async function startCamera() {
   }
 
   startButton.disabled = true;
+  let next;
   try {
-    stream = await navigator.mediaDevices.getUserMedia({
-      video: { facingMode: { ideal: "environment" }, width: { ideal: 1280 } },
-    });
+    next = await openStream();
   } catch (err) {
     startButton.disabled = false;
     show(startError, cameraSentence(err));
     return;
   }
 
-  video.srcObject = stream;
-  stream.getVideoTracks().forEach((track) => {
-    track.addEventListener("ended", () => {
-      show(cameraError, "The camera stopped. Reload this page and tap Start camera again.");
-    });
-  });
-  try {
-    await video.play();
-  } catch (err) {
-    // Some browsers resolve the stream but defer play. The frame timer waits
-    // for readyState, so a deferred play costs nothing.
-  }
+  await attachStream(next);
 
   cameraRunning = true;
   startScreen.hidden = true;
@@ -210,6 +200,75 @@ async function startCamera() {
   requestWakeLock();
   connect();
   startFrameTimer();
+}
+
+function openStream() {
+  return navigator.mediaDevices.getUserMedia({
+    video: { facingMode: { ideal: "environment" }, width: { ideal: 1280 } },
+  });
+}
+
+async function attachStream(next) {
+  stream = next;
+  video.srcObject = next;
+  next.getVideoTracks().forEach((track) => {
+    track.addEventListener("ended", onTrackEnded);
+  });
+  try {
+    await video.play();
+  } catch (err) {
+    // Some browsers resolve the stream but defer play. The frame timer waits
+    // for readyState, so a deferred play costs nothing.
+  }
+  hide(cameraError);
+}
+
+function stopStream() {
+  if (!stream) return;
+  stream.getTracks().forEach((track) => {
+    track.removeEventListener("ended", onTrackEnded);
+    try {
+      track.stop();
+    } catch (err) {
+      // A track that has already ended throws on some builds of WebKit.
+    }
+  });
+  stream = null;
+}
+
+function cameraLive() {
+  if (!stream) return false;
+  return stream.getVideoTracks().some((track) => track.readyState === "live");
+}
+
+/* iOS ends the camera track when the page goes to the background. The page picks
+   it up again by itself when the person comes back, with no tap and no reload. */
+function onTrackEnded() {
+  if (document.visibilityState !== "visible") return;
+  restartCamera();
+}
+
+async function restartCamera() {
+  if (restartingCamera || !cameraRunning || cameraLive()) return;
+  restartingCamera = true;
+  stopStream();
+  let next;
+  try {
+    next = await openStream();
+  } catch (err) {
+    restartingCamera = false;
+    // The camera is not coming back on its own, so the way back in is a tap.
+    cameraRunning = false;
+    clearSheets("the camera stopped");
+    hide(cameraError);
+    cameraScreen.hidden = true;
+    startScreen.hidden = false;
+    startButton.disabled = false;
+    show(startError, cameraSentence(err));
+    return;
+  }
+  await attachStream(next);
+  restartingCamera = false;
 }
 
 function startFrameTimer() {
@@ -283,7 +342,14 @@ function connect() {
     reconnectAttempts = 0;
     setStatus("live");
     hide(statusMessage);
+    if (askDropTimer) {
+      clearTimeout(askDropTimer);
+      askDropTimer = 0;
+    }
+    // The hello goes first and the frames follow on the timer that never stopped,
+    // so coming back costs no tap and no reload.
     send({ type: "hello", ua: navigator.userAgent });
+    console.info("socket: open, hello sent, frames resume");
   });
 
   ws.addEventListener("message", (event) => {
@@ -302,6 +368,7 @@ function connect() {
   ws.addEventListener("close", () => {
     if (socket !== ws) return;
     socket = null;
+    onDisconnected();
     scheduleReconnect();
   });
 
@@ -324,6 +391,38 @@ function scheduleReconnect() {
   reconnectAttempts += 1;
   if (reconnectTimer) clearTimeout(reconnectTimer);
   reconnectTimer = setTimeout(connect, delay);
+}
+
+/* What is on the screen when the connection goes belongs to the session that
+   went with it. The ticket goes at once, because it is only ever a few seconds
+   old. The question is given ten seconds to survive a blip, because the answer
+   travels over its own request and still lands, and then it goes too rather
+   than sit there unanswerable. */
+function onDisconnected() {
+  console.info("socket: closed");
+  if (sheetState === "result") {
+    dismissResult("the connection dropped");
+    return;
+  }
+  if (sheetState === "ask" && !askDropTimer) {
+    askDropTimer = setTimeout(() => {
+      askDropTimer = 0;
+      if (sheetState === "ask") closeAsk("the connection stayed down");
+    }, ASK_DROP_MS);
+  }
+}
+
+function clearSheets(why) {
+  if (sheetState === "idle") return;
+  if (sheetState === "result") {
+    dismissResult(why);
+    return;
+  }
+  if (sheetState === "ask") {
+    closeAsk(why);
+    return;
+  }
+  closeAdd();
 }
 
 function send(message) {
@@ -889,7 +988,9 @@ document.addEventListener("keydown", (event) => {
 });
 
 document.addEventListener("visibilitychange", () => {
-  if (document.visibilityState === "visible" && cameraRunning) requestWakeLock();
+  if (document.visibilityState !== "visible" || !cameraRunning) return;
+  requestWakeLock();
+  restartCamera();
 });
 
 renderSheets();
