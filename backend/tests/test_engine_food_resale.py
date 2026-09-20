@@ -9,8 +9,9 @@ the M3 acceptance check says it should.
 
 from __future__ import annotations
 
-from app.engine import options, rules, tax
+from app.engine import carbon, options, rules, tax
 from app.engine.records import (
+    Condition,
     EngineSettings,
     Option,
     catalog_by_label,
@@ -43,11 +44,27 @@ def test_every_food_row_carries_the_food_flag() -> None:
         assert "food" in table[label].regulatory_flags, label
 
 
-def test_nothing_but_food_carries_the_food_flag() -> None:
+def test_the_food_flag_follows_the_material_and_not_a_list() -> None:
+    """A row is flagged food when most of its mass is food, and only then.
+
+    This used to be a fixed list of labels, which meant the catalog could not grow a food
+    row without the rule quietly stopping short of it. The material mix is the fact; the
+    flag is supposed to agree with it.
+    """
     for item in load_catalog():
-        if item.label in FOOD_LABELS:
-            continue
-        assert "food" not in item.regulatory_flags, item.label
+        mostly_food = sum(
+            share
+            for material, share in item.material_mix.items()
+            if carbon.is_food_material(material)
+        )
+        flagged = "food" in item.regulatory_flags
+        assert flagged == (mostly_food >= 0.5), f"{item.label}: {mostly_food:.2f} food"
+
+
+def test_every_label_the_resale_rule_names_is_still_flagged() -> None:
+    table = catalog_by_label()
+    for label in FOOD_LABELS:
+        assert "food" in table[label].regulatory_flags, label
 
 
 def test_food_cost_is_half_the_retail_value_and_says_so() -> None:
@@ -90,24 +107,49 @@ def test_a_blocked_resale_row_still_appears_and_never_ranks() -> None:
 
 
 def test_resale_is_not_blocked_for_equipment() -> None:
-    effect = tax.tax_effect_for(Option.resell, keyboard_record(), SETTINGS)
+    """The food rule is about food. A working keyboard is a thing somebody would buy."""
+    working = keyboard_record().model_copy(update={"condition": Condition.working})
+    effect = tax.tax_effect_for(Option.resell, working, SETTINGS)
     assert effect is not None
     assert effect.allowed is True
     assert effect.blocked_reason is None
 
 
-def test_donating_the_bagel_ranks_first_and_asks_for_a_person() -> None:
+def test_a_broken_thing_is_not_offered_for_sale() -> None:
+    """PLAN.md 21a item 48. Nobody is buying it, so the bin should not suggest it."""
+    broken = keyboard_record().model_copy(update={"condition": Condition.broken})
+    effect = tax.tax_effect_for(Option.resell, broken, SETTINGS)
+    assert effect is not None
+    assert effect.allowed is False
+    assert effect.blocked_reason == tax.BROKEN_NOT_SELLABLE
+
+
+def test_a_bagel_out_of_a_bin_is_not_offered_to_a_charity() -> None:
+    """PLAN.md 21a item 48. Nobody donates food somebody already opened.
+
+    The arithmetic underneath is unchanged and still right, which is what the next test
+    reads. What changed is that the bin no longer says it out loud about an opened bagel.
+    """
     scores = options.score_options(bagel_record(), SETTINGS)
+    donate = options.by_option(scores)[Option.donate]
+    assert donate.allowed is False
+    assert donate.blocked_reason == tax.FOOD_NOT_SEALED
+    assert options.summarise(scores, SETTINGS).best_option is not Option.donate
+
+
+def test_sealed_food_still_earns_the_enhanced_deduction() -> None:
+    sealed = bagel_record().model_copy(update={"description": "a sealed bagel in its bag"})
+    scores = options.score_options(sealed, SETTINGS)
     table = options.by_option(scores)
     donate = table[Option.donate]
+    assert donate.allowed is True
     assert donate.rank == 1
     assert donate.needs_human_review is True
     assert "DONATE_FOOD" in donate.rule_ids
     # A real deduction, not the zero the retail-priced catalog used to give.
     assert donate.tax_effect_cents > 0
     assert donate.net_after_tax_cents > table[Option.trash].net_after_tax_cents
-    ranking = options.summarise(scores, SETTINGS)
-    assert ranking.best_option is Option.donate
+    assert options.summarise(scores, SETTINGS).best_option is Option.donate
 
 
 def test_engine_settings_are_built_from_the_live_settings_object() -> None:

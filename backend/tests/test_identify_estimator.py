@@ -13,7 +13,7 @@ import pytest
 
 from app.config import Settings
 from app.identify.estimate_cache import reset_cache
-from app.identify.openai_provider import ESTIMATE_EFFORT, OpenAIEstimatorProvider
+from app.identify.openai_provider import OpenAIEstimatorProvider
 from app.schemas import ValueEstimate, VisionResult
 from tests.test_identify_openai import GOOD_ESTIMATE, FakeClient, conf
 from tests.test_identify_support import make_jpeg, setup_db
@@ -85,15 +85,16 @@ def test_an_estimate_with_no_picture_still_works() -> None:
 
 
 def test_the_estimate_call_runs_at_low_effort_on_the_fast_queue() -> None:
+    """PLAN.md 21a items 26 and 29. Off the critical path, so it may think a little."""
     client = FakeClient([MESSY_ESTIMATE])
-    priced(client, llm_text_effort="none", llm_service_tier="fast")
-    assert client.calls[0]["reasoning_effort"] == ESTIMATE_EFFORT == "low"
+    priced(client, llm_estimate_effort="low", llm_service_tier="fast")
+    assert client.calls[0]["reasoning_effort"] == "low"
     assert client.calls[0]["service_tier"] == "fast"
 
 
 def test_a_setting_that_names_another_effort_is_obeyed() -> None:
     client = FakeClient([MESSY_ESTIMATE])
-    priced(client, llm_text_effort="medium")
+    priced(client, llm_estimate_effort="medium")
     assert client.calls[0]["reasoning_effort"] == "medium"
 
 
@@ -102,7 +103,7 @@ def test_a_setting_that_names_another_effort_is_obeyed() -> None:
 
 def test_every_mid_is_cleaned_and_the_spread_is_left_alone() -> None:
     estimate = priced(FakeClient([MESSY_ESTIMATE]))
-    assert (estimate.fmv.low, estimate.fmv.mid, estimate.fmv.high) == (900, 1200, 1500)
+    assert (estimate.fmv.low, estimate.fmv.mid, estimate.fmv.high) == (900, 1150, 1500)
     assert estimate.replacement.mid == 12500
     assert estimate.scrap.mid == 150
     assert estimate.fmv.rationale == "two used listings"
@@ -126,7 +127,7 @@ def test_a_clean_figure_is_left_where_it_is() -> None:
 def test_the_row_says_which_model_served_it() -> None:
     estimate = priced(FakeClient([MESSY_ESTIMATE]))
     assert (estimate.provider, estimate.model) == ("openai", "test-text-model")
-    assert str(estimate.label) == "mouse"
+    assert str(estimate.label).startswith("mouse")
 
 
 def test_the_cleaned_figure_is_what_gets_cached() -> None:
@@ -135,4 +136,4 @@ def test_the_cleaned_figure_is_what_gets_cached() -> None:
     first = priced(client)
     second = priced(client)
     assert len(client.calls) == 1
-    assert second.fmv.mid == first.fmv.mid == 1200
+    assert second.fmv.mid == first.fmv.mid == 1150

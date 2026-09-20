@@ -26,7 +26,7 @@ from typing import Any
 
 from pydantic import ValidationError
 
-from app.schemas import ValueEstimate, _clean_free_text, normalise_label
+from app.schemas import ValueEstimate, VisionResult, normalise_label
 
 log = logging.getLogger(__name__)
 
@@ -34,28 +34,44 @@ log = logging.getLogger(__name__)
 CACHE_SETTING_KEY = "estimate_cache"
 # How many objects to remember. Oldest stored goes first. A demo sees tens, not hundreds.
 MAX_ENTRIES = 400
-# How much of each piece of outside text takes part in the key.
-CONTEXT_MAX = 120
+# How many hex characters of the digest a key carries.
+DIGEST_LEN = 12
 
 
-def cache_key(label: str, visible_text: str = "", detail: str = "",
-              condition: str = "") -> str:
-    """The key for one priced object: its label and what else the estimator was told.
+def estimate_key(label: str, vision: VisionResult | None = None, detail: str = "") -> str:
+    """What makes two estimates the same estimate.
 
-    With nothing else to go on the key is the normalised label itself, which is what the
-    rest of the system looks an estimate up by. Anything else adds a short digest, so two
-    keys that differ read as the same object seen two ways rather than as two labels.
+    PLAN.md 21a item 47. The label alone made every mouse one entry, so the first one
+    priced set the price for every mouse after it. Everything that would change the answer
+    goes in the key: what is written on the thing, what condition it is in, and whatever a
+    person answered about it. Two runs of the same item then give the same figure, which is
+    the point: a judge who saw a number once should see it again.
+
+    The parts are hashed rather than stored. They are outside text, and a key is not the
+    place for prose. With nothing to hash the key is the label itself, which is what the
+    rest of the system looks an estimate up by.
     """
-    name = normalise_label(label)
+    condition = (vision.condition if vision else "") or ""
     parts = [
-        str(_clean_free_text(visible_text, CONTEXT_MAX) or ""),
-        str(_clean_free_text(detail, CONTEXT_MAX) or ""),
-        str(_clean_free_text(condition, CONTEXT_MAX) or "").lower(),
+        (vision.visible_text if vision else "") or "",
+        # "unknown" is the default, which is the same as nobody having said anything, and
+        # it must not split the cache from a plain one.
+        "" if condition == "unknown" else condition,
+        detail or "",
     ]
-    if not any(part for part in parts if part and part != "unknown"):
-        return name
-    digest = hashlib.sha1("\u001f".join(parts).encode("utf-8")).hexdigest()[:10]
-    return f"{name}|{digest}"
+    joined = "|".join(part.strip().lower() for part in parts)
+    if not joined.replace("|", "").strip():
+        return normalise_label(label)
+    digest = hashlib.sha256(joined.encode("utf-8")).hexdigest()[:12]
+    return f"{normalise_label(label)} {digest}"
+
+
+def label_of(key: str) -> str:
+    """The label a key was built from, for the by-label index. The digest is 12 hex."""
+    head, _, tail = key.rpartition(" ")
+    if head and len(tail) == DIGEST_LEN and all(c in "0123456789abcdef" for c in tail):
+        return head
+    return key
 
 
 class EstimateCache:
@@ -118,7 +134,7 @@ class EstimateCache:
             self.load()
         self._entries.pop(key, None)
         self._entries[key] = estimate
-        self._latest[key.split("|", 1)[0]] = key
+        self._latest[label_of(key)] = key
         while len(self._entries) > MAX_ENTRIES:
             oldest = next(iter(self._entries))
             del self._entries[oldest]
@@ -203,17 +219,17 @@ def reset_cache() -> EstimateCache:
 
 
 def read_estimate(key: str) -> ValueEstimate | None:
-    """The stored estimate for a key or a bare label, or nothing."""
+    """The stored estimate for a key from `estimate_key`, or for a bare label."""
     try:
-        return get_cache().get(key if "|" in key else normalise_label(key))
+        return get_cache().get(normalise_label(key))
     except ValueError:
         log.warning("an estimate was looked up under something that is not a label")
         return None
 
 
 def write_estimate(key: str, estimate: ValueEstimate) -> None:
-    """Store one estimate under a key from `cache_key`, or under a bare label."""
+    """Store one estimate under a key from `estimate_key`, or under a bare label."""
     try:
-        get_cache().put(key if "|" in key else normalise_label(key), estimate)
+        get_cache().put(normalise_label(key), estimate)
     except ValueError:
         log.warning("an estimate was stored under something that is not a label, ignored")

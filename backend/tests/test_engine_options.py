@@ -53,8 +53,13 @@ def test_the_keyboard_shows_a_book_loss_against_a_zero_tax_basis() -> None:
     assert ranking.best_option is Option.repair
 
 
-def test_the_bagel_puts_donating_above_binning_and_asks_for_a_person() -> None:
-    scores = score_options(bagel_record(), SETTINGS)
+def sealed_bagel() -> ItemRecord:
+    """The same bagel, still in its bag. PLAN.md 21a item 48: opened food is not donated."""
+    return bagel_record().model_copy(update={"description": "a sealed bagel in its bag"})
+
+
+def test_a_sealed_bagel_puts_donating_above_binning_and_asks_for_a_person() -> None:
+    scores = score_options(sealed_bagel(), SETTINGS)
     table = by_option(scores)
 
     donate = table[Option.donate]
@@ -229,7 +234,7 @@ def test_an_option_with_an_unknown_material_says_so_and_carries_no_number() -> N
 
 
 def test_the_greenest_option_is_reported_alongside_the_cheapest() -> None:
-    scores = score_options(bagel_record(), SETTINGS)
+    scores = score_options(sealed_bagel(), SETTINGS)
     table = by_option(scores)
     ranking = summarise(scores, SETTINGS)
     # Donating, reselling and repairing all displace a new item, so they share
@@ -254,7 +259,7 @@ def test_every_score_carries_its_event_id() -> None:
 
 def test_the_tone_is_amber_when_only_the_carbon_is_better() -> None:
     """A bagel: pennies apart on money, far apart on carbon. That is amber."""
-    scores = score_options(bagel_record(), SETTINGS)
+    scores = score_options(sealed_bagel(), SETTINGS)
     ranking = summarise(scores, SETTINGS)
     table = by_option(scores)
     money_gap = (
@@ -300,7 +305,10 @@ def test_an_unknown_carbon_figure_never_buys_a_green_tone() -> None:
         item_class=ItemClass.untracked,
         mass_g=100.0,
         event_date=EVENT_DATE,
-        material_mix={"unobtainium": 1.0},
+        # A mix with one material the WARM table has never heard of, so no option gets a
+        # carbon figure. The other one does recycle, so recycling is still a real option
+        # and the question this test asks is still about the tone.
+        material_mix={"unobtainium": 0.5, "mixed_plastics": 0.5},
         scrap_cents=10,
         scrap_source=EstimateSource.model_estimate,
     )
@@ -370,3 +378,125 @@ def test_the_bin_and_the_best_option_report_what_was_avoided() -> None:
     assert avoided_co2e(0.5, 0.9) == 0.0
     assert avoided_co2e(None, -6.04) is None
     assert avoided_co2e(0.5, None) is None
+
+
+# Nothing nonsensical reaches a screen ------------------------------------------
+
+
+def a_battery() -> ItemRecord:
+    """The live case: the user held up a battery and the bin said "Repair it instead"."""
+    return ItemRecord(
+        event_id=99,
+        label="aa battery",
+        item_class=ItemClass.untracked,
+        mass_g=24.0,
+        event_date=EVENT_DATE,
+        material_mix={"mixed_metals": 1.0},
+        regulatory_flags=["battery"],
+        fmv_mid=50,
+        repair_mid=100,
+        replacement_cents=300,
+        scrap_cents=5,
+        scrap_source=EstimateSource.model_estimate,
+    )
+
+
+def test_a_battery_is_recycled_and_never_repaired() -> None:
+    """PLAN.md 21a item 48. Three pounds of battery is not a thing anybody repairs."""
+    from app.engine import tax
+
+    scores = score_options(a_battery(), SETTINGS)
+    table = by_option(scores)
+    ranking = summarise(scores, SETTINGS)
+
+    assert table[Option.trash].allowed is False, "a battery does not go in the landfill"
+    assert ranking.best_option is Option.recycle
+    # Repair is still on the ticket, with the reason it lost, so the drawer can show it.
+    assert table[Option.repair].allowed is False
+    assert table[Option.repair].blocked_reason == tax.NOT_BROKEN_TO_REPAIR
+    assert table[Option.resell].allowed is False
+    assert table[Option.resell].blocked_reason == tax.TOO_CHEAP_TO_SELL
+
+
+def test_the_line_the_battery_puts_on_the_bin_names_recycling() -> None:
+    from app.pipeline import advice_line
+
+    scores = score_options(a_battery(), SETTINGS)
+    ranking = summarise(scores, SETTINGS)
+    blocked = not by_option(scores)[Option.trash].allowed
+    assert advice_line(a_battery(), ranking, blocked) == "Recycle, not trash"
+
+
+def test_a_nine_dollar_charger_is_not_worth_repairing() -> None:
+    from app.engine import tax
+
+    charger = ItemRecord(
+        event_id=100,
+        label="usb-c charger",
+        item_class=ItemClass.untracked,
+        mass_g=31.0,
+        event_date=EVENT_DATE,
+        material_mix={"mixed_electronics": 1.0},
+        regulatory_flags=["electronics"],
+        condition=Condition.broken,
+        fmv_mid=400,
+        repair_mid=600,
+        replacement_cents=900,
+    )
+    table = by_option(score_options(charger, SETTINGS))
+    assert table[Option.repair].allowed is False
+    assert table[Option.repair].blocked_reason == tax.NOT_WORTH_REPAIRING
+
+
+def test_a_broken_laptop_worth_repairing_still_is() -> None:
+    laptop = ItemRecord(
+        event_id=101,
+        label="laptop",
+        item_class=ItemClass.untracked,
+        mass_g=1400.0,
+        event_date=EVENT_DATE,
+        material_mix={"portable_electronic_devices": 1.0},
+        regulatory_flags=["electronics", "battery"],
+        condition=Condition.broken,
+        fmv_mid=20_000,
+        repair_mid=15_000,
+        replacement_cents=90_000,
+    )
+    table = by_option(score_options(laptop, SETTINGS))
+    assert table[Option.repair].allowed is True
+    assert table[Option.repair].blocked_reason is None
+
+
+def test_something_with_no_recycling_route_is_not_told_to_recycle() -> None:
+    from app.engine import tax
+
+    lump = ItemRecord(
+        event_id=102,
+        label="mystery lump",
+        item_class=ItemClass.untracked,
+        mass_g=100.0,
+        event_date=EVENT_DATE,
+        material_mix={"unobtainium": 1.0},
+    )
+    table = by_option(score_options(lump, SETTINGS))
+    assert table[Option.recycle].allowed is False
+    assert table[Option.recycle].blocked_reason == tax.NOTHING_RECYCLES
+
+
+def test_packaging_is_recycled_and_never_resold() -> None:
+    """A box is a box. Nobody is buying the box."""
+    from app.engine import tax
+
+    box = ItemRecord(
+        event_id=103,
+        label="cardboard box medium",
+        item_class=ItemClass.untracked,
+        mass_g=330.0,
+        event_date=EVENT_DATE,
+        material_mix={"corrugated_containers": 1.0},
+        fmv_mid=800,
+    )
+    table = by_option(score_options(box, SETTINGS))
+    assert table[Option.recycle].allowed is True
+    assert table[Option.resell].allowed is False
+    assert table[Option.resell].blocked_reason == tax.PACKAGING_NOT_GOODS

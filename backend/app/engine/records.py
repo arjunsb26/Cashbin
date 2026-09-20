@@ -87,6 +87,8 @@ class EngineSettings(BaseModel):
     # How much better on carbon another option has to be before the tone stops
     # calling the bin a fine answer. PLAN.md section 21a item 10.
     tone_co2e_kg: float = 0.02
+    # How much better another option has to be before the bin argues with a person.
+    speak_up_cents: int = 100
 
     @classmethod
     def from_settings(cls, settings: Any) -> EngineSettings:
@@ -102,6 +104,9 @@ class EngineSettings(BaseModel):
             disposal_fee_cents=settings.disposal_fee_cents,
             recycle_fee_cents=settings.recycle_fee_cents,
             capitalization_threshold_cents=settings.capitalization_threshold_cents,
+            speak_up_cents=getattr(
+                settings, "speak_up_cents", cls.model_fields["speak_up_cents"].default
+            ),
             tie_break_cents=getattr(
                 settings, "tie_break_cents", cls.model_fields["tie_break_cents"].default
             ),
@@ -189,6 +194,10 @@ class ItemRecord(BaseModel):
     scrap_source: EstimateSource | None = None
 
     condition: Condition = Condition.unknown
+    # What the model said it was looking at, and anything a person answered about it.
+    # Both are outside text and both are read here only for words like "sealed".
+    description: str = ""
+    detail: str = ""
 
     @property
     def mass_kg(self) -> float:

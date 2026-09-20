@@ -22,19 +22,23 @@ from pydantic import BaseModel, ValidationError
 
 from app.config import Settings
 from app.detect.crop import downscale_jpeg
+from app.engine.tax import round_money
 from app.identify.cost import cost_microusd, price_for
-from app.identify.estimate_cache import cache_key, read_estimate, write_estimate
-from app.identify.openai_request import build_estimate_request, build_vision_request
+from app.identify.estimate_cache import estimate_key, read_estimate, write_estimate
+from app.identify.openai_request import (
+    UNKNOWN_CHOICE,
+    build_estimate_request,
+    build_vision_request,
+)
 from app.identify.providers import CallUsage, IdentifyContext
-from app.identify.rounding import round_money
-from app.schemas import MoneyRange, ValueEstimate, VisionResult, normalise_label
+from app.schemas import MoneyRange, ValueEstimate, VisionResult
 
 log = logging.getLogger(__name__)
 
 PROVIDER_NAME = "openai"
 FALLBACK_CONFIDENCE = 0.3
-# The effort the estimate call runs at when the shared text default says "none".
-ESTIMATE_EFFORT = "low"
+# What a second go costs: a little thinking, on the same picture, once.
+RETRY_EFFORT = "low"
 
 
 class _Adapter:
@@ -134,6 +138,7 @@ class OpenAIVisionProvider(_Adapter):
             self.settings.llm_service_tier,
         )
         parsed = self._parse(request, model, VisionResult)
+        parsed = self._retry_unknown(parsed, picture, context, model)
         if parsed is None:
             return VisionResult.model_validate(
                 {"label": "unknown object", "class": "untracked",
@@ -142,22 +147,55 @@ class OpenAIVisionProvider(_Adapter):
         result: VisionResult = parsed
         return result.model_copy(update={"provider": PROVIDER_NAME, "model": model})
 
+    def _retry_unknown(
+        self, parsed: Any, picture: bytes, context: IdentifyContext, model: str
+    ) -> Any:
+        """One more go, thinking a little, at something it described but would not name.
+
+        PLAN.md 21a item 51. Lane R's bench: at effort `none` the model said "unknown" for
+        a battery and then described it exactly; at effort `low` it named the battery, the
+        pen and the flash drive every time. A reply that describes the thing has seen the
+        thing, so the answer is in there and it is worth one cheap second to get it out.
+        """
+        if parsed is None:
+            return None
+        effort = self.settings.llm_vision_effort
+        described = bool(getattr(parsed, "description", "").strip())
+        if str(getattr(parsed, "label", "")) != UNKNOWN_CHOICE or not described:
+            return parsed
+        if effort == RETRY_EFFORT:
+            return parsed
+        log.info("the model described it but would not name it, retried at low")
+        again = self._parse(
+            build_vision_request(
+                picture, context, model, RETRY_EFFORT, self.settings.llm_service_tier
+            ),
+            model,
+            VisionResult,
+        )
+        if again is None or str(getattr(again, "label", "")) == UNKNOWN_CHOICE:
+            return parsed
+        return again
+
 
 def clean_range(money: MoneyRange) -> MoneyRange:
-    """One range with its mid cleaned. Low and high stay raw, but cannot cross the mid.
+    """One range with its mid cleaned to money a person would say out loud.
 
-    PLAN.md 21a item 47. Only the mid is drawn, so only the mid is cleaned; the drawer
-    still shows the spread the model gave. The clamp is for the narrow ranges: a mid of
-    9987 with a high of 9990 would otherwise round past its own high and fail validation.
+    PLAN.md 21a item 47, using the engine's own steps so the bin, the ticket and the books
+    round the same way. Only the mid is cleaned; the low and the high keep every cent,
+    because the drawer draws the range. The clamp is for narrow ranges: a mid of 9987 with
+    a high of 9990 would otherwise round past its own high and fail validation.
     """
     mid = round_money(money.mid)
+    if mid is None:
+        return money
     return money.model_copy(
         update={"mid": mid, "low": min(money.low, mid), "high": max(money.high, mid)}
     )
 
 
 def clean_estimate(estimate: ValueEstimate) -> ValueEstimate:
-    """The four figures a person reads, cleaned to money people say out loud."""
+    """The four figures a person reads, cleaned before they leave the provider."""
     return estimate.model_copy(
         update={
             "fmv": clean_range(estimate.fmv),
@@ -169,34 +207,31 @@ def clean_estimate(estimate: ValueEstimate) -> ValueEstimate:
 
 
 class OpenAIEstimatorProvider(_Adapter):
-    """Value estimates, cached by what was seen, so no object is ever priced twice."""
+    """Value estimates, cached by normalised label so no object is ever priced twice."""
 
     def estimate(self, label: str, vision: VisionResult, mass_g: float,
                  crop: bytes | None = None, detail: str = "") -> ValueEstimate:
-        """Price one object. The crop and the answered question are optional, and help."""
-        key = cache_key(label, vision.visible_text, detail, vision.condition)
+        key = estimate_key(label, vision, detail)
         cached = self._memo.get(key) or read_estimate(key)
         if cached is not None:
             self._memo[key] = cached
             self.last_call = None
             return cached
         model = self.settings.llm_text_model
-        # PLAN.md 21a item 29: the estimate call runs at effort low. It is off the critical
-        # path, and a text model at effort none guesses the object's kind rather than the
-        # object. The setting still names any other effort; only the shared "none" default
-        # for text calls is lifted here.
-        effort = self.settings.llm_text_effort or ESTIMATE_EFFORT
-        if effort == "none":
-            effort = ESTIMATE_EFFORT
-        picture = None
-        if crop:
-            picture = downscale_jpeg(
+        # It is off the critical path since PLAN.md 21a item 25, and pricing a specific
+        # product off a photograph is the one thing here worth thinking about.
+        effort = self.settings.llm_estimate_effort
+        picture = (
+            downscale_jpeg(
                 crop, self.settings.vision_image_max_px, self.settings.vision_image_quality
             )
+            if crop
+            else None
+        )
         parsed = self._parse(
             build_estimate_request(
-                normalise_label(label), vision, mass_g, model, effort,
-                self.settings.llm_service_tier, picture, detail,
+                key, vision, mass_g, model, effort, self.settings.llm_service_tier,
+                picture, detail,
             ),
             model,
             ValueEstimate,
@@ -205,11 +240,7 @@ class OpenAIEstimatorProvider(_Adapter):
             raise ValueError("the estimator returned nothing this code could read")
         estimate: ValueEstimate = clean_estimate(
             parsed.model_copy(
-                update={
-                    "label": normalise_label(label),
-                    "provider": PROVIDER_NAME,
-                    "model": model,
-                }
+                update={"label": key, "provider": PROVIDER_NAME, "model": model}
             )
         )
         self._memo[key] = estimate

@@ -28,7 +28,7 @@ from app.identify.cost import CallUsage, cost_microusd, price_for
 from app.identify.openai_provider import PROVIDER_NAME
 from app.identify.openai_request import strict_schema
 from app.ledger.close import CloseResult, PeriodRows, rank_by_error_contribution
-from app.schemas import CloseCheck
+from app.schemas import CloseCheck, ToolStep
 
 log = logging.getLogger(__name__)
 
@@ -94,6 +94,9 @@ class Investigation(BaseModel):
     price_known: bool = False
     dropped_event_ids: list[int] = Field(default_factory=list)
     truncated: bool = False
+    # PLAN.md 21a item 49: the lookups it made, so the Close page can show the working
+    # rather than only the conclusion.
+    steps: list[ToolStep] = Field(default_factory=list)
 
 
 # The prompt ----------------------------------------------------------------
@@ -400,6 +403,7 @@ def investigate_with_model(
     tokens_out = 0
     seen_usage = False
     used_calls = 0
+    steps: list[ToolStep] = []
     parsed: InvestigationNote | None = None
 
     while True:
@@ -438,7 +442,15 @@ def investigate_with_model(
         messages.append(_assistant_message(message, calls))
         for call in calls:
             name = str(getattr(call.function, "name", ""))
-            payload = tools.run_tool(rows, name, _arguments(call))
+            arguments = _arguments(call)
+            payload = tools.run_tool(rows, name, arguments)
+            steps.append(
+                ToolStep(
+                    tool=name,
+                    args_summary=_args_summary(arguments),
+                    finding=_finding(payload),
+                )
+            )
             messages.append(
                 {
                     "role": "tool",
@@ -459,6 +471,7 @@ def investigate_with_model(
                 "latency_ms": latency_ms,
                 "tokens_in": tokens_in if seen_usage else None,
                 "tokens_out": tokens_out if seen_usage else None,
+                "steps": steps,
             }
         )
 
@@ -494,7 +507,26 @@ def investigate_with_model(
         price_known=usage.price_known,
         dropped_event_ids=dropped,
         truncated=truncated,
+        steps=steps,
     )
+
+
+def _args_summary(arguments: dict[str, Any]) -> str:
+    """What the step list shows for one call. Short, and safe to draw."""
+    if not arguments:
+        return ""
+    return ", ".join(f"{key}={str(value)[:40]}" for key, value in sorted(arguments.items()))[:120]
+
+
+def _finding(payload: dict[str, Any]) -> str:
+    """One line a person can read about what a tool came back with."""
+    if "error" in payload:
+        return str(payload["error"])[:120]
+    for key in ("events", "points", "bag_changes", "identifications"):
+        value = payload.get(key)
+        if isinstance(value, list):
+            return f"{len(value)} rows"
+    return "read"
 
 
 def investigate(

@@ -69,7 +69,8 @@ def test_an_injected_toss_becomes_an_event(dev_client: TestClient) -> None:
     assert listed[0]["id"] == body["event_id"]
     assert listed[0]["kind"] == EventKind.toss
     assert abs(listed[0]["mass_g"] - 95.0) < 0.01
-    assert listed[0]["crop_quality"] == CropQuality.ok
+    # An Add is a picture somebody took, not a diff, so nothing was isolated out of it.
+    assert listed[0]["crop_quality"] == CropQuality.low
 
 
 def test_an_injected_toss_with_an_image_gets_a_frame(

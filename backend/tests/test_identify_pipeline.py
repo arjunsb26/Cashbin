@@ -342,7 +342,9 @@ async def test_a_timeout_opens_the_ask_and_never_raises(settings: Settings) -> N
 
     outcome = await identify_event(event_id, CROP, [], 95.0, 2.0, deps)
     assert outcome.final is False
-    assert outcome.candidates
+    # PLAN.md 21a item 36: a call that gave nothing offers nothing. The question is the
+    # picture and Something else, not three catalog rows that weigh about the same.
+    assert outcome.candidates == ()
     with session_scope() as session:
         from app.models import Event
 

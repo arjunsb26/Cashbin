@@ -35,6 +35,86 @@ Newest first. Each lane writes under its own heading.
   the screen after each one. The run asserts what is on the screen at every step, prints the
   whole state machine log, and writes shots `c1` to `c8`.
 
+## 2026-09-20, lane s: build the bin firmware from the laptop
+
+- The laptop can now compile and flash the bin sketch with no Arduino IDE anywhere.
+  `arduino-cli` 1.5.2-rc.1 sits in `D:\codering\tools\arduino-cli\`, the board core is
+  `arduino:zephyr` 1.0.0 and the board is `arduino:zephyr:unoq`. The winget package has no
+  installer for this machine, so the toolchain came from Arduino's own Windows zip.
+- The sketch compiles. All four builds are green on the real core: ILI9341 and ST7789,
+  each over the serial link and over the App Lab router bridge. The largest of the four
+  uses 15% of program storage and 19% of memory, so there is a lot of room left.
+- The five argument `show_screen` handler was the open question from the hardware lane and
+  the answer is yes. `Bridge.provide_safe` takes it, against Arduino_RouterBridge 0.4.3.
+  The one string JSON fallback stays written down but is not needed.
+- `Serial` on this board is not a wire. The core's own header shows the UNO Q's device tree
+  giving `Serial` to the App Lab console and pushing D0 and D1 to `Serial1`, which is what
+  `bin_config.h` already assumed. Confirmed rather than guessed now.
+- The main sketch file is `sketch.ino` instead of `binbooks_bin.ino`. Arduino requires the
+  file to be named after its folder, and Arduino's own App layout is a folder called
+  `sketch` holding `sketch.ino`, so the file now drops into an App with no renaming.
+- The Adafruit ST7735 and ST7789 library is pinned to 1.10.4. Version 1.11.0 added a file
+  for a panel we do not use whose constructor names an argument `MOSI`, and the UNO Q
+  variant header defines `MOSI` as a number, so that file cannot compile on this board.
+- `hardware/uno_q/flash.ps1` and `flash.sh` compile, find the board, upload, then watch the
+  port for ten seconds and print the first JSON lines. They say which driver and which
+  host link they built for, and when no board is attached they say what to try instead of
+  failing silently. `-CompileOnly` checks the sketch with no board at all.
+- `hardware/uno_q/board_linux_setup.md` is the Linux side start to finish: the shell over
+  SSH and over the bundled `adb`, joining the hotspot, installing `websockets` past
+  Debian's externally managed refusal, copying the bridge, a systemd unit, and the App Lab
+  app layout to fall back to. Every command is cited.
+
+## 2026-09-20, lane p: the CFO workflow with depth, and the stats behind it
+
+- A review queue. `review_item` holds one open question per ticket per kind, raised when
+  the best option needs a person to sign it off, when a model estimate above the register
+  limit is carrying real money, when something valuable and untracked went in the bin,
+  when a ticket has waited longer than `review_after_s` for an answer, and when a person
+  had to overrule a label the model was confident about. `GET /api/review?status=` lists
+  them with the ticket's label, the amount and the reason.
+- Approve keeps the entries that were posted and closes the question. Reject undoes it:
+  for a donation the donate row is blocked and the ticket is re-ranked without it, so the
+  close stops counting money the business will not get; for anything else the entries are
+  reversed through `void_event`, the ticket goes void, and an asset that came off the
+  register goes back on it. Nothing is ever deleted. Every decision carries who and when
+  and writes a `correction` row with `field=review`.
+- An unresolved ask carries the candidates the bin was asking about, and
+  `POST /api/review/{id}/answer` sends a label to the same correction handler the phone
+  uses, so answering from the queue is the same answer given anywhere else.
+- A review agent. `POST /api/review/run` has it look at every open item with six read-only
+  tools: the ticket, the estimate, the register, the rule, how the same label was decided
+  before, and the policy thresholds. It comes back with a proposal, the lookups it made
+  and what each one found. It never acts. Every figure in its reason has to appear in a
+  tool result or the reason is replaced with the plain one. It may not approve a donation
+  of food somebody opened, or an estimate more than ten times the catalog median for its
+  class; either becomes ask_person. When a person decides, whether they agreed with the
+  proposal is recorded.
+- A fixed asset rollforward on the close: opening cost, additions, disposals, closing
+  cost, the same four on accumulated depreciation, and net book value at both ends, per
+  asset and in total. Closing equals opening plus movements, and the block says whether it
+  ties rather than leaving anyone to add it up.
+- A book to tax reconciliation in the M-1 shape: book loss on disposals, less the
+  differences, equals the tax loss on disposals, with the reason for every gap in plain
+  words (`bonus_100 taken in 2025`, `override`, `straight line, no difference`).
+- A Form 4797 schedule: abandonments on Part II line 10 and sales on Part III with the
+  recapture noted, each row carrying the dates, the cost, the depreciation allowed and the
+  rule ids from `tax_rules.yaml`. Plain data, and the footer says what it is not.
+- A close memo. One call to the agent model turns the computed totals, checks, rollforward
+  and bridge into 150 to 250 words for a CFO. It may not add a figure: every sentence is
+  checked against the data block and a sentence carrying a number that is not in there is
+  dropped. With no model configured a deterministic memo says the same things.
+- `GET /api/stats?bucket=day|week&from=&to=` totals a range into buckets: tickets, what
+  was written off, book loss, estimated value, kilograms to landfill, carbon avoided,
+  asks, first try accuracy, and a split by food, packaging, equipment, e-waste and other.
+  Plus averages per day, three to five plain suggestions, and one paragraph joining them.
+- The suggestions have a floor. Nothing is said unless the money is at least 200 cents or
+  the count at least 3, a percentage never appears without its base, no sentence can name
+  an option the engine did not offer for that item, and a comparison to the range before
+  is only drawn when both ranges hold at least five tickets.
+- The close investigator now records the lookups it made, and `CloseRead` carries them as
+  `investigation_steps` beside the note.
+
 ## 2026-09-20, lane n: add a toss from the phone
 
 - The phone page can make a toss by itself now, so a ticket can be raised without the
@@ -91,6 +171,71 @@ Newest first. Each lane writes under its own heading.
   backend answers the simulator route, so the demo build never shows it.
 - An empty scale reads 0 g rather than -0 g, and the trace stays inside its own column
   when the layout settles.
+
+## 2026-09-20, lane j: what the first hands-on test found
+
+- `sim/phone_sim.py` refuses to run a scenario that names a picture it cannot find, and says
+  which flag is usually the reason. A missing asset used to be a log line and an empty bin,
+  which meant every frame was a photograph of nothing, every ticket opened an ask, and the
+  whole run read as a backend bug.
+- An early vision call that answers "unknown" is not an answer. The settled crop, which is a
+  better picture of the same thing, gets its own call. A QR tag is read off the settled
+  frames before any vision answer is looked at, as it always was.
+- Nothing pays for a call that cannot win. A step whose weight is going down is a bag change
+  or a removal and starts nothing; a tag already in shot means no early call at all. In the
+  demo_real run that took eight live calls down to six, because a request on the wire cannot
+  be unsent when the step settles the wrong way.
+- The timeout belongs to the toss, not to each call. An early call that has already been
+  running for 700 ms gets 700 ms less, so a slow host cannot cost the wait twice.
+- PLAN.md 21a item 31. LCD line 2 says what to do and what not to do in one clause:
+  "Repair it, not trash". "No bin. Repair it" read as a bug to the first person who used it.
+- PLAN.md 21a item 32, which reverses item 27. The catalog is what the model is told, not
+  what it is allowed to say. Holding the label to an enum of the catalog made the bin answer
+  "laptop charger" for a USB stick, because a wrong catalog label was the only thing it was
+  allowed to say. `normalise_label` is the wall, as it always was, and the vision result
+  carries a required `description` in plain words.
+- PLAN.md 21a item 34. `POST /api/sim/toss` with a mass and no image makes a ticket out of
+  whatever the camera can see, so the Add button works without a scale. With fewer than two
+  frames it says "No camera frames yet. Start the camera first."
+- PLAN.md 21a items 35 and 51. `llm_timeout_s` is 5.0. On a cellular link calls took ten and fourteen
+  seconds and a person stood there holding something over a bin.
+- PLAN.md 21a item 33(b). Twenty more catalog rows for the things a table actually holds,
+  every material a WARM key and every mass prior deliberately wide. No price is filled in and
+  all twenty say NEEDS_HUMAN, because there was no time to check twenty prices and nothing is
+  invented. `/api/setup` lists them.
+- PLAN.md 21a item 29. The estimator sees the item: the same picture the vision call saw,
+  the description, and whatever was legible on it. It used to see the word alone, which is
+  how a hundred and fifty dollar mouse came back at twelve dollars.
+- PLAN.md 21a item 36. A picture somebody took on purpose is the item, so an added toss uses
+  the whole newest frame rather than a diff. A hand-held phone diffed against a frame from
+  two seconds earlier finds the table. And an ask offers only the model's own guesses at 0.3
+  or better, and nothing at all when it had none: "laptop charger, power bank, pencil at 33
+  percent each" was three catalog rows that weighed about the same.
+- PLAN.md 21a item 37. "Fine to bin" unless there is something worth saying. `speak_up_cents`,
+  default 100, is a live setting. A bin that argues about three cents is a bin nobody listens
+  to the fourth time.
+- PLAN.md 21a item 47. An estimate is the same figure twice: the cache key carries what is
+  written on the thing, its condition and any detail answered about it. And the middle of
+  each range is rounded to money a person would say, fifty cents under twenty dollars up to
+  ten dollars above a thousand, while low and high keep every cent for the drawer.
+- PLAN.md 21a item 49. A label the scale has never weighed is taken on the model's word. Mass
+  fusion applies only when the top label has a usable catalog prior, and never adds a label
+  the model did not offer. A battery named at 0.98 was opening an ask because catalog rows
+  that merely weigh the same were being fused against it.
+- PLAN.md 21a item 48, (a) to (f). One place, `engine/tax.makes_no_sense`, decides that an
+  option is not a real answer, and a refused option stays on the ticket with its reason so
+  the drawer shows what was considered. Resell wants five dollars, a working item and
+  something that is not food or packaging. Repair wants the thing broken, twenty dollars to
+  replace, and under sixty percent of that to fix. Donate wants food sealed. Recycle wants a
+  material with somewhere to go. The live case: a battery now ends with trash blocked,
+  recycle best and "Recycle, not trash", instead of "Repair it instead".
+- PLAN.md 21a item 51, off Lane R's bench. A reply that describes the thing and then says
+  "unknown" gets one more go at effort `low`, on the same picture: luna at low named the
+  battery, the pen and the flash drive every time. The class is decided here and not by the
+  model, because it flipped between identical crops and the class is which ledger account a
+  toss posts to: the catalog decides for a label it knows, everything else is untracked
+  unless the words used about it are food words. `llm_timeout_s` is 5.0, because p90 is
+  3.1 s and five of sixty eight calls crossed four.
 
 ## 2026-09-19, lane l: a webcam camera and a one-command launcher
 

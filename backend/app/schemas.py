@@ -29,6 +29,8 @@ from app.models import (
     ItemClass,
     JournalBasis,
     OptionKind,
+    ReviewKind,
+    ReviewStatus,
     TaxMethod,
 )
 
@@ -322,7 +324,7 @@ class PhoneResult(WireModel):
 class PhoneAsk(WireModel):
     type: Literal["ask"] = "ask"
     event_id: int
-    candidates: list[AskCandidate] = Field(min_length=1, max_length=4)
+    candidates: list[AskCandidate] = Field(default_factory=list, max_length=4)
     crop_url: str | None = None
     looks_like: str | None = Field(default=None, max_length=DESCRIPTION_MAX)
 
@@ -381,7 +383,9 @@ class UiJournalPosted(WireModel):
 class UiAskOpened(WireModel):
     type: Literal["ask.opened"] = "ask.opened"
     event_id: int
-    candidates: list[AskCandidate] = Field(min_length=1, max_length=4)
+    # Empty when the model had no guess worth drawing as a button. The question is then
+    # the picture, what the model says it sees, and Something else.
+    candidates: list[AskCandidate] = Field(default_factory=list, max_length=4)
     crop_url: str | None = None
     # The model's plain words about what it is looking at, when it had any. Shown beside
     # the buttons so a person knows what the camera saw before they answer.
@@ -836,6 +840,13 @@ class CloseRead(ApiModel):
     checks: list[CloseCheck] = Field(default_factory=list)
     investigation_md: str | None = None
     report: dict[str, Any] = Field(default_factory=dict)
+    # Lane P. The four depth blocks a CFO reads. They are defined at the end of this
+    # file, so CloseRead is rebuilt down there once they exist.
+    rollforward: RollforwardBlock | None = None
+    reconciliation: ReconciliationBlock | None = None
+    form4797: Form4797Block | None = None
+    memo_md: str | None = None
+    investigation_steps: list[ToolStep] = Field(default_factory=list)
 
 
 class RuleRead(ApiModel):
@@ -865,6 +876,7 @@ class SettingsRead(ApiModel):
     disposal_fee_cents: int
     recycle_fee_cents: int
     tone_co2e_kg: float
+    speak_up_cents: int = 100
     step_min_g: float
     settle_ms: int
     bag_change_g: float
@@ -878,6 +890,7 @@ class SettingsRead(ApiModel):
     llm_service_tier: ServiceTier = "fast"
     llm_vision_effort: ReasoningEffort = "none"
     llm_text_effort: ReasoningEffort = "none"
+    llm_estimate_effort: ReasoningEffort = "low"
 
 
 class SettingsUpdate(ApiModel):
@@ -886,6 +899,7 @@ class SettingsUpdate(ApiModel):
     disposal_fee_cents: int | None = Field(default=None, ge=0)
     recycle_fee_cents: int | None = Field(default=None, ge=0)
     tone_co2e_kg: float | None = Field(default=None, ge=0.0)
+    speak_up_cents: int | None = Field(default=None, ge=0)
     step_min_g: float | None = Field(default=None, gt=0.0)
     settle_ms: int | None = Field(default=None, gt=0)
     bag_change_g: float | None = Field(default=None, gt=0.0)
@@ -897,6 +911,7 @@ class SettingsUpdate(ApiModel):
     llm_service_tier: ServiceTier | None = None
     llm_vision_effort: ReasoningEffort | None = None
     llm_text_effort: ReasoningEffort | None = None
+    llm_estimate_effort: ReasoningEffort | None = None
 
 
 class DeviceTareResponse(ApiModel):
@@ -953,3 +968,214 @@ UiEventCreated.model_rebuild()
 UiEventUpdated.model_rebuild()
 UiJournalPosted.model_rebuild()
 UiMetricsUpdated.model_rebuild()
+
+
+# Lane P, the review queue and the depth blocks on the close (PLAN.md 21a item 39) ------
+# Appended at the end of the file on purpose, so two lanes editing this file at once do
+# not land on the same lines.
+
+REVIEW_NOTE_MAX = 240
+DECIDED_BY_MAX = 40
+
+
+class ToolStep(ApiModel):
+    """One lookup an agent made, and what it found. This is the working, shown."""
+
+    tool: str = Field(default="", max_length=40)
+    args_summary: str = Field(default="", max_length=120)
+    finding: str = Field(default="", max_length=240)
+
+
+class ReviewProposal(ApiModel):
+    """What the review agent thinks, and how it got there. It never acts on this."""
+
+    decision: Literal["approve", "reject", "ask_person"] = "ask_person"
+    reason: str = Field(default="", max_length=REVIEW_NOTE_MAX)
+    evidence: list[str] = Field(default_factory=list)
+    steps: list[ToolStep] = Field(default_factory=list)
+    downgraded_reason: str | None = Field(default=None, max_length=REVIEW_NOTE_MAX)
+    provider: str = ""
+    model: str = ""
+    tool_calls: int = 0
+    latency_ms: int | None = None
+
+
+class ReviewItemRead(ApiModel):
+    """One open question, as the Review tab lists it."""
+
+    id: int
+    kind: ReviewKind
+    status: ReviewStatus
+    event_id: int
+    label: str | None = None
+    asset_id: int | None = None
+    asset_tag: str | None = None
+    amount_cents: int = 0
+    reason: str = ""
+    decided_by: str | None = None
+    decided_at: str | None = None
+    note: str | None = None
+    created_at: str = ""
+    # An unresolved ask carries what the bin was asking, so a person can answer it from
+    # the queue instead of going to find the ticket.
+    candidates: list[AskCandidate] = Field(default_factory=list)
+    proposal: ReviewProposal | None = None
+    agreed_with_agent: bool | None = None
+
+
+class ReviewListResponse(ApiModel):
+    items: list[ReviewItemRead] = Field(default_factory=list)
+    open_count: int = 0
+
+
+class ReviewDecision(ApiModel):
+    """Who decided and why. Both fields are outside text, so both are cleaned."""
+
+    by: str = Field(default="person", max_length=DECIDED_BY_MAX)
+    note: str = Field(default="", max_length=REVIEW_NOTE_MAX)
+
+    @field_validator("by", mode="before")
+    @classmethod
+    def _clean_by(cls, value: Any) -> Any:
+        cleaned = _clean_free_text(value, DECIDED_BY_MAX)
+        return cleaned or "person" if isinstance(cleaned, str) else cleaned
+
+    @field_validator("note", mode="before")
+    @classmethod
+    def _clean_note(cls, value: Any) -> Any:
+        return _clean_free_text(value, REVIEW_NOTE_MAX)
+
+
+class ReviewDecisionResponse(ApiModel):
+    """What the decision did: the item as it now stands, and what it moved."""
+
+    item: ReviewItemRead
+    reversing_entry_ids: list[int] = Field(default_factory=list)
+    difference_cents: int = 0
+    detail: str = ""
+    agreed_with_agent: bool | None = None
+
+
+class ReviewRunResponse(ApiModel):
+    """What one run of the review agent produced."""
+
+    proposed: int = 0
+    items: list[ReviewItemRead] = Field(default_factory=list)
+
+
+class RollforwardRow(ApiModel):
+    """One asset's movement through the period, cost and accumulated depreciation."""
+
+    asset_id: int | None = None
+    tag: str = ""
+    description: str = ""
+    opening_cost_cents: int = 0
+    additions_cents: int = 0
+    disposals_cost_cents: int = 0
+    closing_cost_cents: int = 0
+    opening_accum_cents: int = 0
+    depreciation_cents: int = 0
+    disposals_accum_cents: int = 0
+    closing_accum_cents: int = 0
+    opening_nbv_cents: int = 0
+    closing_nbv_cents: int = 0
+
+
+class RollforwardBlock(ApiModel):
+    period_start: str = ""
+    period_end: str = ""
+    rows: list[RollforwardRow] = Field(default_factory=list)
+    total: RollforwardRow = Field(default_factory=RollforwardRow)
+    ties: bool = True
+
+
+class ReconciliationRow(ApiModel):
+    """One disposed asset, book against tax, with the reason for the gap."""
+
+    event_id: int
+    asset_id: int | None = None
+    tag: str = ""
+    description: str = ""
+    book_loss_cents: int = 0
+    tax_loss_cents: int = 0
+    difference_cents: int = 0
+    reason: str = ""
+    rule_ids: list[str] = Field(default_factory=list)
+
+
+class ReconciliationBlock(ApiModel):
+    """The M-1 shape: book loss, less the differences, equals the tax loss."""
+
+    rows: list[ReconciliationRow] = Field(default_factory=list)
+    book_loss_cents: int = 0
+    differences_cents: int = 0
+    tax_loss_cents: int = 0
+    ties: bool = True
+    title: str = ""
+
+
+class Form4797Row(ApiModel):
+    description: str = ""
+    date_acquired: str = ""
+    date_disposed: str = ""
+    gross_proceeds_cents: int = 0
+    cost_cents: int = 0
+    depreciation_allowed_cents: int = 0
+    gain_or_loss_cents: int = 0
+    part: Literal["II", "III"] = "II"
+    line: str = ""
+    rule_ids: list[str] = Field(default_factory=list)
+    recapture_note: str = ""
+
+
+class Form4797Block(ApiModel):
+    part_ii_rows: list[Form4797Row] = Field(default_factory=list)
+    part_iii_rows: list[Form4797Row] = Field(default_factory=list)
+    part_ii_line_10_cents: int = 0
+    part_iii_recapture_cents: int = 0
+    disclaimer: str = ""
+
+
+class CategoryStat(ApiModel):
+    category: Literal["food", "packaging", "equipment", "e-waste", "other"]
+    tosses: int = 0
+    cents: int = 0
+    kg: float = 0.0
+
+
+class StatsBucket(ApiModel):
+    """One day or one week of tickets, totalled."""
+
+    start: str
+    tosses: int = 0
+    wasted_cents: int = 0
+    book_loss_cents: int = 0
+    estimated_value_cents: int = 0
+    kg_landfill: float = 0.0
+    kg_co2e_avoided: float = 0.0
+    asks: int = 0
+    first_try_accuracy: float | None = None
+    by_category: list[CategoryStat] = Field(default_factory=list)
+
+
+class StatsAverages(ApiModel):
+    days: float = 0.0
+    tosses_per_day: float = 0.0
+    wasted_cents_per_day: float = 0.0
+    kg_per_day: float = 0.0
+
+
+class StatsResponse(ApiModel):
+    """What the bin saw over a range, by day or by week."""
+
+    bucket: Literal["day", "week"] = "day"
+    period_start: str = ""
+    period_end: str = ""
+    buckets: list[StatsBucket] = Field(default_factory=list)
+    averages: StatsAverages = Field(default_factory=StatsAverages)
+    suggestions: list[str] = Field(default_factory=list)
+    summary_md: str | None = None
+
+
+# CloseRead points forward at the three blocks above, so it is resolved here.
+CloseRead.model_rebuild()

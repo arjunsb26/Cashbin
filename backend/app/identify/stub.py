@@ -211,10 +211,10 @@ class StubEstimatorProvider:
     def __init__(self) -> None:
         self.last_call: CallUsage | None = None
 
-    def estimate(self, label: str, vision: VisionResult, mass_g: float,
-                 crop: bytes | None = None, detail: str = "") -> ValueEstimate:
-        """The crop and the answered question are what the real estimator reads. The stub
-        takes them so it can stand in for one, and prices by class as it always has."""
+    def estimate(
+        self, label: str, vision: VisionResult, mass_g: float, crop: bytes | None = None,
+        detail: str = "",
+    ) -> ValueEstimate:
         started = time.perf_counter()
         table = _RANGES[vision.item_class]
         rationale = f"stub range for a {vision.item_class.value} item"

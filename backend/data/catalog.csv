@@ -29,3 +29,23 @@ id,label,class,unit_cost_cents,unit_mass_g,price_per_kg_cents,fmv_per_kg_cents,m
 28,hdmi cable,untracked,779,,,,"{""mixed_electronics"":1.0}","[""electronics""]",130.0,6084.0,3,https://www.monoprice.com/product?p_id=13779
 29,power bank,untracked,2599,212.0,,,"{""portable_electronic_devices"":1.0}","[""electronics"",""battery""]",212.0,16179.8,3,https://www.anker.com/products/a1229
 30,webcam,untracked,5999,,,,"{""electronic_peripherals"":1.0}","[""electronics""]",160.0,9216.0,3,https://www.logitech.com/en-us/shop/p/c920s-pro-hd-webcam
+31,usb flash drive,untracked,,,,,"{""mixed_electronics"":1.0}","[""electronics""]",12.0,36.0,3,NEEDS_HUMAN
+32,pen,untracked,,,,,"{""mixed_plastics"":1.0}",[],10.0,25.0,3,NEEDS_HUMAN
+33,pencil,untracked,,,,,"{""dimensional_lumber"":1.0}",[],7.0,12.2,3,NEEDS_HUMAN
+34,notebook,untracked,,,,,"{""mixed_paper"":1.0}",[],200.0,10000.0,3,NEEDS_HUMAN
+35,sticky notes,untracked,,,,,"{""mixed_paper"":1.0}",[],40.0,400.0,3,NEEDS_HUMAN
+36,sticker sheet,untracked,,,,,"{""mixed_paper"":1.0}",[],5.0,6.2,3,NEEDS_HUMAN
+37,lanyard badge,untracked,,,,,"{""mixed_plastics"":1.0}",[],25.0,156.2,3,NEEDS_HUMAN
+38,laptop,untracked,,,,,"{""portable_electronic_devices"":1.0}","[""electronics"",""battery""]",1400.0,490000.0,3,NEEDS_HUMAN
+39,tablet,untracked,,,,,"{""portable_electronic_devices"":1.0}","[""electronics"",""battery""]",480.0,57600.0,3,NEEDS_HUMAN
+40,phone case,untracked,,,,,"{""mixed_plastics"":1.0}",[],30.0,225.0,3,NEEDS_HUMAN
+41,usb-a cable,untracked,,,,,"{""mixed_electronics"":1.0}","[""electronics""]",40.0,400.0,3,NEEDS_HUMAN
+42,lightning cable,untracked,,,,,"{""mixed_electronics"":1.0}","[""electronics""]",35.0,306.2,3,NEEDS_HUMAN
+43,aa battery,untracked,,,,,"{""mixed_metals"":1.0}","[""battery""]",24.0,144.0,3,NEEDS_HUMAN
+44,coin cell battery,untracked,,,,,"{""mixed_metals"":1.0}","[""battery""]",3.0,2.2,3,NEEDS_HUMAN
+45,granola bar,inventory,,,,,"{""food_waste"":0.9,""mixed_plastics"":0.1}","[""food""]",45.0,506.2,3,NEEDS_HUMAN
+46,energy drink can,inventory,,,,,"{""food_waste"":0.95,""aluminum_cans"":0.05}","[""food""]",260.0,16900.0,3,NEEDS_HUMAN
+47,coffee pod,inventory,,,,,"{""food_waste"":0.6,""mixed_plastics"":0.4}","[""food""]",12.0,36.0,3,NEEDS_HUMAN
+48,napkin,inventory,,,,,"{""mixed_paper"":1.0}",[],3.0,2.2,3,NEEDS_HUMAN
+49,plastic fork,inventory,,,,,"{""mixed_plastics"":1.0}",[],4.0,4.0,3,NEEDS_HUMAN
+50,tea bag,inventory,,,,,"{""food_waste"":1.0}","[""food""]",3.0,2.2,3,NEEDS_HUMAN

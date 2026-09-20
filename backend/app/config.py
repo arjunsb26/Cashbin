@@ -72,6 +72,10 @@ class Settings(BaseSettings):
     # How much better on carbon another option has to be before the tone stops calling the
     # bin a fine answer. The engine reads it, so it changes like every other threshold.
     tone_co2e_kg: float = Field(default=0.02, ge=0.0)
+    # PLAN.md 21a item 37. How much better another option has to be before the bin says so
+    # out loud. Under this it says "Fine to bin", because a bin that argues about three
+    # cents is a bin nobody listens to.
+    speak_up_cents: int = Field(default=100, ge=0)
 
     # Step detection
     step_min_g: float = Field(default=3.0, gt=0.0)
@@ -99,13 +103,18 @@ class Settings(BaseSettings):
     # at all. The estimator does arithmetic on a price, so it keeps a low effort.
     llm_vision_effort: str = "none"
     llm_text_effort: str = "none"
+    # The value estimate is off the critical path, and pricing a particular product off a
+    # photograph is the one call here that is worth thinking about.
+    llm_estimate_effort: str = "low"
     # How the host is asked to schedule the call. "fast" is the low latency queue; "default"
     # turns the request back into an ordinary one.
     llm_service_tier: str = "fast"
-    # PLAN.md 21a item 35. On a cellular link calls took ten and fourteen seconds and the
-    # person stood there holding a thing over a bin. Four seconds and then the ask, which
-    # is an answer a person can act on rather than a wait with no end in sight.
-    llm_timeout_s: float = Field(default=4.0, gt=0.0)
+    # PLAN.md 21a items 35 and 51. On a cellular link calls took ten and fourteen seconds
+    # and the person stood there holding a thing over a bin. Five seconds and then the ask,
+    # which is an answer somebody can act on rather than a wait with no end in sight. Lane
+    # R measured p90 at 3.1 s and 5 of 68 calls over 4 s on the hotspot, so four cut off
+    # answers that were coming.
+    llm_timeout_s: float = Field(default=5.0, gt=0.0)
     # The longest side of the picture actually sent. The full size crop stays on disk for the
     # evidence drawer; the model is classifying a thing, not reading fine print.
     vision_image_max_px: int = Field(default=384, ge=64, le=4096)
@@ -147,6 +156,7 @@ class Settings(BaseSettings):
         "llm_agent_model",
         "llm_vision_effort",
         "llm_text_effort",
+        "llm_estimate_effort",
         "llm_service_tier",
         "dashboard_url",
         "openai_api_key",
@@ -159,7 +169,7 @@ class Settings(BaseSettings):
     def _clean_str(cls, value: Any) -> Any:
         return _clean(value) if isinstance(value, str) else value
 
-    @field_validator("llm_vision_effort", "llm_text_effort")
+    @field_validator("llm_vision_effort", "llm_text_effort", "llm_estimate_effort")
     @classmethod
     def _known_effort(cls, value: str) -> str:
         """An effort the host does not know is a 400 on every call, so refuse it here."""
@@ -195,6 +205,7 @@ RUNTIME_SETTING_KEYS: tuple[str, ...] = (
     "disposal_fee_cents",
     "recycle_fee_cents",
     "tone_co2e_kg",
+    "speak_up_cents",
     "step_min_g",
     "settle_ms",
     "bag_change_g",
@@ -206,6 +217,7 @@ RUNTIME_SETTING_KEYS: tuple[str, ...] = (
     "llm_service_tier",
     "llm_vision_effort",
     "llm_text_effort",
+    "llm_estimate_effort",
 )
 
 _settings: Settings | None = None

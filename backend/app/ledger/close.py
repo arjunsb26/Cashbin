@@ -32,7 +32,7 @@ from app.engine.records import ItemClass as EngineItemClass
 from app.engine.records import ItemRecord as EngineItemRecord
 from app.engine.records import OptionScore as EngineOptionScore
 from app.engine.records import TaxMethod as EngineTaxMethod
-from app.ledger import queries, register
+from app.ledger import form4797, queries, reconciliation, register, rollforward
 from app.ledger.journal import untracked_flag
 from app.schemas import CloseCheck
 
@@ -857,6 +857,9 @@ class CloseResult(BaseModel):
     totals: dict[str, Any] = Field(default_factory=dict)
     checks: list[CloseCheck] = Field(default_factory=list)
     investigation_md: str | None = None
+    # Lane P. The memo lives in `report_json` rather than in a new column, so an
+    # existing database file needs no migration to carry it.
+    memo_md: str | None = None
     report: dict[str, Any] = Field(default_factory=dict)
 
     @property
@@ -890,6 +893,13 @@ def compute_close(
         "missed_opportunity": missed_opportunity(rows, engine_settings),
         "sustainability": sustainability(rows, engine_settings),
         "ghost_assets": ghost_assets(rows, engine_settings),
+        # Lane P, PLAN.md 21a item 39. The three schedules a CFO asks for, computed
+        # from the register and the entries this close already loaded.
+        "rollforward": rollforward.compute(session, period_start, period_end).model_dump(),
+        "reconciliation": reconciliation.compute(
+            session, period_start, period_end
+        ).model_dump(),
+        "form4797": form4797.compute(session, period_start, period_end).model_dump(),
     }
 
     floor_g = float(getattr(settings, "step_min_g", 3.0))
@@ -924,6 +934,8 @@ def persist_close(session: Session, result: CloseResult) -> models.Close:
     report["checks"] = [check.model_dump() for check in result.checks]
     report["status"] = result.status
     report["investigation_md"] = result.investigation_md
+    report.setdefault("memo_md", result.memo_md)
+    result.memo_md = report.get("memo_md")
 
     row = models.Close(
         period_start=result.period_start,
@@ -943,6 +955,8 @@ def persist_close(session: Session, result: CloseResult) -> models.Close:
 
 
 Investigator = Callable[[PeriodRows, "CloseResult"], None]
+# The memo is written after every figure is fixed, and may write only `memo_md`.
+MemoWriter = Callable[["CloseResult"], None]
 
 
 def run_close(
@@ -951,6 +965,7 @@ def run_close(
     period_end: str,
     settings: Any,
     investigator: Investigator | None = None,
+    memo_writer: MemoWriter | None = None,
 ) -> CloseResult:
     """The whole close: total the books, check them, narrate a failure, save the row.
 
@@ -960,7 +975,24 @@ def run_close(
     `report["investigation"]`. Every number was already fixed before it ran.
     """
     result, rows = compute_close(session, period_start, period_end, settings)
+    catch_up_review(session, rows, settings)
     if investigator is not None and result.needs_investigation:
         investigator(rows, result)
+    if memo_writer is not None:
+        memo_writer(result)
     persist_close(session, result)
     return result
+
+
+def catch_up_review(session: Session, rows: PeriodRows, settings: Any) -> int:
+    """Raise anything the pipeline missed, so the queue is whole before the period closes.
+
+    The pipeline raises a review item when a ticket finishes. A ticket that changed
+    afterwards, or one that was posted before the queue existed, would never reach it,
+    so the close asks the same question of every ticket in the period. Asking twice
+    about the same ticket costs nothing: the table refuses a second copy.
+    """
+    from app.ledger import review
+
+    made = review.create_for_period(session, [event.id for event in rows.tosses], settings)
+    return len(made)

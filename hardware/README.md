@@ -8,7 +8,7 @@ Two pieces of code:
 | File | Runs on | Job |
 |---|---|---|
 | `uno_q/bridge.py` | the UNO Q's Linux side | reads grams, holds the socket to the laptop, passes screens back |
-| `uno_q/sketch/binbooks_bin.ino` | the UNO Q's microcontroller | reads the load cell, draws the display |
+| `uno_q/sketch/sketch.ino` | the UNO Q's microcontroller | reads the load cell, draws the display |
 
 Nothing on the bin decides anything. It reports grams and draws what it is told. The
 laptop does the filtering, the detection and the accounting. That is deliberate: the bin
@@ -16,7 +16,20 @@ stays simple, and every bug is debuggable on a screen with a log.
 
 ## 1. What to install
 
-On the microcontroller side, in the Arduino Library Manager:
+The whole microcontroller toolchain is already on this laptop and needs no Arduino IDE.
+`arduino-cli` lives in `D:\codering\tools\arduino-cli\`, and both flash scripts find it
+there on their own. To set it up again on another machine:
+
+```
+arduino-cli core install arduino:zephyr
+arduino-cli lib install "HX711 Arduino Library"
+arduino-cli lib install "Adafruit GFX Library"
+arduino-cli lib install "Adafruit ILI9341"
+arduino-cli lib install "Adafruit ST7735 and ST7789 Library@1.10.4"
+arduino-cli lib install "Arduino_RouterBridge"
+```
+
+The board is `arduino:zephyr:unoq`. What each library is for:
 
 | Library | Listed as | Why |
 |---|---|---|
@@ -24,8 +37,28 @@ On the microcontroller side, in the Arduino Library Manager:
 | Adafruit GFX | Adafruit GFX Library | the drawing calls |
 | Panel driver | Adafruit ILI9341, or Adafruit ST7735 and ST7789 Library | the display |
 | Adafruit BusIO | installed with the driver | SPI plumbing |
+| Router bridge | Arduino_RouterBridge | the link to the board's Linux side |
 
-On the Linux side of the UNO Q:
+The version pin on the ST7735 and ST7789 library is not fussiness, it is a real
+incompatibility. Version 1.11.0 added a file for the ST7796S panel whose constructor names
+an argument `MOSI`, and the UNO Q's variant header defines `MOSI` as a number, so the
+argument list turns into nonsense and the build stops. The panel we use is not even the
+ST7796S, but the Library Manager compiles every file in the folder. 1.10.4 predates that
+file and builds clean. Nothing in this repository uses anything 1.11.0 added.
+
+To build and upload, from the repository root:
+
+```
+powershell -ExecutionPolicy Bypass -File hardware\uno_q\flash.ps1
+```
+
+It prints the driver it is building for, compiles, finds the board, uploads, then watches
+the port for ten seconds so the first JSON lines are on screen. `-CompileOnly` skips
+everything that needs a board, which is how the sketch is checked without one.
+`hardware/uno_q/flash.sh` is the same thing for a shell.
+
+On the Linux side of the UNO Q, which has a page of its own in
+`uno_q/board_linux_setup.md`:
 
 ```
 sudo apt update
