@@ -95,7 +95,7 @@ def test_the_everyday_rows_carry_a_price_and_the_listing_it_came_from() -> None:
         item = table[label]
         assert item.unit_cost_cents is not None, label
         assert item.unit_cost_cents > 0, label
-        assert "http" in item.price_source, label
+        assert item.price_source and "http" in item.price_source, label
 
 
 def test_a_row_nobody_could_price_says_so_and_holds_no_figure() -> None:
