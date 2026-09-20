@@ -16,8 +16,8 @@ import asyncio
 import json
 import logging
 import time
-from collections.abc import Awaitable, Callable, Sequence
-from dataclasses import dataclass
+from collections.abc import Awaitable, Callable, Iterable, Mapping, Sequence
+from dataclasses import dataclass, field
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -69,11 +69,43 @@ async def _no_op(_event_id: int, _label: str, _cls: ItemClass, _method: Identify
 # What the catalog says, wherever it lives -----------------------------------
 
 
+# The key on `posterior_json` that says which branch decided. It carries an underscore, and
+# a validated label cannot, so it can never collide with a real label in that map.
+SAME_TREATMENT_KEY = "same_treatment"
+
+
+@dataclass(frozen=True)
+class Treatment:
+    """Everything about a label that changes what the books do with it.
+
+    PLAN.md 21a item 28. Two labels the model cannot tell apart are only a problem when
+    they lead somewhere different. A usb cable against an hdmi cable is the same class, the
+    same flag and the same material, so the entry, the tax and the carbon come out
+    identical and the margin rule is asking a question with no consequence. A power bank
+    against a portable speaker is not: one carries a battery flag and one does not.
+    """
+
+    item_class: ItemClass
+    flags: frozenset[str]
+    materials: tuple[tuple[str, float], ...]
+
+
 @dataclass(frozen=True)
 class CatalogFacts:
     labels: tuple[str, ...]
     classes: dict[str, ItemClass]
     priors: dict[str, MassPrior]
+    treatments: dict[str, Treatment] = field(default_factory=dict)
+
+    def same_treatment(self, one: str, other: str) -> bool:
+        """True when the books cannot tell these two labels apart.
+
+        A label the catalog does not carry has no known treatment, and an unknown is never
+        the same as anything, including another unknown.
+        """
+        first = self.treatments.get(one)
+        second = self.treatments.get(other)
+        return first is not None and second is not None and first == second
 
 
 def catalog_facts(session: Session) -> CatalogFacts:
@@ -85,6 +117,7 @@ def catalog_facts(session: Session) -> CatalogFacts:
     """
     classes: dict[str, ItemClass] = {}
     priors: dict[str, MassPrior] = {}
+    treatments: dict[str, Treatment] = {}
     try:
         from app.engine.records import load_catalog
 
@@ -94,6 +127,9 @@ def catalog_facts(session: Session) -> CatalogFacts:
         seed = ()
     for item in seed:
         classes[item.label] = ItemClass(str(item.item_class))
+        treatments[item.label] = _treatment(
+            ItemClass(str(item.item_class)), item.regulatory_flags, item.material_mix
+        )
         if item.mass_prior_mean_g is not None:
             priors[item.label] = MassPrior(
                 mean_g=item.mass_prior_mean_g,
@@ -102,6 +138,11 @@ def catalog_facts(session: Session) -> CatalogFacts:
             )
     for row in session.execute(select(CatalogItem).order_by(CatalogItem.label)).scalars():
         classes[row.label] = row.item_class
+        treatments[row.label] = _treatment(
+            row.item_class,
+            _json_list(row.regulatory_flags_json),
+            _json_map(row.material_mix_json),
+        )
         if row.mass_prior_mean_g is not None:
             priors[row.label] = MassPrior(
                 mean_g=row.mass_prior_mean_g,
@@ -110,7 +151,35 @@ def catalog_facts(session: Session) -> CatalogFacts:
             )
         else:
             priors.pop(row.label, None)
-    return CatalogFacts(tuple(sorted(classes)), classes, priors)
+    return CatalogFacts(tuple(sorted(classes)), classes, priors, treatments)
+
+
+def _treatment(
+    item_class: ItemClass, flags: Iterable[str], materials: Mapping[str, float]
+) -> Treatment:
+    return Treatment(
+        item_class=item_class,
+        flags=frozenset(str(flag) for flag in flags),
+        materials=tuple(sorted((str(k), round(float(v), 4)) for k, v in materials.items())),
+    )
+
+
+def _json_list(raw: str | None) -> list[str]:
+    try:
+        loaded = json.loads(raw) if raw else []
+    except json.JSONDecodeError:
+        return []
+    return [str(item) for item in loaded] if isinstance(loaded, list) else []
+
+
+def _json_map(raw: str | None) -> dict[str, float]:
+    try:
+        loaded = json.loads(raw) if raw else {}
+    except json.JSONDecodeError:
+        return {}
+    if not isinstance(loaded, dict):
+        return {}
+    return {str(k): float(v) for k, v in loaded.items()}
 
 
 # Providers ------------------------------------------------------------------
@@ -545,16 +614,41 @@ async def identify_event(
                 usage=_local_usage("mass-prior-fusion"),
             )
 
-        # 5. Decide.
+        # 5. Decide. PLAN.md 21a item 28: by what it costs to be wrong, not by the margin
+        # alone. Two labels that lead to the same entry, the same tax and the same carbon
+        # are one answer as far as the books are concerned, and asking a person to pick
+        # between them teaches the room that the bin cannot tell a cable from a cable.
         best, second = top_two(final_dist)
         margin = best[1] - (second[1] if second else 0.0)
-        if best[1] >= settings.confident_p and margin >= settings.min_margin:
+        sure = best[1] >= settings.confident_p
+        clear = margin >= settings.min_margin
+        same_books = second is not None and facts.same_treatment(best[0], second[0])
+        if sure and not clear and same_books:
+            log.info(
+                "event %s: %s and %s are too close to call and come out the same on the "
+                "books, so %s is taken",
+                event_id,
+                best[0],
+                second[0] if second else None,
+                best[0],
+            )
+        if sure and (clear or same_books):
             row.is_final = True
             row.label = best[0]
             row.item_class = facts.classes.get(best[0], vision.item_class)
             row.confidence = best[1]
+            if not clear:
+                # The drawer says "two candidates, same treatment" off this.
+                row.posterior_json = json.dumps({**final_dist, SAME_TREATMENT_KEY: 1.0})
             session.flush()
             return await _finalise(session, event, row, active, started)
+        log.info(
+            "event %s: asking, p=%.2f margin=%.2f same treatment=%s",
+            event_id,
+            best[1],
+            margin,
+            same_books,
+        )
         return await _ask(session, event, final_dist, active, started, row)
     finally:
         session.commit()
@@ -786,10 +880,12 @@ def mass_fit_scores(
 
 
 __all__ = [
+    "SAME_TREATMENT_KEY",
     "CatalogFacts",
     "IdentifyDeps",
     "Outcome",
     "Providers",
+    "Treatment",
     "ask_candidates",
     "build_context",
     "build_providers",
