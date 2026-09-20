@@ -361,6 +361,28 @@ def write_identification(
     return row
 
 
+# Words that make something food when the catalog has never heard of it. Short on purpose:
+# a wrong guess here puts a toss through the wrong ledger account.
+FOOD_WORDS = ("food", "snack", "fruit", "bread", "drink", "cup of", "slice", "edible")
+
+
+def class_for(label: str, facts: CatalogFacts, description: str = "") -> ItemClass:
+    """What this is, on the books, decided the same way every time.
+
+    PLAN.md 21a item 51. The model was returning a class of its own and it flipped between
+    identical crops, which moves a toss from inventory to untracked and changes which
+    account it posts to. The catalog decides for anything it knows. Everything else is
+    untracked, unless the words the model used about it are food words.
+    """
+    known = facts.classes.get(label)
+    if known is not None:
+        return known
+    words = description.lower()
+    if any(word in words for word in FOOD_WORDS):
+        return ItemClass.inventory
+    return ItemClass.untracked
+
+
 def read_candidates(raw: object) -> list[dict[str, Any]]:
     """The candidate list out of a `candidates_json` value of either shape."""
     if isinstance(raw, dict):
@@ -622,7 +644,7 @@ async def identify_event(
             event_id=event_id,
             method=method,
             label=vision.label,
-            item_class=vision.item_class,
+            item_class=class_for(str(vision.label), facts, vision.description),
             confidence=vision.confidence,
             candidates=[(c.label, c.p) for c in vision.candidates],
             posterior=raw_dist,
@@ -679,7 +701,7 @@ async def identify_event(
                 event_id=event_id,
                 method=method,
                 label=best[0],
-                item_class=facts.classes.get(best[0], vision.item_class),
+                item_class=class_for(best[0], facts, vision.description),
                 confidence=best[1],
                 candidates=sorted(final_dist.items(), key=lambda kv: -kv[1])[:5],
                 posterior=final_dist,
@@ -710,7 +732,7 @@ async def identify_event(
         if sure and (clear or same_books):
             row.is_final = True
             row.label = best[0]
-            row.item_class = facts.classes.get(best[0], vision.item_class)
+            row.item_class = class_for(best[0], facts, vision.description)
             row.confidence = best[1]
             if not clear:
                 # The drawer says "two candidates, same treatment" off this.
@@ -976,6 +998,7 @@ __all__ = [
     "build_context",
     "build_providers",
     "catalog_facts",
+    "class_for",
     "get_deps",
     "get_providers",
     "identify_event",

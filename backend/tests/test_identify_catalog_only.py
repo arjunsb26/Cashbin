@@ -368,3 +368,110 @@ async def test_the_scale_never_adds_a_guess_the_model_did_not_make(
     outcome = await _decide(settings, answer, mass_g=95.0, err_g=30.0)
     offered = {str(c.label) for c in outcome.candidates}
     assert offered <= {"bagel", "cookie"}, offered
+
+
+# A second go at something it described but would not name ------------------------
+
+
+def test_a_described_unknown_is_asked_again_at_a_little_more_effort() -> None:
+    """PLAN.md 21a item 51. Lane R's bench: at effort none the model said unknown for a
+    battery and then described it exactly. At low it named the battery every time."""
+    from app.identify.openai_provider import OpenAIVisionProvider
+
+    client = FakeClient(
+        [
+            _reply(UNKNOWN_CHOICE, "a single AA alkaline battery, copper top"),
+            _reply("aa battery", "a single AA alkaline battery, copper top"),
+        ]
+    )
+    provider = OpenAIVisionProvider(
+        Settings(_env_file=None, llm_vision_model="m", openai_api_key="x",
+                 llm_vision_effort="none"),
+        client=client,
+    )
+    answer = provider.identify(make_jpeg(), _context())
+
+    assert len(client.calls) == 2
+    assert client.calls[0]["reasoning_effort"] == "none"
+    assert client.calls[1]["reasoning_effort"] == "low"
+    assert str(answer.label) == "aa battery"
+
+
+def test_an_unknown_with_nothing_to_go_on_is_not_asked_twice() -> None:
+    """No description means it never saw the thing, and asking harder will not help."""
+    from app.identify.openai_provider import OpenAIVisionProvider
+
+    client = FakeClient([_reply(UNKNOWN_CHOICE, "")])
+    provider = OpenAIVisionProvider(
+        Settings(_env_file=None, llm_vision_model="m", openai_api_key="x",
+                 llm_vision_effort="none"),
+        client=client,
+    )
+    provider.identify(make_jpeg(), _context())
+    assert len(client.calls) == 1
+
+
+def test_a_second_unknown_is_taken_as_the_answer() -> None:
+    from app.identify.openai_provider import OpenAIVisionProvider
+
+    client = FakeClient([_reply(UNKNOWN_CHOICE, "something dark"), _reply(UNKNOWN_CHOICE, "x")])
+    provider = OpenAIVisionProvider(
+        Settings(_env_file=None, llm_vision_model="m", openai_api_key="x",
+                 llm_vision_effort="none"),
+        client=client,
+    )
+    answer = provider.identify(make_jpeg(), _context())
+    assert len(client.calls) == 2
+    assert str(answer.label) == UNKNOWN_CHOICE
+
+
+def test_nothing_is_retried_when_it_was_already_thinking() -> None:
+    from app.identify.openai_provider import OpenAIVisionProvider
+
+    client = FakeClient([_reply(UNKNOWN_CHOICE, "something dark")])
+    provider = OpenAIVisionProvider(
+        Settings(_env_file=None, llm_vision_model="m", openai_api_key="x",
+                 llm_vision_effort="low"),
+        client=client,
+    )
+    provider.identify(make_jpeg(), _context())
+    assert len(client.calls) == 1
+
+
+# The class is the catalog's, never the model's -----------------------------------
+
+
+def test_the_catalog_decides_the_class_for_a_label_it_knows(settings: Settings) -> None:
+    """PLAN.md 21a item 51. The class flipped between identical crops, and the class is
+    which ledger account a toss posts to."""
+    from app.db import session_scope
+    from app.identify.pipeline import catalog_facts, class_for
+    from app.models import ItemClass
+    from tests.test_identify_support import setup_db
+
+    setup_db(settings)
+    with session_scope() as session:
+        facts = catalog_facts(session)
+
+    assert class_for("bagel", facts) is ItemClass.inventory
+    assert class_for("usb cable", facts) is ItemClass.untracked
+    # And the model saying otherwise about a catalog label changes nothing.
+    assert class_for("bagel", facts, "a small electronic device") is ItemClass.inventory
+
+
+def test_a_label_nobody_knows_is_untracked_unless_it_sounds_like_food(
+    settings: Settings,
+) -> None:
+    from app.db import session_scope
+    from app.identify.pipeline import catalog_facts, class_for
+    from app.models import ItemClass
+    from tests.test_identify_support import setup_db
+
+    setup_db(settings)
+    with session_scope() as session:
+        facts = catalog_facts(session)
+
+    assert class_for("brass door hinge", facts, "a small brass hinge") is ItemClass.untracked
+    assert class_for("brass door hinge", facts) is ItemClass.untracked
+    assert class_for("pain au chocolat", facts, "a pastry, food") is ItemClass.inventory
+    assert class_for("smoothie", facts, "a paper cup of a fruit drink") is ItemClass.inventory

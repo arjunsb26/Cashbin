@@ -109,10 +109,12 @@ class Settings(BaseSettings):
     # How the host is asked to schedule the call. "fast" is the low latency queue; "default"
     # turns the request back into an ordinary one.
     llm_service_tier: str = "fast"
-    # PLAN.md 21a item 35. On a cellular link calls took ten and fourteen seconds and the
-    # person stood there holding a thing over a bin. Four seconds and then the ask, which
-    # is an answer a person can act on rather than a wait with no end in sight.
-    llm_timeout_s: float = Field(default=4.0, gt=0.0)
+    # PLAN.md 21a items 35 and 51. On a cellular link calls took ten and fourteen seconds
+    # and the person stood there holding a thing over a bin. Five seconds and then the ask,
+    # which is an answer somebody can act on rather than a wait with no end in sight. Lane
+    # R measured p90 at 3.1 s and 5 of 68 calls over 4 s on the hotspot, so four cut off
+    # answers that were coming.
+    llm_timeout_s: float = Field(default=5.0, gt=0.0)
     # The longest side of the picture actually sent. The full size crop stays on disk for the
     # evidence drawer; the model is classifying a thing, not reading fine print.
     vision_image_max_px: int = Field(default=384, ge=64, le=4096)
