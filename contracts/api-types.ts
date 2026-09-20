@@ -535,6 +535,9 @@ export interface IdentificationRead {
     [k: string]: number;
   };
   provider?: string | null;
+  sense_check?: {
+    [k: string]: unknown;
+  } | null;
   tokens_in?: number | null;
   tokens_out?: number | null;
   used_mass_prior?: boolean;

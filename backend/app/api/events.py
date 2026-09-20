@@ -21,7 +21,12 @@ from app.db import session_scope
 from app.engine.carbon import avoided_co2e
 from app.engine.records import EstimateSource
 from app.engine.records import ItemClass as EngineItemClass
-from app.identify.pipeline import read_candidates, read_description
+from app.identify.pipeline import (
+    read_candidates,
+    read_description,
+    read_posterior,
+    read_sense_check,
+)
 from app.ingest.media import media_url
 from app.ledger.journal import FLAG_POSSIBLE_UNRECORDED_ASSET, looks_unrecorded
 from app.ledger.queries import account_name
@@ -286,7 +291,8 @@ def _identifications(session: Session, event_id: int) -> list[IdentificationRead
                 item_class=row.item_class,
                 confidence=row.confidence,
                 candidates=candidates,
-                posterior=_loads(row.posterior_json, {}),
+                posterior=read_posterior(_loads(row.posterior_json, {})),
+                sense_check=read_sense_check(_loads(row.posterior_json, {})),
                 used_mass_prior=row.used_mass_prior,
                 latency_ms=row.latency_ms,
                 cost_microusd=row.cost_microusd,

@@ -33,6 +33,7 @@ from sqlalchemy import delete, select
 from sqlalchemy.orm import Session
 
 from app import models
+from app.agent import sense_check
 from app.api.assets import to_asset_info
 from app.api.events import _summary as event_summary
 from app.config import Settings
@@ -57,11 +58,13 @@ from app.identify import early, estimate_cache, qr
 from app.identify.embed import Embedder, get_embedder
 from app.identify.memory import MemoryIndex, get_memory
 from app.identify.pipeline import (
+    SENSE_CHECK_KEY,
     IdentifyDeps,
     Providers,
     build_context,
     build_providers,
     identify_event,
+    open_ask,
     set_on_final,
 )
 from app.identify.providers import CallUsage, IdentifyContext, VisionProvider
@@ -260,6 +263,58 @@ class _Pricing:
     asset: AssetInfo | None
     asset_row: models.Asset | None
     condition: Condition
+
+
+@dataclass(frozen=True)
+class _Words:
+    """What the three surfaces draw for one ticket. One source, three surfaces."""
+
+    title: str
+    line: str
+    tone: LcdColour
+    big: str
+    lcd_money: str
+    blocked: bool
+    best_option: Option | None
+
+    def rewritten(self, checked: sense_check.SenseCheck) -> _Words:
+        """The same ticket in the sense gate's words, with the option it named."""
+        best = self.best_option
+        if checked.best_option:
+            try:
+                best = Option(checked.best_option)
+            except ValueError:
+                best = self.best_option
+        return _Words(
+            title=self.title,
+            line=checked.line2,
+            tone=self.tone,
+            big=self.big,
+            lcd_money=self.lcd_money,
+            blocked=self.blocked,
+            best_option=best,
+        )
+
+
+def _store_sense(session: Session, event_id: int, checked: sense_check.SenseCheck) -> None:
+    """File the verdict on the identification row this ticket was decided by.
+
+    The evidence drawer reads `posterior_json`, so the verdict lands beside the numbers
+    that produced it rather than in a table of its own.
+    """
+    row = session.scalars(
+        select(models.Identification)
+        .where(models.Identification.event_id == event_id)
+        .order_by(models.Identification.id.desc())
+    ).first()
+    if row is None:
+        return
+    posterior = _loads(row.posterior_json, {})
+    if not isinstance(posterior, dict):
+        posterior = {}
+    posterior[SENSE_CHECK_KEY] = checked.model_dump(exclude={"latency_ms"})
+    row.posterior_json = json.dumps(posterior)
+    session.flush()
 
 
 def _early_frames(frames: Sequence[Frame], opened_ms: float) -> list[bytes]:
@@ -593,7 +648,7 @@ class PipelineDeps:
                 asset_row=asset_row,
                 condition=condition,
             )
-            stage = self._post_pass(session, event, parts, cached, valuing=valuing)
+            stage = await self._post_pass(session, event, parts, cached, valuing=valuing)
             if not valuing:
                 log.info("event %d is posted", event_id)
                 return
@@ -617,7 +672,7 @@ class PipelineDeps:
                     event_id,
                 )
                 return
-            stage = self._post_pass(session, event, parts, estimate, valuing=False)
+            stage = await self._post_pass(session, event, parts, estimate, valuing=False)
             log.info("event %d is posted with its value", event_id)
         except Exception:
             session.rollback()
@@ -630,7 +685,7 @@ class PipelineDeps:
         finally:
             session.close()
 
-    def _post_pass(
+    async def _post_pass(
         self,
         session: Session,
         event: models.Event,
@@ -672,6 +727,18 @@ class PipelineDeps:
             " (still being valued)" if valuing else "",
         )
 
+        words = self._words(record, ranking, scores, valuing=valuing)
+        checked: sense_check.SenseCheck | None = None
+        if not valuing:
+            # PLAN.md 21a item 50. The last reader before the bin speaks. It runs before
+            # anything is written, so a veto never has to be unposted.
+            checked = await self._sense_gate(event_id, record, ranking, scores, words)
+            if checked is not None and checked.vetoed:
+                self._veto_to_ask(session, event, event_id, checked)
+                return "ask"
+            if checked is not None and checked.verdict == "rewrite":
+                words = words.rewritten(checked)
+
         _write_item_record(session, record)
         _write_option_scores(session, event_id, scores)
 
@@ -684,9 +751,11 @@ class PipelineDeps:
             log.info("asset %s is off the register on event %d", parts.asset_row.tag, event_id)
 
         event.status = models.EventStatus.posted
+        if checked is not None:
+            _store_sense(session, event_id, checked)
         session.commit()
 
-        self._publish(session, event, record, ranking, scores, valuing=valuing)
+        self._publish(session, event, record, ranking, words)
         metrics.publish_metrics(session, self.bus)
         return "publish"
 
@@ -728,21 +797,19 @@ class PipelineDeps:
         estimate_cache.write_estimate(estimate_cache.estimate_key(label, vision), estimate)
         return estimate
 
-    def _publish(
+    def _words(
         self,
-        session: Session,
-        event: models.Event,
         record: ItemRecord,
         ranking: engine_options.Ranking,
         scores: list[OptionScore],
-        valuing: bool = False,
-    ) -> None:
-        """Tell the dashboard, the phone and the bin, in that order."""
-        event_id = int(event.id)
-        self.bus.publish(UiEventUpdated(event=event_summary(session, event)), CHANNEL_UI)
-        for entry in ledger_queries.list_entries(session, event_id=event_id):
-            self.bus.publish(UiJournalPosted(entry=entry), CHANNEL_UI)
+        *,
+        valuing: bool,
+    ) -> _Words:
+        """Every string the three surfaces draw for one ticket, built once.
 
+        The sense gate reads these and may replace two of them, so they are built before
+        anything is written and carried through rather than rebuilt at the end.
+        """
         table = engine_options.by_option(scores)
         trash = table.get(Option.trash)
         blocked = trash is not None and not trash.allowed
@@ -762,22 +829,106 @@ class PipelineDeps:
             lcd_money = VALUING_BIG
             line = VALUING_LINE
             tone = "neutral"
+        return _Words(
+            title=title,
+            line=line,
+            tone=tone,
+            big=big_money,
+            lcd_money=lcd_money,
+            blocked=blocked,
+            best_option=ranking.best_option,
+        )
 
-        if ranking.best_option is not None:
+    async def _sense_gate(
+        self,
+        event_id: int,
+        record: ItemRecord,
+        ranking: engine_options.Ranking,
+        scores: list[OptionScore],
+        words: _Words,
+    ) -> sense_check.SenseCheck | None:
+        """One reader on the finished ticket, off the event loop and under its own limit."""
+        if not sense_check.should_check(record, ranking):
+            return None
+        seen = self.vision.of(event_id)
+        description = seen.description if seen is not None else ""
+        try:
+            return await asyncio.wait_for(
+                asyncio.to_thread(
+                    sense_check.check,
+                    record,
+                    ranking,
+                    scores,
+                    description,
+                    words.title,
+                    words.line,
+                    self.settings,
+                ),
+                timeout=self.settings.sense_check_timeout_s + 0.5,
+            )
+        except TimeoutError:
+            log.warning("the sense gate on event %d timed out, the words stand", event_id)
+        except Exception:
+            log.exception("the sense gate on event %d failed, the words stand", event_id)
+        return None
+
+    def _veto_to_ask(
+        self,
+        session: Session,
+        event: models.Event,
+        event_id: int,
+        checked: sense_check.SenseCheck,
+    ) -> None:
+        """A vetoed ticket is a question, not a claim. Nothing confident is drawn.
+
+        Anything an earlier pass posted is reversed first, because PLAN.md section 11 never
+        deletes an entry and a person is about to say what this really was.
+        """
+        log.info("event %d was vetoed by the sense gate: %s", event_id, checked.reason)
+        posted = session.scalars(
+            select(models.JournalEntry.id).where(models.JournalEntry.event_id == event_id)
+        ).first()
+        if posted is not None:
+            ledger_queries.void_event(session, event_id)
+        seen = self.vision.of(event_id)
+        description = seen.description if seen is not None else ""
+        _store_sense(session, event_id, checked)
+        open_ask(session, event, {}, self.identify, description)
+        session.commit()
+        self.bus.publish(UiEventUpdated(event=event_summary(session, event)), CHANNEL_UI)
+        metrics.publish_metrics(session, self.bus)
+
+    def _publish(
+        self,
+        session: Session,
+        event: models.Event,
+        record: ItemRecord,
+        ranking: engine_options.Ranking,
+        words: _Words,
+    ) -> None:
+        """Tell the dashboard, the phone and the bin, in that order."""
+        event_id = int(event.id)
+        self.bus.publish(UiEventUpdated(event=event_summary(session, event)), CHANNEL_UI)
+        for entry in ledger_queries.list_entries(session, event_id=event_id):
+            self.bus.publish(UiJournalPosted(entry=entry), CHANNEL_UI)
+
+        if words.best_option is not None:
             self.bus.publish(
                 PhoneResult(
                     event_id=event_id,
-                    title=title[:60],
-                    big=big_money,
-                    line=line,
-                    tone=tone,
-                    best_option=models.OptionKind(ranking.best_option.value),
+                    title=words.title[:60],
+                    big=words.big,
+                    line=words.line,
+                    tone=words.tone,
+                    best_option=models.OptionKind(words.best_option.value),
                 ),
                 CHANNEL_PHONE,
             )
         else:
             log.warning("event %d has no allowed option, so the phone gets no result", event_id)
-        self.bus.publish(lcd.result(title, lcd_money, line, tone), CHANNEL_BIN)
+        self.bus.publish(
+            lcd.result(words.title, words.lcd_money, words.line, words.tone), CHANNEL_BIN
+        )
 
 
 # Lookups --------------------------------------------------------------------

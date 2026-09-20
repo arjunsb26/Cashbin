@@ -567,6 +567,9 @@ class IdentificationRead(ApiModel):
     confidence: float | None = None
     candidates: list[VisionCandidate] = Field(default_factory=list)
     posterior: dict[str, float] = Field(default_factory=dict)
+    # What the sense gate said about the finished ticket, when it was asked. Null on every
+    # row it did not read, which is most of them. PLAN.md 21a item 50.
+    sense_check: dict[str, Any] | None = None
     used_mass_prior: bool = False
     latency_ms: int | None = None
     cost_microusd: int | None = None

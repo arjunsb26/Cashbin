@@ -2,6 +2,30 @@
 
 Newest first. Each lane writes under its own heading.
 
+## 2026-09-20, lane u: the bin reads what it is about to say
+
+- A sense gate sits between a finished ticket and the three surfaces. Once per finalised
+  ticket, for an untracked object, a tagged asset, or a catalog item that is about to
+  advertise an alternative, one cheap call reads the label, the description, the condition,
+  the mass, the estimates with their rationales, the options on offer with their net, the
+  options that were refused with the reason, and the two lines the bin is about to draw.
+  It answers sensible, rewrite or veto.
+- A rewrite is used only when its words survive the twenty columns the bin draws and it
+  names an option the engine actually offered. Anything else keeps the words the code had.
+- A veto turns a confident ticket into a question. Nothing is written, nothing is posted,
+  anything an earlier pass posted is reversed, and the ask opens with the model's own
+  description and Something else. That is what catches a usb stick labelled as a laptop
+  charger before the bin claims it.
+- The gate never leaves a ticket wordless. No model configured, a host that is down, a
+  reply that will not validate and a timeout all leave the proposed words exactly as they
+  were, with a log line. The verdict is filed on the identification row and shows on the
+  ticket read as `sense_check`.
+- Verdicts are remembered by label, class, condition and best option, so the same thing
+  thrown twice is only asked about once.
+- The identification read now keeps the distribution and the verdict apart. `posterior`
+  holds numbers, which is what it always claimed to hold, and `sense_check` is its own
+  field.
+
 ## 2026-09-20, lane o: the phone page can never get stuck
 
 - The sheets on the phone are one state machine now: `idle`, `result`, `ask`, `adding`, one

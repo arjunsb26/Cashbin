@@ -392,6 +392,36 @@ def read_candidates(raw: object) -> list[dict[str, Any]]:
     return [item for item in raw if isinstance(item, dict) and "label" in item]
 
 
+# The key the sense gate's verdict is filed under, beside the numbers that produced it.
+# It carries an underscore, and a validated label cannot, so it can never collide with one.
+SENSE_CHECK_KEY = "sense_check"
+
+
+def read_posterior(raw: object) -> dict[str, float]:
+    """The numeric part of a `posterior_json` value.
+
+    The map is a distribution over labels and the drawer draws it as one. Anything filed
+    beside it that is not a number, which today is the sense gate's verdict, is read by its
+    own name rather than let into the distribution.
+    """
+    if not isinstance(raw, dict):
+        return {}
+    out: dict[str, float] = {}
+    for key, value in raw.items():
+        if isinstance(value, bool) or not isinstance(value, int | float):
+            continue
+        out[str(key)] = float(value)
+    return out
+
+
+def read_sense_check(raw: object) -> dict[str, object] | None:
+    """What the sense gate said about this ticket, when it was asked at all."""
+    if not isinstance(raw, dict):
+        return None
+    found = raw.get(SENSE_CHECK_KEY)
+    return dict(found) if isinstance(found, dict) else None
+
+
 def read_description(raw: object) -> str | None:
     """What the model said it was looking at, when the row has it."""
     if isinstance(raw, dict):
@@ -989,6 +1019,7 @@ def mass_fit_scores(
 
 __all__ = [
     "SAME_TREATMENT_KEY",
+    "SENSE_CHECK_KEY",
     "CatalogFacts",
     "IdentifyDeps",
     "Outcome",
@@ -1006,6 +1037,8 @@ __all__ = [
     "open_ask",
     "read_candidates",
     "read_description",
+    "read_posterior",
+    "read_sense_check",
     "remember_vision",
     "reset_identify",
     "reset_providers",

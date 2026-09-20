@@ -1421,6 +1421,18 @@
           ],
           "default": null
         },
+        "sense_check": {
+          "anyOf": [
+            {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
         "tokens_in": {
           "anyOf": [
             {
