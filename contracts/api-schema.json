@@ -159,6 +159,17 @@
           ],
           "default": null
         },
+        "disposed_on": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
         "id": {
           "type": "integer"
         },

@@ -728,6 +728,9 @@ class AssetRead(ApiModel):
     tax_basis_cents_override: int | None = None
     status: AssetStatus
     disposed_event_id: int | None = None
+    # The day the disposal was posted, so the register says when the row left rather than
+    # leaving a reader to work it out from the close.
+    disposed_on: str | None = None
     insured: bool = False
     location: str | None = None
     book_value_cents: int | None = None
