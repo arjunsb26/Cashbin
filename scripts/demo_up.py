@@ -142,11 +142,25 @@ class Child:
             print(f"{self.name} is not listening any more", flush=True)
 
     def stop(self, grace: float = 5.0) -> None:
+        """Stop the child and everything it started.
+
+        `pnpm start` is a shell that starts Next in a second process, and terminating
+        the shell on Windows leaves Next holding port 3000, so the next launch cannot
+        bind it. Killing the tree is the only stop that actually stops. Windows has no
+        polite kill anyway: terminate() there is TerminateProcess.
+        """
         process = self.process
         if process is None or process.poll() is not None:
             return
         try:
-            process.terminate()
+            if os.name == "nt":
+                subprocess.run(
+                    ["taskkill", "/T", "/F", "/PID", str(process.pid)],
+                    capture_output=True,
+                    check=False,
+                )
+            else:
+                process.terminate()
             process.wait(timeout=grace)
         except subprocess.TimeoutExpired:
             process.kill()
