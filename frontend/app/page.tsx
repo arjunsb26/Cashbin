@@ -1,10 +1,11 @@
 "use client";
 
-import { useEventDetails, useSummary } from "@/lib/api";
+import { API_URL, useEventDetails, useSummary } from "@/lib/api";
 import { askFromDetail, type AskView } from "@/lib/derive";
-import { useLive } from "@/lib/live";
+import { useLive, useReach } from "@/lib/live";
 import { formatCount, formatMoney, formatPercent, massParts } from "@/lib/format";
 import { AskPanel } from "@/components/AskPanel";
+import { FirstRun } from "@/components/FirstRun";
 import { ScaleStrip } from "@/components/ScaleStrip";
 import { Tape } from "@/components/Tape";
 import { Ticket } from "@/components/Ticket";
@@ -39,13 +40,14 @@ export default function LivePage() {
     : live.ticket;
   const ticketDetail = ticket ? (details.get(ticket.event.id) ?? null) : null;
   const totals = summary.data;
+  const reach = useReach(live.status, summary.isError, totals != null);
 
   return (
     <div className="flex flex-col gap-4">
       <section aria-label="Totals">
-        {summary.isError ? (
+        {reach === "dead" ? (
           <ErrorState
-            title="The totals did not load. The backend is not answering."
+            title={`Nothing is answering at ${API_URL}. The bin's service may not be running.`}
             onRetry={() => summary.refetch()}
           />
         ) : (
@@ -85,13 +87,13 @@ export default function LivePage() {
         steps={live.steps}
         weight_g={live.weight_g}
         connected={live.bin.connected}
-        connecting={live.status === "connecting"}
+        reach={reach}
         detail={live.bin.detail}
       />
 
       <div className="grid grid-cols-1 gap-8 lg:grid-cols-[var(--ticket-w)_minmax(0,1fr)]">
         <section aria-label="Current ticket">
-          {live.status === "connecting" ? (
+          {reach === "connecting" ? (
             <div className="flex w-ticket max-w-full flex-col gap-3 border border-rule bg-surface p-5">
               <Skeleton className="h-[var(--crop-ticket)] w-[var(--crop-ticket)]" />
               <Skeleton className="h-14 w-48" />
@@ -99,6 +101,8 @@ export default function LivePage() {
               <Skeleton className="h-row w-full" />
               <Skeleton className="h-row w-full" />
             </div>
+          ) : reach === "dead" ? (
+            <EmptyState title="Tickets appear here as soon as the service answers." />
           ) : ticket ? (
             <Ticket
               event={ticket.event}
@@ -109,7 +113,7 @@ export default function LivePage() {
               {asked && ask ? <AskPanel ask={ask} /> : undefined}
             </Ticket>
           ) : (
-            <EmptyState title="No ticket on the scale. Toss something in the bin, or run the simulator." />
+            <FirstRun />
           )}
         </section>
 
@@ -124,12 +128,14 @@ export default function LivePage() {
             Tape
           </SectionTitle>
           <div className="pt-2">
-            {live.status === "connecting" ? (
+            {reach === "connecting" ? (
               <div className="flex flex-col gap-2">
                 {[0, 1, 2, 3, 4].map((i) => (
                   <Skeleton key={i} className="h-row w-full" />
                 ))}
               </div>
+            ) : reach === "dead" ? (
+              <EmptyState title="The tape is whatever the service has recorded, so it is blank until it answers." />
             ) : (
               <Tape events={tape} details={details} />
             )}

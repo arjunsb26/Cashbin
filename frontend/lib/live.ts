@@ -28,10 +28,12 @@ export type DeviceState = { connected: boolean; detail: string | null };
 export type LiveState = {
   status: LiveStatus;
   weight_g: number;
-  /** Newest last. About 12 s of samples at 10 Hz. */
+  /** Newest last. Thirty seconds of samples at the 10 Hz the backend publishes. */
   samples: number[];
   /** Indices into samples where a ticket was cut. */
   steps: number[];
+  /** What each marked step weighed, in the same order as `steps`. */
+  stepMasses: number[];
   tape: EventSummary[];
   ticket: LiveTicket | null;
   ask: UiAskOpened | null;
@@ -70,6 +72,35 @@ export function useLive(): LiveState {
     const ticket = state.ticket ?? tapeTicket(tape);
     return { ...state, tape, ticket };
   }, [state, fetched]);
+}
+
+/**
+ * Three different things a person needs told apart, which all looked the same
+ * before: still connecting, the service is not answering, and the bin is offline
+ * while everything else is fine.
+ */
+export type Reach = "connecting" | "dead" | "live";
+
+/**
+ * Ten seconds of skeletons is patience. Any longer without a sentence is a lie,
+ * so this turns into `dead` and the page says what it tried and offers a retry.
+ */
+export function useReach(status: LiveStatus, readFailed: boolean, hasData: boolean): Reach {
+  const [waited, setWaited] = useState(false);
+
+  useEffect(() => {
+    if (status === "live") {
+      setWaited(false);
+      return;
+    }
+    const timer = setTimeout(() => setWaited(true), 10_000);
+    return () => clearTimeout(timer);
+  }, [status]);
+
+  if (readFailed) return "dead";
+  if (status === "live") return "live";
+  if (hasData) return "live";
+  return waited ? "dead" : "connecting";
 }
 
 /** On a page opened between tosses, the newest finished ticket is what to show. */
@@ -160,11 +191,15 @@ function reduce(prev: LiveState, message: UiMessage): LiveState {
   switch (message.type) {
     case "weight": {
       const samples = [...prev.samples.slice(1), message.g];
+      const kept = prev.steps
+        .map((i, n) => ({ i: i - 1, mass: prev.stepMasses[n] ?? 0 }))
+        .filter((step) => step.i >= 0);
       return {
         ...prev,
         weight_g: message.g,
         samples,
-        steps: prev.steps.map((i) => i - 1).filter((i) => i >= 0),
+        steps: kept.map((step) => step.i),
+        stepMasses: kept.map((step) => step.mass),
       };
     }
     case "event.created": {
@@ -174,6 +209,7 @@ function reduce(prev: LiveState, message: UiMessage): LiveState {
         ...prev,
         tape: [event, ...prev.tape.filter((e) => e.id !== event.id)],
         steps: [...prev.steps.slice(-4), prev.samples.length - 1],
+        stepMasses: [...prev.stepMasses.slice(-4), event.mass_g ?? 0],
         ticket: { event, phase: "weighing", arrival: (prev.ticket?.arrival ?? 0) + 1 },
       };
     }
