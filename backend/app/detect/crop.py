@@ -223,6 +223,8 @@ def _encode(img: np.ndarray, p: CropParams) -> bytes:
 
 def jpeg_size(data: bytes) -> tuple[int, int] | None:
     """The width and height of a JPEG, or None when the bytes are not a picture."""
+    if not data:
+        return None
     img = cv2.imdecode(np.frombuffer(data, dtype=np.uint8), cv2.IMREAD_COLOR)
     if img is None:
         return None
@@ -242,7 +244,9 @@ def downscale_jpeg(data: bytes, max_px: int, quality: int = 80) -> bytes:
     picture come back untouched, because refusing to send anything would be worse than
     sending what we have.
     """
-    if max_px <= 0:
+    # Empty bytes are not a picture either, and the decoder raises on them rather than
+    # returning None, which is how a phantom toss with no camera crashed the vision step.
+    if max_px <= 0 or not data:
         return data
     img = cv2.imdecode(np.frombuffer(data, dtype=np.uint8), cv2.IMREAD_COLOR)
     if img is None:

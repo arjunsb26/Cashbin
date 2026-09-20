@@ -1221,6 +1221,12 @@ async def _two_goes(
     ask only opens when that one fails too. The second task is handed back rather than
     cancelled, because an answer that arrives late can still close the question.
     """
+    if not crop:
+        # No camera sent a frame for this toss, so there is nothing to show a model. The
+        # weight alone is still a real event; a person is asked what it was.
+        log.info("event %s has no picture, so a person is asked instead of a model",
+                 context.event_id)
+        return None, None
     answer = await _call_vision(deps, crop, context, deps.settings.llm_timeout_s)
     if answer is not None:
         return answer, None
