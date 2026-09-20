@@ -2,6 +2,57 @@
 
 Newest first. Each lane writes under its own heading.
 
+## 2026-09-19, lane j: the backend follow-ups the first real run exposed
+
+- `GET /api/rules` serves every rule in `tax_rules.yaml` as `RuleRead(id, title,
+  plain_text, citation_url, needs_human_review)`. The evidence drawer was printing rule
+  codes because the text and the citation lived only in the engine's data file and no
+  route read them out. The words are still written once.
+- `GET /api/events/{id}` fills `account_name` on every journal line, from the same chart
+  of accounts `/api/journal` uses. The event page was borrowing the names from a second
+  request to the journal.
+- `scripts/gen_types.py` no longer eats a field whose name collides with a JSON Schema
+  keyword. The flattening step dropped every key called `title` wherever it appeared,
+  including inside `properties`, which cost `CloseCheck.title` and `PhoneResult.title`
+  their place in `contracts/api-types.ts` while every drift check stayed green.
+  `scripts/check_types.py` now compares fields and not only type names, so the whole
+  class of bug fails the suite.
+- `OptionScoreRead.kg_co2e_avoided` and the close's `kg_co2e_avoided` are positive
+  numbers: what this option avoids against the bin, never below zero. WARM's source
+  reduction factors are negative because they are avoided emissions, so the close read
+  "emissions if the best option had been followed: -6.04 kg". `kg_co2e` is untouched, so
+  the audit trail still carries the signed figure.
+- `EventSummary.posted_cents` is what the journal actually posted for the ticket, as an
+  income statement amount: negative for a loss, positive for a gain, null when no entry
+  was written. `net_book_cents` is a book value and is zero for everything that is not a
+  tagged asset, which is why the tape had to read one ticket per row to print an amount.
+- `EventSummary.flags` carries `possible_unrecorded_asset` on the ticket, off the same
+  rule the close uses (`ledger/journal.looks_unrecorded`). An untracked item whose
+  replacement cost is over the capitalization threshold also carries "Looks like
+  equipment. Confirm on the Assets page." on its bin option.
+- `POST /api/device/tare` writes a `last_tare` settings row with the time, the bin's new
+  zero and what was on the scale a moment before, but only when a bin was there to
+  receive the command. The close's mass check names the tare and its time instead of
+  falling back to the first weight sample of the period.
+- The estimator's data block carries the EPA WARM material names as its vocabulary, so a
+  model cannot name a material the carbon table has no factor for. Two tests hold the
+  data honest: every material in `catalog.csv` is in `warm_factors.csv`, and every
+  catalog item gets a carbon figure for every option.
+- `GET /` sends the laptop to the dashboard and anything else on the network to the
+  phone page, and an address with nothing at it says where both of them are instead of
+  answering "Not Found". A route that answers 404 with its own sentence keeps it.
+- Speed, in three parts. The vision call now starts when the step opens rather than when
+  the weight settles: `app/identify/early.py` holds the call, ingest claims it for the
+  event once the row exists, and identification awaits it instead of making its own. A
+  step that turns out to be a bag change or a removal cancels it. `identify_at_step_open`
+  switches it off in one place.
+- The request asks for the host's fast queue (`llm_service_tier`, default `fast`) and for
+  no reasoning on the vision call (`llm_vision_effort`, default `none`); the estimator
+  keeps `low` because it does arithmetic. All three are runtime settings.
+- The picture sent to the model is re-encoded to 512 px on its longest side at quality 80
+  (`vision_image_max_px`, `vision_image_quality`). The full size crop stays on disk for
+  the evidence drawer. The image part already asked for `detail: "low"`.
+
 ## 2026-09-19, lane i: the M1 to M5 acceptance pass and hardening
 
 - PLAN.md 21a item 17. Repair is offered when the condition is `broken`, or when it
