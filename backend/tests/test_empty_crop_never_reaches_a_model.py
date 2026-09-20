@@ -27,6 +27,8 @@ async def test_a_toss_with_no_picture_makes_no_vision_call(monkeypatch: pytest.M
 
     monkeypatch.setattr(pipeline, "_call_vision", must_not_run)
     context = cast(Any, type("Ctx", (), {"event_id": 80})())
-    answer, task = await pipeline._two_goes(cast(Any, object()), b"", context)
+    vision = type("Vision", (), {"name": pipeline.OPENAI_PROVIDER_NAME})()
+    deps = cast(Any, type("Deps", (), {"providers": type("P", (), {"vision": vision})()})())
+    answer, task = await pipeline._two_goes(deps, b"", context)
     assert answer is None
     assert task is None

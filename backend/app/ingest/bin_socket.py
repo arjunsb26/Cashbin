@@ -133,6 +133,21 @@ class BinSession:
             self.deps.recorder.bin_message(parsed)
         log.info("%s said hello as %s on firmware %s", self.source, hello.device, hello.fw)
         await self.send({"type": "ping"})
+        # The display's first screen is the running total, not "offline" until the first
+        # toss. Found on the real board: it connected fine and sat on its startup screen
+        # because nothing had been published to it yet.
+        try:
+            from app.db import session_scope
+            from app.notify import lcd
+            from app.pipeline import bin_total
+
+            with session_scope() as session:
+                total = bin_total(session)
+            self.deps.bus.publish(
+                lcd.idle_screen(total.cents, total.weight_g, total.count), CHANNEL_BIN
+            )
+        except Exception:
+            log.exception("the idle screen could not be put up on hello")
         return True
 
     async def _weight(self, message: BinWeight) -> None:

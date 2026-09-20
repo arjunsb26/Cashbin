@@ -28,6 +28,7 @@ from app.db import get_session_factory
 from app.identify import early, qr
 from app.identify import memory as memory_module
 from app.identify.embed import Embedder, get_embedder, to_bytes
+from app.identify.openai_provider import PROVIDER_NAME as OPENAI_PROVIDER_NAME
 from app.identify.memory import DEFAULT_K, MemoryIndex, Neighbour, get_memory
 from app.identify.openai_request import UNKNOWN_CHOICE
 from app.identify.priors import MassPrior, fuse
@@ -1221,9 +1222,10 @@ async def _two_goes(
     ask only opens when that one fails too. The second task is handed back rather than
     cancelled, because an answer that arrives late can still close the question.
     """
-    if not crop:
-        # No camera sent a frame for this toss, so there is nothing to show a model. The
-        # weight alone is still a real event; a person is asked what it was.
+    if not crop and getattr(deps.providers.vision, "name", "") == OPENAI_PROVIDER_NAME:
+        # No camera sent a frame for this toss, so there is nothing to show the model. The
+        # weight alone is still a real event; a person is asked what it was. The stub
+        # provider needs no picture and keeps answering, which the tests rely on.
         log.info("event %s has no picture, so a person is asked instead of a model",
                  context.event_id)
         return None, None

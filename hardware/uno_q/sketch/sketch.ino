@@ -279,12 +279,29 @@ static float readAnalogCounts() {
 
 #endif
 
+#if WEIGHT_SOURCE == WEIGHT_SOURCE_HX711
+// Up to ten samples, each waited on for at most 60 ms, averaged into the offset. When the
+// amplifier gives nothing, the offset is left as it was rather than blocking forever.
+static void guardedTare(HX711& s) {
+  long sum = 0;
+  int got = 0;
+  for (int i = 0; i < 10; i++) {
+    if (!s.wait_ready_timeout(60, 1)) break;
+    sum += s.read();
+    got++;
+  }
+  if (got > 0) s.set_offset(sum / got);
+}
+#endif
+
 void tareScale() {
 #if WEIGHT_SOURCE == WEIGHT_SOURCE_HX711
-  // HX711::tare(byte times = 10) averages that many readings and stores the offset.
-  scale.tare(10);
+  // A guarded tare. HX711::tare blocks until the amplifier answers, and an amplifier
+  // with no power or a floating data line never does, which froze the whole board on the
+  // real bin. This waits at most 60 ms per sample and keeps the old zero when it cannot.
+  guardedTare(scale);
 #if HX711_COUNT > 1
-  scale2.tare(10);
+  guardedTare(scale2);
 #endif
 #else
   // The same idea without a library: whatever the gauge reads now becomes the new zero.
@@ -298,16 +315,18 @@ static void readScale() {
 #if WEIGHT_SOURCE == WEIGHT_SOURCE_HX711
   // is_ready() is false while the amplifier is still converting. Asking anyway would
   // block the loop for up to a tenth of a second at 10 samples per second.
-  if (!scale.is_ready()) return;
+  // Never block on the amplifier. wait_ready_timeout polls the data line for at most
+  // 20 ms; an amplifier that is not answering leaves the last reading in place and the
+  // loop, the screen and the host calls carry on.
+  if (!scale.wait_ready_timeout(20, 1)) return;
+  long raw = scale.read() - scale.get_offset();
 #if HX711_COUNT > 1
-  if (!scale2.is_ready()) return;
+  if (!scale2.wait_ready_timeout(20, 1)) return;
   // Two cells under one plate: the load splits between them, so the sum is the weight.
-  lastCounts = scale.get_value(HX711_AVERAGE_OF) + scale2.get_value(HX711_AVERAGE_OF);
-  lastGrams = scale.get_units(HX711_AVERAGE_OF) + scale2.get_units(HX711_AVERAGE_OF);
-#else
-  lastCounts = scale.get_value(HX711_AVERAGE_OF);
-  lastGrams = scale.get_units(HX711_AVERAGE_OF);
+  raw += scale2.read() - scale2.get_offset();
 #endif
+  lastCounts = (float)raw;
+  lastGrams = lastCounts / HX711_CALIBRATION;
 #else
   // Two points make a line: the counts at zero, and how far the counts move per gram.
   lastCounts = readAnalogCounts();
@@ -485,12 +504,11 @@ void setup() {
   // one a load cell bridge is wired to.
   scale.begin(HX711_DT_PIN, HX711_SCK_PIN);
   scale.set_scale(HX711_CALIBRATION);
-  scale.tare(10);
 #if HX711_COUNT > 1
   scale2.begin(HX711_DT2_PIN, HX711_SCK2_PIN);
   scale2.set_scale(HX711_CALIBRATION);
-  scale2.tare(10);
 #endif
+  tareScale();
 #else
   // Ask the converter for its full width before the first reading, so the calibration
   // numbers and the live readings are on the same scale.
