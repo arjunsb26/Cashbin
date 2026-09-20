@@ -21,7 +21,9 @@ import {
   formatPercent,
   formatTag,
 } from "@/lib/format";
-import type { CloseCheck } from "@/lib/types";
+import type { CloseCheck, CloseRead } from "@/lib/types";
+import { blocksOf } from "@/lib/cfo";
+import { CloseMemo, Form4797, Reconciliation, Rollforward } from "@/components/CloseBlocks";
 import { Co2, Mass, Money } from "@/components/Figure";
 import {
   Button,
@@ -101,15 +103,16 @@ export default function ClosePage() {
         />
       ) : null}
 
-      {report ? <Statement report={report} /> : null}
+      {report ? <Statement report={report} read={close.data as CloseRead} /> : null}
 
       <FinanceFooter />
     </div>
   );
 }
 
-function Statement({ report }: { report: CloseReport }) {
+function Statement({ report, read }: { report: CloseReport; read: CloseRead }) {
   const green = report.sustainability;
+  const blocks = blocksOf(read);
   // One investigation is written per close, so it sits under the first check that
   // asked for it rather than being repeated under every one.
   const firstProblem = report.checks.find((c) => c.result !== "pass")?.id ?? null;
@@ -123,6 +126,10 @@ function Statement({ report }: { report: CloseReport }) {
           {formatDate(report.created_at)}
         </p>
       </header>
+
+      {/* The memo sits under the title, where a reader meets the period in words
+          before they meet it in columns. */}
+      {blocks.memo ? <CloseMemo memo={blocks.memo} /> : null}
 
       <section>
         <SectionTitle right={<Total cents={report.write_off_total_cents} />}>
@@ -224,6 +231,12 @@ function Statement({ report }: { report: CloseReport }) {
           </>
         )}
       </section>
+
+      {blocks.rollforward ? <Rollforward block={blocks.rollforward} /> : null}
+
+      {blocks.reconciliation ? <Reconciliation block={blocks.reconciliation} /> : null}
+
+      {blocks.form4797 ? <Form4797 block={blocks.form4797} /> : null}
 
       <section>
         <SectionTitle>Waste and emissions</SectionTitle>

@@ -1033,3 +1033,116 @@ export const REVIEW: ReviewListResponse = {
     },
   ],
 };
+
+// The four blocks a CFO reads, on the same close the rest of these fixtures use.
+import type { CloseWithBlocks } from "../cfo";
+
+export const CLOSE_BLOCKS: Pick<
+  CloseWithBlocks,
+  "memo_md" | "rollforward" | "reconciliation" | "form4797"
+> = {
+  memo_md:
+    "Five things went in the bin today and four of them were counted. The books lose 20.62, almost all of it the mechanical keyboard, which left the register at its book value of 20.00 with nothing left to deduct because it was fully expensed in the year it was bought.\n\nThe return sees 0.62. The 20.00 gap is bonus depreciation already taken, and it appears on the reconciliation below with the rule that caused it.\n\nOne ticket is still waiting on a person, and the scale reads 14 g more than the tickets account for. Both are in the checks.",
+  rollforward: {
+    period_start: DAY,
+    period_end: DAY,
+    ties: true,
+    rows: [
+      {
+        asset_id: 1,
+        tag: "bb-0001",
+        description: "Dell 24 inch monitor",
+        opening_cost_cents: 18900,
+        additions_cents: 0,
+        disposals_cost_cents: 0,
+        closing_cost_cents: 18900,
+        opening_accum_cents: 5250,
+        depreciation_cents: 525,
+        disposals_accum_cents: 0,
+        closing_accum_cents: 5775,
+        opening_nbv_cents: 13650,
+        closing_nbv_cents: 13125,
+      },
+      {
+        asset_id: 2,
+        tag: "bb-0002",
+        description: "Keychron K8 keyboard",
+        opening_cost_cents: 12000,
+        additions_cents: 0,
+        disposals_cost_cents: 12000,
+        closing_cost_cents: 0,
+        opening_accum_cents: 10000,
+        depreciation_cents: 0,
+        disposals_accum_cents: 10000,
+        closing_accum_cents: 0,
+        opening_nbv_cents: 2000,
+        closing_nbv_cents: 0,
+      },
+    ],
+    total: {
+      description: "Totals",
+      opening_cost_cents: 30900,
+      additions_cents: 0,
+      disposals_cost_cents: 12000,
+      closing_cost_cents: 18900,
+      opening_accum_cents: 15250,
+      depreciation_cents: 525,
+      disposals_accum_cents: 10000,
+      closing_accum_cents: 5775,
+      opening_nbv_cents: 15650,
+      closing_nbv_cents: 13125,
+    },
+  },
+  reconciliation: {
+    title:
+      "Schedule M-1 shape. The books lose one number, the return another, and the gap has a reason on every line.",
+    ties: true,
+    book_loss_cents: 2062,
+    differences_cents: 2000,
+    tax_loss_cents: 62,
+    rows: [
+      {
+        event_id: 102,
+        asset_id: 2,
+        tag: "bb-0002",
+        description: "Keychron K8 keyboard",
+        book_loss_cents: 2000,
+        tax_loss_cents: 0,
+        difference_cents: 2000,
+        reason: "Fully expensed under bonus depreciation when it was bought, so the basis is nil.",
+        rule_ids: ["BONUS_168K"],
+      },
+      {
+        event_id: 101,
+        description: "Bagel",
+        book_loss_cents: 62,
+        tax_loss_cents: 62,
+        difference_cents: 0,
+        reason: "Inventory written off at cost. The books and the return agree.",
+        rule_ids: ["INV_WRITE_OFF"],
+      },
+    ],
+  },
+  form4797: {
+    disclaimer:
+      "A working paper prepared from the register and the tickets. It is not a filing and it has not been reviewed.",
+    part_ii_line_10_cents: -2000,
+    part_ii_rows: [
+      {
+        part: "II",
+        line: "10",
+        description: "Keychron K8 keyboard, tag BB-0002",
+        date_acquired: "2025-11-04",
+        date_disposed: DAY,
+        gross_proceeds_cents: 0,
+        cost_cents: 12000,
+        depreciation_allowed_cents: 12000,
+        gain_or_loss_cents: -2000,
+        recapture_note: "Book basis 20.00 against a tax basis of nil.",
+        rule_ids: ["SEC_1231"],
+      },
+    ],
+    part_iii_recapture_cents: 0,
+    part_iii_rows: [],
+  },
+};

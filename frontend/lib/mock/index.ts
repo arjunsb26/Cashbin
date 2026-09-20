@@ -53,7 +53,8 @@ export const mockApi = {
   assets: (): Promise<AssetRead[]> => respond(fx.ASSETS, []),
   rounds: (): Promise<RoundListResponse> => respond(fx.ROUNDS, { rounds: [], learned: [] }),
   settings: (): Promise<SettingsRead> => respond(fx.SETTINGS, fx.SETTINGS),
-  close: (): Promise<CloseRead | null> => respond<CloseRead | null>(fx.CLOSE, null),
+  close: (): Promise<CloseRead | null> =>
+    respond<CloseRead | null>({ ...fx.CLOSE, ...fx.CLOSE_BLOCKS }, null),
   setup: (): Promise<string[]> => respond(fx.SETUP, []),
   rules: (): Promise<RuleRead[]> => respond(fx.RULES, []),
   stats: (range: StatsRange): Promise<StatsResponse | null> =>
