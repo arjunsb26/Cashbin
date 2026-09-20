@@ -160,11 +160,23 @@ def shrink(crop: bytes, max_px: int) -> bytes:
     return jpeg(small, 85)
 
 
-def crop_for(sprite_path: Path, bg: np.ndarray, slot: tuple[float, float]) -> Any:
-    """The empty bin, then the bin with the item in it, then the difference between them."""
+def crop_for(sprite_path: Path, bg: np.ndarray, slot: tuple[float, float],
+             sprite_px: int = 0) -> Any:
+    """The empty bin, then the bin with the item in it, then the difference between them.
+
+    `sprite_px` resizes the item before it is pasted. The scenarios composite at 220 px,
+    which gives a crop around 258 px: already under every `--max-px` value, so the cap
+    cannot bite. A phone held over a bin sees the item much larger than that, and the only
+    way to measure what the cap does is to composite it that way.
+    """
     sprite = cv2.imread(str(sprite_path), cv2.IMREAD_COLOR)
     if sprite is None:
         raise FileNotFoundError(f"no sprite at {sprite_path}")
+    if sprite_px:
+        h, w = sprite.shape[:2]
+        scale = sprite_px / max(h, w)
+        sprite = cv2.resize(sprite, (max(1, round(w * scale)), max(1, round(h * scale))),
+                            interpolation=cv2.INTER_CUBIC)
     before = jpeg(bg)
     after = jpeg(paste(bg, sprite, *slot))
     return crop_item(before, after, CropParams())
@@ -273,7 +285,7 @@ def photographs(per_item: int, only: tuple[str, ...]) -> list[dict[str, Any]]:
 
 
 def run(config: Config, per_item: int, repeat: int, only: tuple[str, ...],
-        bg_name: str, save_crops: bool) -> list[Row]:
+        bg_name: str, save_crops: bool, sprite_px: int = 0) -> list[Row]:
     settings = get_settings()
     labels, priors = catalog_context()
     provider = BenchProvider(settings, config)
@@ -282,7 +294,8 @@ def run(config: Config, per_item: int, repeat: int, only: tuple[str, ...],
     crops.mkdir(parents=True, exist_ok=True)
     rows: list[Row] = []
     for shot in photographs(per_item, only):
-        result = crop_for(REAL / "sprites" / shot["file"], bg, SLOT)
+        source = REAL / shot["file"] if sprite_px else REAL / "sprites" / shot["file"]
+        result = crop_for(source, bg, SLOT, sprite_px)
         crop = shrink(result.jpeg, config.max_px)
         if save_crops:
             (crops / shot["file"]).write_bytes(crop)
@@ -433,6 +446,8 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--only", default="", help="comma separated item keys")
     parser.add_argument("--background", default="bin_1.jpg")
     parser.add_argument("--tag", default="", help="overrides the output file name")
+    parser.add_argument("--sprite-px", type=int, default=0,
+                        help="composite the item at this size instead of 220 px")
     parser.add_argument("--no-crops", action="store_true")
     return parser
 
@@ -447,7 +462,8 @@ def main(argv: list[str] | None = None) -> int:
                     detail=args.detail, model=settings.llm_vision_model)
     only = tuple(part.strip() for part in args.only.split(",") if part.strip())
     print(f"bench {config.title}, repeat {args.repeat}, per item {args.per_item}")
-    rows = run(config, args.per_item, args.repeat, only, args.background, not args.no_crops)
+    rows = run(config, args.per_item, args.repeat, only, args.background,
+               not args.no_crops, args.sprite_px)
     if not rows:
         print("no photographs matched")
         return 1
