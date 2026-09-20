@@ -227,3 +227,32 @@ def test_an_event_is_marked_an_estimate_when_the_value_came_from_a_model(
     marked = dev_client.get("/api/events").json()["events"]
     assert marked[0]["is_estimate"] is True
     assert dev_client.get(f"/api/events/{event_id}").json()["event"]["is_estimate"] is True
+
+
+def test_the_ticket_names_every_account_it_posted_to(client: TestClient) -> None:
+    """The evidence drawer draws T-accounts. A bare code teaches nobody anything."""
+    from app.db import session_scope
+    from app.ledger import queries
+    from app.ledger.journal import Account, Basis, JournalEntry, JournalLine
+
+    with session_scope() as session:
+        event = Event(kind=EventKind.toss, mass_g=95.0, status=EventStatus.posted)
+        session.add(event)
+        session.flush()
+        event_id = int(event.id)
+        queries.post_entry(
+            session,
+            JournalEntry(
+                memo="Write off bagel",
+                basis=Basis.book,
+                lines=[
+                    JournalLine(account=Account.waste_and_shrink, debit_cents=33),
+                    JournalLine(account=Account.inventory, credit_cents=33),
+                ],
+            ),
+            event_id=event_id,
+        )
+
+    lines = client.get(f"/api/events/{event_id}").json()["entries"][0]["lines"]
+    named = {line["account"]: line["account_name"] for line in lines}
+    assert named == {"5100": "Waste and Shrink Expense", "1200": "Inventory"}

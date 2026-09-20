@@ -19,6 +19,7 @@ from sqlalchemy.orm import Session
 from app.db import session_scope
 from app.engine.records import EstimateSource
 from app.ingest.media import media_url
+from app.ledger.queries import account_name
 from app.models import (
     Correction,
     Event,
@@ -324,6 +325,9 @@ def _entries(session: Session, event_id: int) -> list[JournalEntryRead]:
                         id=int(line.id),
                         entry_id=int(line.entry_id),
                         account=line.account,
+                        # The name comes from the one chart of accounts, the same way
+                        # /api/journal fills it. Without it the ticket prints the code.
+                        account_name=account_name(line.account),
                         debit_cents=line.debit_cents,
                         credit_cents=line.credit_cents,
                     )
