@@ -30,9 +30,9 @@ export function RoundTotals({
     <section aria-label="Round total" className="mt-6 border-t-2 border-ink pt-3">
       <h3 className="text-caption text-ink-soft">Round total</h3>
       <dl className="m-0 pt-2">
-        <Line label="Kept from landfill" value={`${mass.value} ${mass.unit}`} />
+        <Line label="Projected waste diverted" value={`${mass.value} ${mass.unit}`} />
         <Line
-          label="Saved if followed"
+          label="Expected savings"
           value={formatMoney(summary.saved_if_followed_cents ?? 0, { symbol: true })}
         />
         <Line

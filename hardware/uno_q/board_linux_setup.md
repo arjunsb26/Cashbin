@@ -148,7 +148,14 @@ journalctl -u binbooks-bridge -f
 
 ## 7. If a plain script cannot reach the sketch
 
-`NEEDS_HARDWARE_CHECK`: this is the one real unknown. `--source bridge` needs
+Answered on the real board, Sunday morning: a plain `python3 bridge.py` cannot import
+`arduino.app_utils`, because that package lives only inside the app runtime image. Started
+as an Arduino App from `hardware/uno_q/app/`, the bridge reaches the sketch on the first
+call, `read_grams` answers, and a second client inside the same container can call
+`calibrate` while the bridge runs. `arduino-app-cli properties set default` makes the app
+start at boot. `hardware/uno_q/calibrate.sh` drives calibration from the laptop.
+
+The reasoning below is what was known before the board arrived. `--source bridge` needs
 `from arduino.app_utils import Bridge` to find the running router. Arduino's manual says
 the `arduino-router` service owns that link and that nothing else may open `/dev/ttyHS1`,
 but it does not say whether a script started by hand can join it. Try it by hand first.

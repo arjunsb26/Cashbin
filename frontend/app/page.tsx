@@ -75,14 +75,14 @@ export default function LivePage() {
           <div className="grid grid-cols-2 gap-x-8 gap-y-4 border-b border-rule pb-4 sm:grid-cols-4">
             <Total
               tone="kept"
-              label="Saved if followed"
+              label="Expected savings"
               value={
                 totals ? formatMoney(totals.saved_if_followed_cents ?? 0, { symbol: true }) : null
               }
             />
             <Total
               tone="kept"
-              label="Kept from landfill"
+              label="Projected waste diverted"
               value={totals ? massParts((totals.kg_diverted ?? 0) * 1000).value : null}
               unit={totals ? massParts((totals.kg_diverted ?? 0) * 1000).unit : ""}
             />
