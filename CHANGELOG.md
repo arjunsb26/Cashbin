@@ -2,6 +2,27 @@
 
 Newest first. Each lane writes under its own heading.
 
+## 2026-09-20, lane y: the queue on arrival, one waiting count, a space before a badge
+
+- Review reads the queue the moment the screen opens and on every return to it, so the
+  page can no longer show a cached "nothing waiting" while the rail counts five. Nothing
+  has to be pressed first.
+- The empty state is the queue's own `open_count` saying zero. A count above zero with no
+  rows yet says how many are waiting and reads the queue, instead of claiming all is
+  settled. A group's own line now speaks for its own rows ("None open here") rather than
+  passing a verdict on the whole queue, and it no longer repeats the blurb printed two
+  lines above it.
+- One waiting count for the whole app. The rail badge, the foot of the tape on Live and
+  the totals line on Trends all read `open_count` from the review queue through one hook,
+  and all three print the same sentence. They used to say "5 waiting on a person",
+  "4 needed a person" and "1 toss needed a person" about three different counts in the
+  same words.
+- A label and the short word beside it are separated by a real space, not by left
+  padding. "Recyclebest", "Repairbest" and "Mechanical keyboardBB-0002" were what a screen
+  reader heard and what a copy and paste produced. One `Badge` component now carries the
+  space and the type, and the ticket, the close statement, the review queue and the trends
+  categories all use it.
+
 ## 2026-09-20, lane w: the screen between tosses, and the asset nobody tagged
 
 - The bin no longer sits on the last ticket. A result stands for six seconds and then the
