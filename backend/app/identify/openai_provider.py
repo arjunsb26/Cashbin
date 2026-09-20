@@ -22,6 +22,7 @@ from pydantic import BaseModel, ValidationError
 
 from app.config import Settings
 from app.detect.crop import downscale_jpeg
+from app.engine.tax import round_money
 from app.identify.cost import cost_microusd, price_for
 from app.identify.estimate_cache import estimate_key, read_estimate, write_estimate
 from app.identify.openai_request import (
@@ -30,7 +31,7 @@ from app.identify.openai_request import (
     build_vision_request,
 )
 from app.identify.providers import CallUsage, IdentifyContext
-from app.schemas import ValueEstimate, VisionResult
+from app.schemas import MoneyRange, ValueEstimate, VisionResult
 
 log = logging.getLogger(__name__)
 
@@ -177,13 +178,40 @@ class OpenAIVisionProvider(_Adapter):
         return again
 
 
+def clean_range(money: MoneyRange) -> MoneyRange:
+    """One range with its mid cleaned to money a person would say out loud.
+
+    PLAN.md 21a item 47, using the engine's own steps so the bin, the ticket and the books
+    round the same way. Only the mid is cleaned; the low and the high keep every cent,
+    because the drawer draws the range. The clamp is for narrow ranges: a mid of 9987 with
+    a high of 9990 would otherwise round past its own high and fail validation.
+    """
+    mid = round_money(money.mid)
+    if mid is None:
+        return money
+    return money.model_copy(
+        update={"mid": mid, "low": min(money.low, mid), "high": max(money.high, mid)}
+    )
+
+
+def clean_estimate(estimate: ValueEstimate) -> ValueEstimate:
+    """The four figures a person reads, cleaned before they leave the provider."""
+    return estimate.model_copy(
+        update={
+            "fmv": clean_range(estimate.fmv),
+            "repair": clean_range(estimate.repair),
+            "replacement": clean_range(estimate.replacement),
+            "scrap": clean_range(estimate.scrap),
+        }
+    )
+
+
 class OpenAIEstimatorProvider(_Adapter):
     """Value estimates, cached by normalised label so no object is ever priced twice."""
 
-    def estimate(
-        self, label: str, vision: VisionResult, mass_g: float, crop: bytes | None = None
-    ) -> ValueEstimate:
-        key = estimate_key(label, vision)
+    def estimate(self, label: str, vision: VisionResult, mass_g: float,
+                 crop: bytes | None = None, detail: str = "") -> ValueEstimate:
+        key = estimate_key(label, vision, detail)
         cached = self._memo.get(key) or read_estimate(key)
         if cached is not None:
             self._memo[key] = cached
@@ -202,15 +230,18 @@ class OpenAIEstimatorProvider(_Adapter):
         )
         parsed = self._parse(
             build_estimate_request(
-                key, vision, mass_g, model, effort, self.settings.llm_service_tier, picture
+                key, vision, mass_g, model, effort, self.settings.llm_service_tier,
+                picture, detail,
             ),
             model,
             ValueEstimate,
         )
         if parsed is None:
             raise ValueError("the estimator returned nothing this code could read")
-        estimate: ValueEstimate = parsed.model_copy(
-            update={"label": key, "provider": PROVIDER_NAME, "model": model}
+        estimate: ValueEstimate = clean_estimate(
+            parsed.model_copy(
+                update={"label": key, "provider": PROVIDER_NAME, "model": model}
+            )
         )
         self._memo[key] = estimate
         write_estimate(key, estimate)

@@ -69,5 +69,6 @@ class EstimatorProvider(Protocol):
     last_call: CallUsage | None
 
     def estimate(
-        self, label: str, vision: VisionResult, mass_g: float, crop: bytes | None = None
+        self, label: str, vision: VisionResult, mass_g: float, crop: bytes | None = None,
+        detail: str = "",
     ) -> ValueEstimate: ...

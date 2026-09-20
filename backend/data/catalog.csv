@@ -29,23 +29,23 @@ id,label,class,unit_cost_cents,unit_mass_g,price_per_kg_cents,fmv_per_kg_cents,m
 28,hdmi cable,untracked,779,,,,"{""mixed_electronics"":1.0}","[""electronics""]",130.0,6084.0,3,https://www.monoprice.com/product?p_id=13779
 29,power bank,untracked,2599,212.0,,,"{""portable_electronic_devices"":1.0}","[""electronics"",""battery""]",212.0,16179.8,3,https://www.anker.com/products/a1229
 30,webcam,untracked,5999,,,,"{""electronic_peripherals"":1.0}","[""electronics""]",160.0,9216.0,3,https://www.logitech.com/en-us/shop/p/c920s-pro-hd-webcam
-31,usb flash drive,untracked,,,,,"{""mixed_electronics"":1.0}","[""electronics""]",12.0,36.0,3,NEEDS_HUMAN
-32,pen,untracked,,,,,"{""mixed_plastics"":1.0}",[],10.0,25.0,3,NEEDS_HUMAN
-33,pencil,untracked,,,,,"{""dimensional_lumber"":1.0}",[],7.0,12.2,3,NEEDS_HUMAN
-34,notebook,untracked,,,,,"{""mixed_paper"":1.0}",[],200.0,10000.0,3,NEEDS_HUMAN
-35,sticky notes,untracked,,,,,"{""mixed_paper"":1.0}",[],40.0,400.0,3,NEEDS_HUMAN
+31,usb flash drive,untracked,3199,,,,"{""mixed_electronics"":1.0}","[""electronics""]",12.0,36.0,3,https://www.target.com/p/sandisk-ultra-flair-usb-3-0-flash-drive-64-gb-usb-3-0-5-year-warranty/-/A-78408288
+32,pen,untracked,10,,,,"{""mixed_plastics"":1.0}",[],10.0,25.0,3,https://www.target.com/p/bic-10pk-xtra-life-ballpoint-pens-medium-tip-black-ink/-/A-16951588
+33,pencil,untracked,43,,,,"{""dimensional_lumber"":1.0}",[],7.0,12.2,3,https://www.target.com/p/ticonderoga-original-ticonderoga-pencils-no-2-soft-unsharpened-box-of-72/-/A-90350172
+34,notebook,untracked,35,,,,"{""mixed_paper"":1.0}",[],200.0,10000.0,3,https://www.target.com/p/subject-spiral-notebook-wide-ruled-dealworthy/-/A-94446119
+35,sticky notes,untracked,89,,,,"{""mixed_paper"":1.0}",[],40.0,400.0,3,https://www.target.com/p/post-it-3-34-x-3-34-sticky-notes-90-sheets-pad/-/A-17078752
 36,sticker sheet,untracked,,,,,"{""mixed_paper"":1.0}",[],5.0,6.2,3,NEEDS_HUMAN
 37,lanyard badge,untracked,,,,,"{""mixed_plastics"":1.0}",[],25.0,156.2,3,NEEDS_HUMAN
-38,laptop,untracked,,,,,"{""portable_electronic_devices"":1.0}","[""electronics"",""battery""]",1400.0,490000.0,3,NEEDS_HUMAN
-39,tablet,untracked,,,,,"{""portable_electronic_devices"":1.0}","[""electronics"",""battery""]",480.0,57600.0,3,NEEDS_HUMAN
-40,phone case,untracked,,,,,"{""mixed_plastics"":1.0}",[],30.0,225.0,3,NEEDS_HUMAN
-41,usb-a cable,untracked,,,,,"{""mixed_electronics"":1.0}","[""electronics""]",40.0,400.0,3,NEEDS_HUMAN
-42,lightning cable,untracked,,,,,"{""mixed_electronics"":1.0}","[""electronics""]",35.0,306.2,3,NEEDS_HUMAN
-43,aa battery,untracked,,,,,"{""mixed_metals"":1.0}","[""battery""]",24.0,144.0,3,NEEDS_HUMAN
-44,coin cell battery,untracked,,,,,"{""mixed_metals"":1.0}","[""battery""]",3.0,2.2,3,NEEDS_HUMAN
-45,granola bar,inventory,,,,,"{""food_waste"":0.9,""mixed_plastics"":0.1}","[""food""]",45.0,506.2,3,NEEDS_HUMAN
-46,energy drink can,inventory,,,,,"{""food_waste"":0.95,""aluminum_cans"":0.05}","[""food""]",260.0,16900.0,3,NEEDS_HUMAN
-47,coffee pod,inventory,,,,,"{""food_waste"":0.6,""mixed_plastics"":0.4}","[""food""]",12.0,36.0,3,NEEDS_HUMAN
-48,napkin,inventory,,,,,"{""mixed_paper"":1.0}",[],3.0,2.2,3,NEEDS_HUMAN
-49,plastic fork,inventory,,,,,"{""mixed_plastics"":1.0}",[],4.0,4.0,3,NEEDS_HUMAN
-50,tea bag,inventory,,,,,"{""food_waste"":1.0}","[""food""]",3.0,2.2,3,NEEDS_HUMAN
+38,laptop,untracked,19900,,,,"{""portable_electronic_devices"":1.0}","[""electronics"",""battery""]",1400.0,490000.0,3,https://www.target.com/p/hp-chromebook-14-hd-laptop-intel-celeron-n4500-4gb-ram-64gb-emmc-chrome-os/-/A-1003474299
+39,tablet,untracked,9999,,,,"{""portable_electronic_devices"":1.0}","[""electronics"",""battery""]",480.0,57600.0,3,https://www.target.com/p/amazon-fire-hd-8-tablet-2024/-/A-93604891
+40,phone case,untracked,1999,,,,"{""mixed_plastics"":1.0}",[],30.0,225.0,3,https://www.target.com/p/apple-iphone-15-iphone-14-iphone-13-silicone-case-with-magsafe-heyday/-/A-89231363
+41,usb-a cable,untracked,599,,,,"{""mixed_electronics"":1.0}","[""electronics""]",40.0,400.0,3,https://www.target.com/p/3-39-usb-a-to-usb-c-cable-dealworthy-8482-white/-/A-91252434
+42,lightning cable,untracked,1999,,,,"{""mixed_electronics"":1.0}","[""electronics""]",35.0,306.2,3,https://www.target.com/p/apple-usb-c-to-lightning-cable-1m/-/A-91119671
+43,aa battery,untracked,83,,,,"{""mixed_metals"":1.0}","[""battery""]",24.0,144.0,3,https://www.target.com/p/energizer-max-aa-batteries-24pk-alkaline-battery/-/A-86500007
+44,coin cell battery,untracked,175,,,,"{""mixed_metals"":1.0}","[""battery""]",3.0,2.2,3,https://www.target.com/p/energizer-2032-batteries-4pk-lithium-coin-battery/-/A-14568091
+45,granola bar,inventory,12,45.0,,533,"{""food_waste"":0.9,""mixed_plastics"":0.1}","[""food""]",45.0,506.2,3,estimate: 50 percent of retail https://www.target.com/p/nature-valley-crunchy-oats-39-n-honey-granola-bars-24ct/-/A-13781127
+46,energy drink can,inventory,140,260.0,,1073,"{""food_waste"":0.95,""aluminum_cans"":0.05}","[""food""]",260.0,16900.0,3,estimate: 50 percent of retail https://www.target.com/p/red-bull-energy-drink-8-4-fl-oz-can/-/A-13426756
+47,coffee pod,inventory,35,12.0,,5833,"{""food_waste"":0.6,""mixed_plastics"":0.4}","[""food""]",12.0,36.0,3,estimate: 50 percent of retail https://www.target.com/p/the-original-donut-shop-regular-keurig-k-cup-coffee-pods-medium-roast-24ct/-/A-79582438
+48,napkin,inventory,1,,,,"{""mixed_paper"":1.0}",[],3.0,2.2,3,https://www.webstaurantstore.com/choice-15-x-17-white-2-ply-dinner-napkin-case/5002DNAP.html
+49,plastic fork,inventory,1,,,,"{""mixed_plastics"":1.0}",[],4.0,4.0,3,https://www.webstaurantstore.com/choice-medium-weight-white-plastic-fork-case/130WFORK.html
+50,tea bag,inventory,2,3.0,,1667,"{""food_waste"":1.0}","[""food""]",3.0,2.2,3,estimate: 50 percent of retail https://www.target.com/p/lipton-black-tea-bags-100ct/-/A-13010225

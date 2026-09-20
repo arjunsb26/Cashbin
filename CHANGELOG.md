@@ -36,6 +36,35 @@ Newest first. Each lane writes under its own heading.
   detail question ("How much does it hold?") renders as the same buttons with the question
   as the heading.
 
+## 2026-09-20, lane t: estimates that hold still, priced rows, and words on the LCD
+
+- The answer a person gives when the bin asks now travels into the estimate call, as a
+  quoted value in the data block beside the crop, the description, the condition and
+  whatever the camera read. "64 gb" is the difference between two flash drives. It is cut
+  to 120 characters before it is sent, and a value that is not text is no answer at all.
+- The estimate cache is one row in the settings table holding one JSON object, read once
+  at start and written back on every store, rather than a row per label. A restart in the
+  middle of a demo keeps every figure anybody has been shown. The key is still everything
+  the estimator was told; a lookup by bare label finds the newest estimate for that label,
+  which is what the ticket needs. The cache holds four hundred objects and drops the
+  oldest, and it belongs to the database it was read from, so pointing the app at another
+  file does not carry the old prices over.
+- The four mid figures are cleaned to money a person would say before they leave the
+  provider, using the engine's own steps, so the figure the bin drew is the figure the
+  cache holds and the ticket repeats. Low and high keep every cent. A narrow range whose
+  mid rounds past its own high takes the high with it rather than failing validation.
+- Eighteen of the twenty everyday catalog rows carry a price read off a listing in
+  September 2026, one unit at a time, with the URL in `price_source`. Food rows follow the
+  file's own convention: cost is half the retail listing and fair market value per kilo is
+  the listing. The sticker sheet and the lanyard badge have no price and say `NEEDS_HUMAN`,
+  because no listing was found that priced one of the thing.
+- The LCD says what a toss means before it says how much: "Wasted" over food, "Written
+  off" over a tracked asset, "Worth about" over anything else, and "CO2e avoided" with a
+  weight over packaging. The figure carries no minus sign, because a minus sign on the bin
+  reads as a fault. Between tosses the bin shows what is in it since the last bag change,
+  "In the bin", "$41.80", "2,412 g, 7 items", and an empty bin says it is empty instead of
+  drawing a row of zeroes.
+
 ## 2026-09-20, lane o: the phone page can never get stuck
 
 - The sheets on the phone are one state machine now: `idle`, `result`, `ask`, `adding`, one

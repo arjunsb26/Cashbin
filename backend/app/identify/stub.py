@@ -212,7 +212,8 @@ class StubEstimatorProvider:
         self.last_call: CallUsage | None = None
 
     def estimate(
-        self, label: str, vision: VisionResult, mass_g: float, crop: bytes | None = None
+        self, label: str, vision: VisionResult, mass_g: float, crop: bytes | None = None,
+        detail: str = "",
     ) -> ValueEstimate:
         started = time.perf_counter()
         table = _RANGES[vision.item_class]

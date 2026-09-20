@@ -22,7 +22,7 @@ from pydantic import BaseModel
 
 from app.engine import carbon
 from app.identify.providers import IdentifyContext
-from app.schemas import ValueEstimate, VisionResult, normalise_label
+from app.schemas import ValueEstimate, VisionResult, _clean_free_text, normalise_label
 
 # Keywords structured outputs does not accept. Pydantic is the real wall, so dropping them
 # costs nothing: every reply is validated against the model before anything reads it.
@@ -54,6 +54,10 @@ ESTIMATE_TASK = (
     "fractions must sum to 1, and every material key must be one of the strings in the "
     "materials list in the data block."
 )
+
+# What an answer to the bin's question is allowed to be worth in the data block. The answer
+# is outside text like any other, so it is cut before it is sent rather than after.
+DETAIL_MAX = 120
 
 # The only material names that mean anything downstream. Anything else comes back from the
 # engine as "carbon is unknown", which is what put two tickets in the first real run with no
@@ -185,7 +189,7 @@ def build_vision_request(crop: bytes, context: IdentifyContext, model: str,
 
 def build_estimate_request(label: str, vision: VisionResult, mass_g: float, model: str,
                            effort: str = "low", service_tier: str = "",
-                           crop: bytes | None = None) -> dict[str, Any]:
+                           crop: bytes | None = None, detail: str = "") -> dict[str, Any]:
     """The exact body sent for a value estimate.
 
     PLAN.md 21a item 29. The estimator used to see the word and nothing else, so a hundred
@@ -200,6 +204,9 @@ def build_estimate_request(label: str, vision: VisionResult, mass_g: float, mode
         "condition": vision.condition,
         "description": vision.description,
         "visible_text": vision.visible_text,
+        # What a person answered when the bin asked. "64 gb" is the difference between two
+        # flash drives, and it is the one thing in here a human typed.
+        "detail": _clean_free_text(detail, DETAIL_MAX) if isinstance(detail, str) else "",
         "material": str(vision.material) if vision.material else None,
         "mass_g": round(mass_g, 2),
         "materials": list(MATERIAL_VOCABULARY),

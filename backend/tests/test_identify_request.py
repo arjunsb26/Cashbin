@@ -12,6 +12,7 @@ import json
 import pytest
 
 from app.identify.openai_request import (
+    DETAIL_MAX,
     ESTIMATE_TASK,
     MATERIAL_VOCABULARY,
     SYSTEM_TEXT,
@@ -113,7 +114,9 @@ def test_the_data_block_carries_the_catalog_the_tags_and_the_mass() -> None:
 
 
 def test_the_estimate_request_sends_the_object_as_data() -> None:
-    request = build_estimate_request("cracked phone", VISION, 180.0, "test-text-model")
+    request = build_estimate_request(
+        "cracked phone", VISION, 180.0, "test-text-model", detail="screen is cracked"
+    )
     task, data = request["messages"][1]["content"]
     assert task["text"] == ESTIMATE_TASK
     sent = json.loads(data["text"])
@@ -125,6 +128,8 @@ def test_the_estimate_request_sends_the_object_as_data() -> None:
         "description": "",
         # What the camera read travels here, as a quoted value and nowhere else.
         "visible_text": "EVERYTHING BAGEL",
+        # And so does whatever a person answered when the bin asked.
+        "detail": "screen is cracked",
         "material": "food_waste",
         "mass_g": 180.0,
     }
@@ -259,8 +264,38 @@ def test_a_hostile_sign_cannot_reach_the_cache_key_as_words() -> None:
             "visible_text": VISIBLE_TEXT_ATTACKS[1],
         }
     )
-    from app.identify.estimate_cache import cache_key, estimate_key
+    from app.identify.estimate_cache import estimate_key
 
     key = estimate_key("mouse", hostile)
     assert "administrator" not in key
-    assert cache_key(key).startswith("estimate:mouse ")
+    assert key.startswith("mouse ")
+
+
+def test_the_answer_to_the_question_travels_as_data_too() -> None:
+    """PLAN.md 21a item 29. "64 gb" is the difference between two flash drives."""
+    request = build_estimate_request(
+        "usb flash drive", VISION, 12.0, "test-text-model", "low", "fast", CROP, "64 gb"
+    )
+    task, data, image = request["messages"][1]["content"]
+    assert task["text"] == ESTIMATE_TASK
+    assert "64 gb" not in ESTIMATE_TASK
+    assert "64 gb" not in SYSTEM_TEXT
+    assert json.loads(data["text"])["detail"] == "64 gb"
+    assert image["type"] == "image_url"
+    assert request["reasoning_effort"] == "low"
+    assert request["service_tier"] == "fast"
+
+
+def test_an_oversized_answer_is_cut_before_it_is_sent() -> None:
+    request = build_estimate_request(
+        "mouse", VISION, 141.0, "test-text-model", detail="x" * 500
+    )
+    sent = json.loads(request["messages"][1]["content"][1]["text"])
+    assert sent["detail"] == "x" * DETAIL_MAX
+
+
+def test_an_answer_that_is_not_text_is_no_answer() -> None:
+    request = build_estimate_request(
+        "mouse", VISION, 141.0, "test-text-model", detail=None  # type: ignore[arg-type]
+    )
+    assert json.loads(request["messages"][1]["content"][1]["text"])["detail"] == ""
