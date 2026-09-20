@@ -19,6 +19,9 @@ export function LearningChart({ rounds }: { rounds: RoundRead[] }) {
   useEffect(() => {
     const element = host.current;
     if (!element) return;
+    // The drawing needs 480 units for the labels at the right ends of the lines to
+    // sit beside their lines rather than on top of them. Below that the svg scales
+    // itself down through the viewBox instead of running off the side of a phone.
     const measure = () => setWidth(Math.max(element.clientWidth, 480));
     measure();
     const observer = new ResizeObserver(measure);
@@ -65,7 +68,8 @@ export function LearningChart({ rounds }: { rounds: RoundRead[] }) {
     <div ref={host}>
       <svg
         viewBox={`0 0 ${width} ${height}`}
-        width={width}
+        width="100%"
+        className="block max-w-full"
         height={height}
         role="img"
         aria-label="Right first try, asked a person, and cost per toss, by round"
