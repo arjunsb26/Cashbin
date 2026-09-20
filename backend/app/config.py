@@ -124,6 +124,9 @@ class Settings(BaseSettings):
     # Serving
     https_port: int = Field(default=8443, gt=0, le=65535)
     http_port: int = Field(default=8000, gt=0, le=65535)
+    # Where the dashboard is being served. The backend sends the laptop there when someone
+    # opens the backend's own address, and names it when an address has nothing at it.
+    dashboard_url: str = "http://localhost:3000"
 
     # Off in the demo build. Gates /api/sim/* and every other dev-only surface.
     dev_tools: bool = False
@@ -142,6 +145,7 @@ class Settings(BaseSettings):
         "llm_vision_effort",
         "llm_text_effort",
         "llm_service_tier",
+        "dashboard_url",
         "openai_api_key",
         "product_name",
         "product_short_name",
