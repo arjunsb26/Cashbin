@@ -684,6 +684,9 @@ export interface IdentificationRead {
     [k: string]: number;
   };
   provider?: string | null;
+  sense_check?: {
+    [k: string]: unknown;
+  } | null;
   tokens_in?: number | null;
   tokens_out?: number | null;
   used_mass_prior?: boolean;
@@ -811,6 +814,7 @@ export interface PhoneAsk {
   crop_url?: string | null;
   event_id: number;
   looks_like?: string | null;
+  question?: string | null;
   type?: "ask";
 }
 /**
@@ -1215,6 +1219,7 @@ export interface UiAskOpened {
   crop_url?: string | null;
   event_id: number;
   looks_like?: string | null;
+  question?: string | null;
   type?: "ask.opened";
 }
 /**

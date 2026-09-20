@@ -58,8 +58,14 @@ class _Adapter:
             from openai import OpenAI
 
             key, base_url = self.settings.openai_api_key, self.settings.llm_base_url
-            self._client = OpenAI(api_key=key, base_url=base_url) if base_url else OpenAI(
-                api_key=key
+            # max_retries=0 on purpose. The SDK defaults to two silent retries, which sit
+            # inside our own timeout and turn one slow call into three. Retrying is the
+            # pipeline's decision, because only the pipeline knows what the person is
+            # looking at while it waits.
+            self._client = (
+                OpenAI(api_key=key, base_url=base_url, max_retries=0)
+                if base_url
+                else OpenAI(api_key=key, max_retries=0)
             )
         return self._client
 
@@ -134,7 +140,7 @@ class OpenAIVisionProvider(_Adapter):
             picture,
             context,
             model,
-            self.settings.llm_vision_effort,
+            context.effort or self.settings.llm_vision_effort,
             self.settings.llm_service_tier,
         )
         parsed = self._parse(request, model, VisionResult)

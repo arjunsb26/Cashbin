@@ -335,7 +335,10 @@ async def test_without_a_usable_prior_nothing_is_fused(settings: Settings) -> No
 
 async def test_a_timeout_opens_the_ask_and_never_raises(settings: Settings) -> None:
     setup_db(settings)
+    # Both goes time out. One that does not is a different case, below: the second call is
+    # the whole point of the retry, so this one has to outlast it too.
     settings.llm_timeout_s = 0.05
+    settings.vision_retry_timeout_s = 0.05
     with session_scope() as session:
         event_id = make_event(session).id
     deps = make_deps(settings, providers=scripted(vision("bagel", 0.99), delay=0.4))
