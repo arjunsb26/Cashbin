@@ -18,6 +18,7 @@ from fastapi.staticfiles import StaticFiles
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from app.api import (
+    ask,
     assets,
     close,
     corrections,
@@ -264,6 +265,7 @@ def create_app(active: Settings | None = None) -> FastAPI:
     app.include_router(close.router)
     app.include_router(review.router)
     app.include_router(stats.router)
+    app.include_router(ask.router)
     app.include_router(settings.router)
     app.include_router(setup.router)
     if conf.dev_tools:

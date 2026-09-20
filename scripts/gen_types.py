@@ -120,6 +120,9 @@ EXPORTED: tuple[str, ...] = (
     "StatsBucket",
     "StatsAverages",
     "StatsResponse",
+    # Lane Z: the agent you can ask about the books.
+    "AskRequest",
+    "AskResponse",
     "SettingsRead",
     "SettingsUpdate",
     "DeviceTareResponse",

@@ -20,6 +20,59 @@
       ],
       "type": "object"
     },
+    "AskRequest": {
+      "description": "One question about the books, typed by a person. It is data, never instruction.",
+      "properties": {
+        "question": {
+          "maxLength": 200,
+          "type": "string"
+        }
+      },
+      "required": [
+        "question"
+      ],
+      "type": "object"
+    },
+    "AskResponse": {
+      "description": "The answer, and every lookup the agent made to get to it.\n\n`grounded` is false when nothing the model wrote survived the figure check, so a\nreader can tell an answer off the books from an answer off nothing.",
+      "properties": {
+        "answer": {
+          "default": "",
+          "maxLength": 600,
+          "type": "string"
+        },
+        "grounded": {
+          "default": false,
+          "type": "boolean"
+        },
+        "latency_ms": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "model": {
+          "default": "",
+          "type": "string"
+        },
+        "provider": {
+          "default": "",
+          "type": "string"
+        },
+        "steps": {
+          "items": {
+            "$ref": "#/$defs/ToolStep"
+          },
+          "type": "array"
+        }
+      },
+      "type": "object"
+    },
     "AssetCreate": {
       "properties": {
         "book_life_months": {
@@ -2310,8 +2363,21 @@
       "type": "object"
     },
     "ReviewDecision": {
-      "description": "Who decided and why. Both fields are outside text, so both are cleaned.",
+      "description": "Who decided and why. Both text fields are outside text, so both are cleaned.\n\n`amount_cents` is the figure a person typed in place of the model's. The user's words\nare \"for amts to approve you might wanna enter ur own amt so add that as an option\",\nso it is an option: leave it out and the estimate stands as it is.",
       "properties": {
+        "amount_cents": {
+          "anyOf": [
+            {
+              "maximum": 10000000,
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
         "by": {
           "default": "person",
           "maxLength": 40,
@@ -4089,6 +4155,12 @@
   "properties": {
     "AskCandidate": {
       "$ref": "#/$defs/AskCandidate"
+    },
+    "AskRequest": {
+      "$ref": "#/$defs/AskRequest"
+    },
+    "AskResponse": {
+      "$ref": "#/$defs/AskResponse"
     },
     "AssetCreate": {
       "$ref": "#/$defs/AssetCreate"
