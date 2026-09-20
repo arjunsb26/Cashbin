@@ -148,25 +148,88 @@ Every pin in `uno_q/sketch/bin_config.h` is a guess until you confirm it, and ea
 is marked `NEEDS_HARDWARE_CHECK` with the question it is waiting on. Change them there
 and nowhere else.
 
-| Signal | Setting | Placeholder |
-|---|---|---|
-| Load cell amplifier data | `HX711_DT_PIN` | 2 |
-| Load cell amplifier clock | `HX711_SCK_PIN` | 3 |
-| Display chip select | `TFT_CS_PIN` | 10 |
-| Display data or command | `TFT_DC_PIN` | 9 |
-| Display reset | `TFT_RST_PIN` | 8 |
-| Display backlight | `TFT_BACKLIGHT_PIN` | none |
+There are two kinds of weight sensor and the sketch reads either one. Set `WEIGHT_SOURCE`
+in `bin_config.h` to `WEIGHT_SOURCE_ANALOG` or `WEIGHT_SOURCE_HX711`. The bin we are
+building has the analog kind, which is the default, and only its row is wired.
+
+| Signal | Setting | Placeholder | Which source |
+|---|---|---|---|
+| Load gauge output | `ANALOG_WEIGHT_PIN` | A0 | analog |
+| Load cell amplifier data | `HX711_DT_PIN` | 2 | HX711 |
+| Load cell amplifier clock | `HX711_SCK_PIN` | 3 | HX711 |
+| Display chip select | `TFT_CS_PIN` | 10 | both |
+| Display data or command | `TFT_DC_PIN` | 9 | both |
+| Display reset | `TFT_RST_PIN` | 8 | both |
+| Display backlight | `TFT_BACKLIGHT_PIN` | none | both |
 
 The display's MOSI and SCK go to the board's hardware SPI pins, which the library finds
 on its own. Set `USE_ILI9341` or `USE_ST7789` to 1 depending on which controller the
 panel has, and leave the other at 0. It is printed on the back of most panels.
 
-One thing worth knowing before you buy: most HX711 breakouts run at 10 samples per
-second, because the RATE pin is tied low on the board. The protocol wants 10 to 20 Hz,
-so 10 is the floor and it works, but the step detection is noticeably better at 80. If
-the breakout exposes a RATE pad, tie it to VCC and set `HX711_SPS` to 80.
+The analog gauge needs three wires and no breakout: power, ground, and its output into
+`ANALOG_WEIGHT_PIN`. Feed it from the board's 3.3 V rail, not 5 V, because the converter
+input does not want more than 3.3 V and there is no divider in the way.
 
-## 5. Calibrate the load cell
+One thing worth knowing if you ever swap to an HX711: most breakouts run at 10 samples
+per second, because the RATE pin is tied low on the board. The protocol wants 10 to 20
+Hz, so 10 is the floor and it works, but the step detection is noticeably better at 80.
+If the breakout exposes a RATE pad, tie it to VCC and set `HX711_SPS` to 80.
+
+## 5. Calibrate
+
+Once, with the bin assembled, on a surface that is not moving. Both procedures take two
+readings and turn them into two numbers. Which one you follow depends on `WEIGHT_SOURCE`.
+
+### The analog load gauge, two points
+
+The gauge puts out a voltage and the board counts it. Two readings give the line: what an
+empty bin counts, and how much the count moves per gram.
+
+1. Upload the sketch as it stands. The placeholders make it report nonsense, which is
+   expected and does not matter, because the numbers you need are the raw counts.
+2. Open a serial monitor on the bin and send one line:
+
+   ```
+   {"type":"calibrate"}
+   ```
+
+   It answers with a line like this, and the number you want is `counts`:
+
+   ```
+   {"type":"calibration","source":"analog","counts":2041.25,"zero":2040.00,"per_gram":1.0000,"g":1.25}
+   ```
+
+3. With the bin **empty and settled**, send `calibrate` and write the `counts` down. Call
+   it `empty`.
+4. Put a known mass in. A litre of water is 1000 g. A phone is near 200 g. Weigh it on a
+   kitchen scale and write the real number down. Call it `mass`.
+5. Send `calibrate` again and write that `counts` down. Call it `loaded`.
+6. The two numbers are:
+
+   ```
+   ANALOG_ZERO_COUNTS     = empty
+   ANALOG_COUNTS_PER_GRAM = (loaded - empty) / mass
+   ```
+
+7. Put both in `bin_config.h` and upload again.
+8. Check it: the known mass now reads its real weight, within a gram or two, and the
+   empty bin reads near zero.
+
+Three things that save time here. `counts` going **down** as weight goes on is fine and
+needs nothing changed; `ANALOG_COUNTS_PER_GRAM` simply comes out negative and the
+arithmetic still works. If `counts` never rises above 1023 the converter is running at 10
+bits rather than 12, which is also fine, but take both points again at that resolution
+because the two numbers only mean anything together. And if `loaded` and `empty` are
+within a few counts of each other, the gauge is not carrying the load: check the
+mechanical mounting before touching any code.
+
+If there is no serial adapter to hand, the same thing over the board's own link:
+
+```
+python3 -c "from arduino.app_utils import Bridge; print(Bridge.call('calibrate'))"
+```
+
+### The HX711 load cell
 
 Once, with the bin assembled and empty, on a surface that is not moving.
 

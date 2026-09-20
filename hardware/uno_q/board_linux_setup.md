@@ -203,14 +203,144 @@ console and pushes the first hardware UART, the one on D0 and D1, to `Serial1`. 
 read out of the core's own header, not guessed, and it is why `bin_config.h` sets
 `BIN_SERIAL` to `Serial1`.
 
-## 9. What the board has to confirm
+## 10. The webcam, on the board
+
+The bin needs an eye over it and the Brio is plugged into the board's own USB, so the
+camera runs on the board and there is no cable to the laptop at all. `webcam_client.py` is
+the phone page rewritten as a script: it opens the camera, sends about eight JPEG frames a
+second to `/ws/phone`, and prints every result and ask that comes back.
+
+Install OpenCV. The packaged build is the one to want on this board, because it is built
+for aarch64 already and pip would otherwise try to compile:
+
+```
+sudo apt install -y python3-opencv
+```
+
+If apt does not have it, the wheel instead. `-headless` is the right one here: the board
+has no screen, and the headless build skips the window libraries that would fail anyway.
+
+```
+python3 -m pip install opencv-python-headless numpy
+```
+
+The same externally managed refusal from section 4 applies, so with a virtual environment
+it is `~/binenv/bin/pip install opencv-python-headless numpy` and every `python3` below
+becomes `~/binenv/bin/python3`.
+
+Copy the file over the same way as `bridge.py`:
+
+```
+scp hardware\webcam_client.py arduino@<boardname>.local:/home/arduino/webcam_client.py
+```
+
+Find the Brio. Plug it in, then:
+
+```
+python3 webcam_client.py --list
+```
+
+It opens every index up to six and prints the ones that give a frame, with the resolution
+of each, which is how you tell the Brio from anything else on the bus. `v4l2-ctl
+--list-devices` gives the same answer with names attached if `v4l-utils` is installed.
+
+Then point it at the bin and leave it running. `<laptop>` is the address from
+`find_laptop_ip.ps1`, almost always `192.168.137.1` on the hotspot:
+
+```
+python3 webcam_client.py --url ws://192.168.137.1:8000/ws/phone --camera 0
+```
+
+Port 8000 and plain `ws://`, the same as the bridge. The certificate on 8443 exists for a
+phone browser and this is not one.
+
+Three things worth knowing.
+
+The capture backend picks itself by operating system, Video4Linux here and DirectShow on
+the laptop, so there is no flag to remember. `--api v4l2` forces it if something odd
+happens.
+
+`--preview` is a laptop feature and turns itself off here. It needs a window toolkit and a
+display, the board has neither, and the script says "no window toolkit here, running
+without the preview" once and carries on. That line is not an error.
+
+Unplugging the camera is not fatal. The client says so once and retries the open every two
+seconds, while the socket reconnects with backoff behind it.
+
+## 11. Bring the whole board up with one command
+
+`board_up.sh` starts both halves, the bridge and the webcam, each in a loop that restarts
+it if it dies, with a log per program. `board_down.sh` stops them. Neither needs an
+argument once `board.env` has the laptop's address in it.
+
+```
+scp hardware\uno_q\board_up.sh hardware\uno_q\board_down.sh hardware\uno_q\board.env arduino@<boardname>.local:/home/arduino/
+chmod +x ~/board_up.sh ~/board_down.sh
+```
+
+Put the laptop's address in `board.env`, or pass it as the first argument, which wins:
+
+```
+./board_up.sh 192.168.137.1
+./board_up.sh                 # reads LAPTOP_IP from board.env
+./board_down.sh
+```
+
+Logs land in `~/binbooks/logs/`, one file each, and `board_up.sh` prints the two commands
+worth knowing:
+
+```
+tail -f ~/binbooks/logs/bridge.log
+tail -f ~/binbooks/logs/webcam.log
+```
+
+To have it come up on power, a user unit, which needs no root:
+
+```
+mkdir -p ~/.config/systemd/user
+cat > ~/.config/systemd/user/binbooks.service <<'EOF'
+[Unit]
+Description=BinBooks bin, bridge and webcam
+After=network-online.target
+
+[Service]
+Type=forking
+ExecStart=/home/arduino/board_up.sh
+ExecStop=/home/arduino/board_down.sh
+RemainAfterExit=yes
+
+[Install]
+WantedBy=default.target
+EOF
+systemctl --user daemon-reload
+systemctl --user enable --now binbooks
+sudo loginctl enable-linger arduino
+```
+
+That last line is the one people forget. Without it a user unit stops when the last login
+ends, so the bin would die the moment you closed the SSH window. With it, the board runs
+the service from boot with nobody logged in.
+
+The plainer alternative, if systemd is being difficult at two in the morning:
+
+```
+crontab -e
+@reboot sleep 20 && /home/arduino/board_up.sh >> /home/arduino/binbooks/logs/cron.log 2>&1
+```
+
+The `sleep 20` is there so the wifi has joined before the bridge starts looking for the
+laptop. The bridge would reconnect anyway, but the log reads better.
+
+## 12. What the board has to confirm
 
 | Question | Where it bites |
 |---|---|
 | Does a hand started `python3 bridge.py` reach the router, or must it be an App Lab app | section 7 |
 | The Linux password chosen at first boot, and the board name for `<boardname>.local` | sections 1 and 2 |
 | Whether `arduino-cli upload` over USB-C works from the laptop, or whether flashing has to happen on the board | `flash.ps1` prints the fallback when it finds no port |
-| The six pins, the amplifier and the panel controller | `sketch/bin_config.h`, unchanged by this lane |
+| Which index the Brio opens on, and whether `python3-opencv` is in the board's apt | section 10 |
+| Whether the board can hold eight frames a second and the bridge at once, on wifi | watch `~/binbooks/logs/webcam.log` for dropped frames |
+| The pins, the gauge's two calibration numbers and the panel controller | `sketch/bin_config.h` and README section 5 |
 
 ## Sources
 
