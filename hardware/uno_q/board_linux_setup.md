@@ -162,9 +162,9 @@ already uses:
 /home/arduino/ArduinoApps/binbooks/
 ├── app.yaml
 ├── python/
-│    └── main.py        <- bridge.py, renamed
+│    └── main.py        is bridge.py, renamed
 └── sketch/
-     ├── sketch.ino     <- hardware/uno_q/sketch/sketch.ino
+     ├── sketch.ino     is hardware/uno_q/sketch/sketch.ino
      └── sketch.yaml
 ```
 
