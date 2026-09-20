@@ -55,16 +55,34 @@ def keyboard_row() -> dict[str, Any]:
 
 
 def seed_through_the_api(client: TestClient) -> None:
-    """The catalog from the seed file, the one register row through the REST surface."""
-    seed_for_demo_catalog_only()
-    created = client.post("/api/assets", json=keyboard_row())
-    assert created.status_code == 201, created.text
-    assert created.json()["tag"] == KEYBOARD_TAG
-    assert created.json()["status"] == AssetStatus.active
+    """The catalog and register from the seed files, with the keyboard row set over REST.
+
+    The seed file's own figures are approximate and the user may change them again, so this
+    case writes the numbers its assertions depend on through `PATCH /api/assets/{id}` rather
+    than reading whatever the CSV happens to hold today. Nothing is written back to the CSV.
+    """
+    seed_the_files()
+    row = keyboard_row()
+    existing = next(
+        (
+            asset
+            for asset in client.get("/api/assets").json()["assets"]
+            if asset["tag"] == KEYBOARD_TAG
+        ),
+        None,
+    )
+    if existing is None:
+        written = client.post("/api/assets", json=row)
+        assert written.status_code == 201, written.text
+    else:
+        written = client.patch(f"/api/assets/{existing['id']}", json=row)
+        assert written.status_code == 200, written.text
+    assert written.json()["tag"] == KEYBOARD_TAG
+    assert written.json()["status"] == AssetStatus.active
 
 
-def seed_for_demo_catalog_only() -> None:
-    """Everything `seed_for_demo` loads except the register row, which the API now writes."""
+def seed_the_files() -> None:
+    """The catalog and the register, exactly as a first start loads them."""
     import sys
     from pathlib import Path
 

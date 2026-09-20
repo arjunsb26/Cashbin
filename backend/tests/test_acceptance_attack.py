@@ -186,4 +186,6 @@ def test_a_sign_held_up_to_the_camera_ends_in_a_normal_ticket(
                 assert record["asset_id"] is None, index
             # Nothing on the ticket repeats the sign, and nothing came off the register.
             assert raw[:40].lower() not in json.dumps(detail).lower(), index
-            assert client.get("/api/assets").json()["assets"] == [], index
+            assets = client.get("/api/assets").json()["assets"]
+            assert all(asset["status"] == "active" for asset in assets), index
+            assert all(asset["disposed_event_id"] is None for asset in assets), index

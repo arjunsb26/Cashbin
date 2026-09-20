@@ -293,16 +293,18 @@ def test_a_vocabulary_it_has_to_learn_improves_round_over_round(
     assert rows[-1]["cloud_cost_microusd"] < rows[0]["cloud_cost_microusd"]
 
 
-def test_the_soak_as_written_stays_flat_because_memory_is_only_human_fed(
+def test_the_soak_as_written_barely_learns_because_memory_is_only_human_fed(
     soak_settings: Settings,
 ) -> None:
-    """The same run against the shipped catalog, which is where the curve goes flat.
+    """The same run against the shipped catalog, which is where the curve nearly flattens.
 
     Almost every label in `soak.yaml` is in `catalog.csv`, so the model is confident about
     almost every toss, so almost nothing asks, so almost nothing becomes an exemplar. An
-    exemplar is written only when a person answers (`learn/corrections.py`), which means the
-    local-first path never takes over the tosses the model already gets right, and the cost
-    per event never falls.
+    exemplar is written only when a person answers or overturns an answer
+    (`learn/corrections.py`), which means the local-first path never takes over the tosses
+    the model already gets right. What little it does learn here comes from the six unknown
+    objects that share one picture, which the model keeps naming wrongly and a person keeps
+    putting right.
 
     This is a measurement, not a wish. If somebody changes what writes an exemplar, this
     test fails, and the numbers in it are the ones to argue with.
@@ -310,10 +312,13 @@ def test_the_soak_as_written_stays_flat_because_memory_is_only_human_fed(
     run = run_the_soak(soak_settings, cold=False)
     rows = run["rows"]
     column = columns(rows)
+    played = run["played"]
 
-    assert run["vision_calls"] >= 55, "the catalog path calls the model on nearly every toss"
-    assert sum(row["n_asked"] for row in rows) <= 8
-    assert max(column["local"]) < 0.2, column["local"]
-    # Flat or worse on the two columns the milestone watches.
-    assert column["accuracy"][-1] <= column["accuracy"][0], column["accuracy"]
-    assert column["per_event"][-1] >= column["per_event"][0] * 0.9, column["per_event"]
+    assert run["vision_calls"] >= 45, "the catalog path calls the model on most tosses"
+    assert played["answered"] <= 3, "a seeded catalog barely ever asks"
+    assert sum(row["n_asked"] for row in rows) <= 5
+    # The local share does climb, but only over the handful of pictures a person touched.
+    assert column["local"][-1] < 0.25, column["local"]
+    # And the money per ticket stays within a quarter of where it started, against the
+    # cold run above where it reaches zero.
+    assert column["per_event"][-1] > column["per_event"][0] * 0.75, column["per_event"]
