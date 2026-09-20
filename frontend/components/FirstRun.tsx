@@ -32,7 +32,11 @@ export function FirstRun() {
   );
 }
 
-/** The command, on one line, with a button that puts it on the clipboard. */
+/**
+ * The command, with a button that puts it on the clipboard. It wraps rather than
+ * scrolling: a command box that hides its own second half is worse than two lines,
+ * because someone reading from a metre away cannot tell there is more.
+ */
 function CommandBox({ command }: { command: string }) {
   const [copied, setCopied] = useState(false);
 
@@ -44,7 +48,7 @@ function CommandBox({ command }: { command: string }) {
 
   return (
     <div className="flex items-stretch gap-2">
-      <pre className="m-0 min-w-0 flex-1 overflow-x-auto border border-rule bg-bar px-3 py-2 text-caption text-ink">
+      <pre className="m-0 min-w-0 flex-1 whitespace-pre-wrap break-words border border-rule bg-bar px-3 py-2 text-caption text-ink">
         {command}
       </pre>
       <button

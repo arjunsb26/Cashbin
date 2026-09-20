@@ -1,32 +1,63 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { AskView } from "@/lib/derive";
 import { formatProbability, readLabel } from "@/lib/format";
+import { fromEditable } from "@/lib/keys";
 import { imageSrc, useAnswerAsk } from "@/lib/api";
 import { CropFrame } from "./CropFrame";
 import { Button, Field, Input, cx } from "./ui";
+
+/**
+ * What a person has half typed, kept outside the component and keyed by ticket.
+ *
+ * The Live page redraws ten times a second off the scale, and a newer ask takes the
+ * sheet from an older one. Either can take this panel off the screen and put it back,
+ * and React state goes with it. Someone in the middle of a word would watch the box
+ * empty itself. The draft outlives the panel, so it comes back as it was.
+ */
+const drafts = new Map<number, { typing: boolean; raw: string }>();
 
 /**
  * The ask takes over the ticket body. Keys 1 to 4 answer it.
  * Free text is read into a small object first, and the page shows what it understood.
  */
 export function AskPanel({ ask }: { ask: AskView }) {
+  const draft = drafts.get(ask.event_id) ?? { typing: false, raw: "" };
   const [answered, setAnswered] = useState<string | null>(null);
-  const [typing, setTyping] = useState(false);
-  const [raw, setRaw] = useState("");
+  const [typing, setTypingState] = useState(draft.typing);
+  const [raw, setRawState] = useState(draft.raw);
+  const box = useRef<HTMLInputElement | null>(null);
   const answer = useAnswerAsk();
   const read = readLabel(raw);
 
+  const setTyping = (next: boolean) => {
+    drafts.set(ask.event_id, { typing: next, raw });
+    setTypingState(next);
+  };
+  const setRaw = (next: string) => {
+    drafts.set(ask.event_id, { typing, raw: next });
+    setRawState(next);
+  };
+
   const send = (label: string) => {
+    drafts.delete(ask.event_id);
     setAnswered(label);
     answer.mutate({ event_id: ask.event_id, label, by: "person" });
   };
 
+  // The box is revealed by a click, and a click leaves the focus on the button that
+  // was clicked. Put it in the box, every time the box appears, so the next keystroke
+  // lands where the person is looking.
+  useEffect(() => {
+    if (typing) box.current?.focus();
+  }, [typing]);
+
   useEffect(() => {
     if (answered) return;
     const onKey = (e: KeyboardEvent) => {
-      if (typing) return;
+      // A digit typed into the label box is part of the label, never an answer.
+      if (typing || fromEditable(e.target)) return;
       const index = Number(e.key) - 1;
       const candidate = ask.candidates[index];
       if (candidate) send(candidate.label);
@@ -84,7 +115,7 @@ export function AskPanel({ ask }: { ask: AskView }) {
             >
               <Input
                 id="ask-other"
-                autoFocus
+                ref={box}
                 value={raw}
                 onChange={(e) => setRaw(e.target.value)}
                 placeholder="cable coil"

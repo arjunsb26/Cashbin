@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import type { EventDetail, EventSummary } from "@/lib/types";
 import { tapeAmount, trashBlocked } from "@/lib/derive";
 import { ESTIMATE_MARKER, formatMoney, formatTime } from "@/lib/format";
+import { fromEditable } from "@/lib/keys";
 import { useEvidence } from "./Providers";
 import { EmptyState, cx } from "./ui";
 
@@ -22,8 +23,7 @@ export function Tape({
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      const target = e.target as HTMLElement | null;
-      if (target && ["INPUT", "TEXTAREA", "SELECT"].includes(target.tagName)) return;
+      if (fromEditable(e.target)) return;
       if (e.key === "j") setSelected((s) => Math.min(s + 1, events.length - 1));
       if (e.key === "k") setSelected((s) => Math.max(s - 1, 0));
       if (e.key === "Enter" && events[selected]) router.push(`/events/${events[selected].id}`);

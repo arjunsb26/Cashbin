@@ -44,6 +44,17 @@ export function ScaleStrip({
     if (!element) return;
     const parent = element.parentElement;
     if (!parent) return;
+    const draw = () => paint(element, parent);
+    draw();
+    // The column is a flex child, so its width is not settled on the first paint.
+    // A canvas sized then keeps its pixel width and runs on under the reading and
+    // its status line. Redrawing on every resize keeps the trace inside its column.
+    const observer = new ResizeObserver(draw);
+    observer.observe(parent);
+    return () => observer.disconnect();
+  });
+
+  function paint(element: HTMLCanvasElement, parent: HTMLElement) {
     const style = getComputedStyle(element);
     const ink = style.getPropertyValue("--ink").trim();
     const soft = style.getPropertyValue("--ink-soft").trim();
@@ -131,7 +142,7 @@ export function ScaleStrip({
       ctx.textAlign = px > width - 48 ? "right" : "left";
       ctx.fillText(`${Math.round(mass)} g`, px > width - 48 ? px - 4 : px + 4, PAD_TOP - 5);
     });
-  }, [samples, steps, stepMasses, connected]);
+  }
 
   const line =
     reach === "connecting"
