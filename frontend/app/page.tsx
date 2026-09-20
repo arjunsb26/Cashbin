@@ -1,11 +1,12 @@
 "use client";
 
-import { API_URL, useEventDetails, useSummary } from "@/lib/api";
+import { API_URL, useEventDetails, useRounds, useSummary } from "@/lib/api";
 import { askFromDetail, type AskView } from "@/lib/derive";
 import { useLive, useReach } from "@/lib/live";
 import { formatCount, formatMoney, formatPercent, massParts } from "@/lib/format";
 import { AskPanel } from "@/components/AskPanel";
 import { FirstRun } from "@/components/FirstRun";
+import { RoundTotals } from "@/components/RoundTotals";
 import { ScaleStrip } from "@/components/ScaleStrip";
 import { Tape } from "@/components/Tape";
 import { Ticket } from "@/components/Ticket";
@@ -20,6 +21,7 @@ import {
 } from "@/components/ui";
 
 const TAPE_ROWS = 25;
+const TAPE_FILLS_COLUMN = 12;
 
 export default function LivePage() {
   const summary = useSummary();
@@ -41,6 +43,15 @@ export default function LivePage() {
   const ticketDetail = ticket ? (details.get(ticket.event.id) ?? null) : null;
   const totals = summary.data;
   const reach = useReach(live.status, summary.isError, totals != null);
+  const rounds = useRounds();
+  const round = (rounds.data?.rounds ?? []).at(-1) ?? null;
+  // The three tosses before the one on the sheet, printed small, so the space
+  // under a short tape is tickets rather than paper.
+  const recent = tape
+    .filter(
+      (e) => e.kind === "toss" && e.status !== "void" && e.id !== ticket?.event.id,
+    )
+    .slice(0, 3);
 
   return (
     <div className="flex flex-col gap-4">
@@ -115,6 +126,23 @@ export default function LivePage() {
           ) : (
             <FirstRun />
           )}
+
+          {reach === "live" && ticket && recent.length > 0 ? (
+            <div className="hidden pt-8 lg:block">
+              <SectionTitle>Before that</SectionTitle>
+              <div className="flex flex-col gap-3 pt-3">
+                {recent.map((event) => (
+                  <Ticket
+                    key={event.id}
+                    event={event}
+                    detail={details.get(event.id) ?? null}
+                    size="compact"
+                    showMenu={false}
+                  />
+                ))}
+              </div>
+            </div>
+          ) : null}
         </section>
 
         <section aria-label="Tape" className="min-w-0">
@@ -139,6 +167,12 @@ export default function LivePage() {
             ) : (
               <Tape events={tape} details={details} />
             )}
+
+            {/* A tape shorter than its column leaves the foot empty, and a ledger
+                column ends in its total. Twelve rows is the column at 1440x900. */}
+            {reach === "live" && tape.length > 0 && tape.length < TAPE_FILLS_COLUMN ? (
+              <RoundTotals summary={totals} round={round} />
+            ) : null}
           </div>
         </section>
       </div>

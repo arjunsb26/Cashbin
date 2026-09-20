@@ -30,6 +30,14 @@ import { Button, Field, Input, cx } from "./ui";
 
 export type TicketPhase = "weighing" | "identified";
 
+/**
+ * Full is the sheet on the Live page and the event page. Compact is the same
+ * sheet printed small, for the tickets that came before the current one: the
+ * label, the class, the mass, the figure and which option would have been best,
+ * with the option table and the menu left off.
+ */
+export type TicketSize = "full" | "compact";
+
 function useCountUp(target: number, arrival: number, enabled: boolean): number {
   const [value, setValue] = useState(target);
   const frame = useRef<number | null>(null);
@@ -65,6 +73,7 @@ export function Ticket({
   phase = "identified",
   arrival = 0,
   width,
+  size = "full",
   showMenu = true,
   children,
 }: {
@@ -73,6 +82,7 @@ export function Ticket({
   phase?: TicketPhase;
   arrival?: number;
   width?: number | string;
+  size?: TicketSize;
   showMenu?: boolean;
   children?: React.ReactNode;
 }) {
@@ -89,11 +99,14 @@ export function Ticket({
   // not settled yet. Otherwise the ticket carries the engine's own tone.
   const asking = children != null;
   const tone = asking ? "caution" : ticketTone(options, settings.data);
+  const compact = size === "compact";
+  const best = bestOption(options);
 
   return (
     <article
       className={cx(
-        "ticket-arrive rounded-ticket border border-rule bg-surface p-5 shadow-ticket lg:p-6",
+        "ticket-arrive rounded-ticket border border-rule bg-surface shadow-ticket",
+        compact ? "p-3 lg:p-4" : "p-5 lg:p-6",
         // The tone band, the same 4 px edge the phone sheet carries.
         tone === "kept" && "border-t-4 border-t-kept",
         tone === "caution" && "border-t-4 border-t-caution",
@@ -117,11 +130,11 @@ export function Ticket({
           <CropFrame
             src={imageSrc(event.crop_url)}
             label={event.label ?? "Item on the scale"}
-            size="var(--crop-ticket)"
+            size={compact ? 44 : "var(--crop-ticket)"}
             className={identified ? "animate-fade-in" : undefined}
           />
         )}
-        <div className="flex-1">
+        <div className="min-w-0 flex-1">
           <h2 className="text-section">{identified ? event.label : "Identifying"}</h2>
           {identified && sort ? (
             <p className="pt-1 text-caption text-ink-soft">{sort}</p>
@@ -130,19 +143,24 @@ export function Ticket({
             <Mass grams={mass} eventId={event.id} focus="mass" />{" "}
             <span className="text-ink-soft">{formatMassError(event.mass_err_g ?? 0)}</span>
           </p>
-          <p className="pt-1 text-caption text-ink-soft">Ticket {event.id}</p>
+          {compact ? null : <p className="pt-1 text-caption text-ink-soft">Ticket {event.id}</p>}
         </div>
-        {showMenu ? <TicketMenu event={event} /> : null}
+        {compact ? (
+          <span className="shrink-0 text-caption text-ink-soft">Ticket {event.id}</span>
+        ) : showMenu ? (
+          <TicketMenu event={event} />
+        ) : null}
       </header>
 
       {children ? (
         <div className="pt-4">{children}</div>
       ) : (
         <>
-          <div className="flex items-end gap-3 pt-5">
+          <div className={cx("flex items-end gap-3", compact ? "pt-3" : "pt-5")}>
             <span
               className={cx(
-                "font-condensed text-figure leading-none",
+                "font-condensed leading-none",
+                compact ? "text-total" : "text-figure",
                 isNegativeCents(figure.cents) && "text-red-ink",
               )}
             >
@@ -156,7 +174,14 @@ export function Ticket({
             </span>
           </div>
 
-          {identified && options.length > 0 ? (
+          {compact ? (
+            best ? (
+              <p className="pt-2 text-caption text-ink-soft">
+                Best was {formatOption(best.option).toLowerCase()}, at{" "}
+                {formatMoney(best.net_after_tax_cents, { symbol: true })} after tax.
+              </p>
+            ) : null
+          ) : identified && options.length > 0 ? (
             <OptionTable eventId={event.id} options={options} />
           ) : (
             <p className="pt-4 text-caption text-ink-soft">
