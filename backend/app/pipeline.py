@@ -92,6 +92,8 @@ TONES: dict[str, LcdColour] = {"green": "green", "amber": "amber", "red": "red"}
 
 # User copy. DESIGN.md section 8: say what to do, or say what happened, in one short line.
 BLOCKED_ONLY = "Not for the bin"
+# What the bin says when it has nothing to argue about, which is most of the time.
+FINE_TO_BIN = "Fine to bin"
 ADVICE: dict[Option, str] = {
     Option.recycle: "Recycle it instead",
     Option.donate: "Donate it instead",
@@ -170,16 +172,36 @@ def title_for(label: str) -> str:
     return joined[:1].upper() + joined[1:]
 
 
-def advice_line(record: ItemRecord, ranking: engine_options.Ranking, blocked: bool) -> str:
-    """One line: what to do instead, or what this toss did to the books."""
+def advice_line(
+    record: ItemRecord,
+    ranking: engine_options.Ranking,
+    blocked: bool,
+    speak_up_cents: int = 100,
+) -> str:
+    """One line: what to do instead, or that the bin was the right place for it.
+
+    PLAN.md 21a item 37. The user's words: if something is trash you should just say it is
+    trash. A bin that says "Donate it instead" to save three cents on a bagel is a bin
+    nobody believes the fourth time, so it only speaks up when the difference is worth
+    hearing, or when the bin is not allowed to have the thing at all.
+    """
     best = ranking.best_option
     if blocked:
         if best is not None and best in BLOCKED_ADVICE:
             return BLOCKED_ADVICE[best]
         return BLOCKED_ONLY
-    if best is not None and best in ADVICE:
-        return ADVICE[best]
-    return BINNED[record.item_class]
+    if (
+        best is not None
+        and best is not Option.trash
+        and best in BLOCKED_ADVICE
+        and ranking.saved_if_followed_cents >= speak_up_cents
+    ):
+        return BLOCKED_ADVICE[best]
+    if record.item_class is ItemClass.fixed_asset:
+        # A tagged asset leaving the register is the news on that ticket, and it is worth
+        # more than telling somebody the bin was an acceptable place for it.
+        return BINNED[ItemClass.fixed_asset]
+    return FINE_TO_BIN
 
 
 # Small conversions between the database rows and the engine's own types ------
@@ -719,9 +741,13 @@ class PipelineDeps:
         table = engine_options.by_option(scores)
         trash = table.get(Option.trash)
         blocked = trash is not None and not trash.allowed
-        tone = TONES.get(ranking.tone, "neutral")
         title = title_for(record.label)
-        line = advice_line(record, ranking, blocked)
+        line = advice_line(record, ranking, blocked, self.settings.speak_up_cents)
+        tone = TONES.get(ranking.tone, "neutral")
+        if line == FINE_TO_BIN and not blocked:
+            # The words and the colour have to agree. Amber beside "Fine to bin" reads as
+            # the bin hedging about something it has just called fine.
+            tone = "green"
         cents = headline_cents(record)
         big_money = signed_money(cents)[:16]
         lcd_money = lcd_big(cents)

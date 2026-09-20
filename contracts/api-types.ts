@@ -827,6 +827,7 @@ export interface SettingsRead {
   recycle_fee_cents: number;
   round_size: number;
   settle_ms: number;
+  speak_up_cents?: number;
   step_min_g: number;
   tax_rate: number;
   tone_co2e_kg: number;
@@ -850,6 +851,7 @@ export interface SettingsUpdate {
   recycle_fee_cents?: number | null;
   round_size?: number | null;
   settle_ms?: number | null;
+  speak_up_cents?: number | null;
   step_min_g?: number | null;
   tax_rate?: number | null;
   tone_co2e_kg?: number | null;

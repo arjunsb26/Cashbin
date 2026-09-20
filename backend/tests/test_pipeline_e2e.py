@@ -40,6 +40,7 @@ from app.models import (
     TaxMethod,
 )
 from app.pipeline import (
+    FINE_TO_BIN,
     VALUING_BIG,
     VALUING_LINE,
     advice_line,
@@ -477,7 +478,10 @@ def test_the_advice_line_says_what_to_do_or_what_happened() -> None:
         saved_if_followed_cents=3,
         tone="amber",
     )
-    assert advice_line(_record(), donate, blocked=False) == "Donate it instead"
+    # Three cents better donated is not worth arguing about. PLAN.md 21a item 37.
+    assert advice_line(_record(), donate, blocked=False) == FINE_TO_BIN
+    worth_it = donate.model_copy(update={"saved_if_followed_cents": 1500})
+    assert advice_line(_record(), worth_it, blocked=False) == "Donate it, not trash"
     recycle = donate.model_copy(update={"best_option": Option.recycle})
     assert advice_line(_record(), recycle, blocked=True) == "Recycle, not trash"
     binned = donate.model_copy(update={"best_option": Option.trash})

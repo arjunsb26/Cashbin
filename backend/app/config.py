@@ -72,6 +72,10 @@ class Settings(BaseSettings):
     # How much better on carbon another option has to be before the tone stops calling the
     # bin a fine answer. The engine reads it, so it changes like every other threshold.
     tone_co2e_kg: float = Field(default=0.02, ge=0.0)
+    # PLAN.md 21a item 37. How much better another option has to be before the bin says so
+    # out loud. Under this it says "Fine to bin", because a bin that argues about three
+    # cents is a bin nobody listens to.
+    speak_up_cents: int = Field(default=100, ge=0)
 
     # Step detection
     step_min_g: float = Field(default=3.0, gt=0.0)
@@ -199,6 +203,7 @@ RUNTIME_SETTING_KEYS: tuple[str, ...] = (
     "disposal_fee_cents",
     "recycle_fee_cents",
     "tone_co2e_kg",
+    "speak_up_cents",
     "step_min_g",
     "settle_ms",
     "bag_change_g",

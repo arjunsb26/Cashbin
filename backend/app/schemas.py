@@ -867,6 +867,7 @@ class SettingsRead(ApiModel):
     disposal_fee_cents: int
     recycle_fee_cents: int
     tone_co2e_kg: float
+    speak_up_cents: int = 100
     step_min_g: float
     settle_ms: int
     bag_change_g: float
@@ -889,6 +890,7 @@ class SettingsUpdate(ApiModel):
     disposal_fee_cents: int | None = Field(default=None, ge=0)
     recycle_fee_cents: int | None = Field(default=None, ge=0)
     tone_co2e_kg: float | None = Field(default=None, ge=0.0)
+    speak_up_cents: int | None = Field(default=None, ge=0)
     step_min_g: float | None = Field(default=None, gt=0.0)
     settle_ms: int | None = Field(default=None, gt=0)
     bag_change_g: float | None = Field(default=None, gt=0.0)

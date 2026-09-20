@@ -2349,6 +2349,10 @@
         "settle_ms": {
           "type": "integer"
         },
+        "speak_up_cents": {
+          "default": 100,
+          "type": "integer"
+        },
         "step_min_g": {
           "type": "number"
         },
@@ -2566,6 +2570,18 @@
           "anyOf": [
             {
               "exclusiveMinimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "speak_up_cents": {
+          "anyOf": [
+            {
+              "minimum": 0,
               "type": "integer"
             },
             {
