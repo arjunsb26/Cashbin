@@ -537,10 +537,7 @@ export interface CorrectionCreate {
   class?: ItemClass | null;
   detail?: string | null;
   event_id: number;
-  /**
-   * Lowercase label. Letters, digits, spaces and hyphens only.
-   */
-  label: string;
+  label?: string | null;
 }
 /**
  * This interface was referenced by `BinBooksContracts`'s JSON-Schema

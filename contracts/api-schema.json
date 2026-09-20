@@ -911,15 +911,22 @@
           "type": "integer"
         },
         "label": {
-          "description": "Lowercase label. Letters, digits, spaces and hyphens only.",
-          "maxLength": 40,
-          "pattern": "^[a-z0-9 -]+$",
-          "type": "string"
+          "anyOf": [
+            {
+              "description": "Lowercase label. Letters, digits, spaces and hyphens only.",
+              "maxLength": 40,
+              "pattern": "^[a-z0-9 -]+$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
         }
       },
       "required": [
-        "event_id",
-        "label"
+        "event_id"
       ],
       "type": "object"
     },

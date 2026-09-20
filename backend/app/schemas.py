@@ -693,13 +693,18 @@ class CorrectionCreate(ApiModel):
     """The ask answer and the dashboard override. Free text lands here and stops here."""
 
     event_id: int
-    label: ValidatedLabel
+    # A label answers "which is it". A detail answers the bin's own question. One of the
+    # two must be present; a detail alone never changes the label. PLAN.md 21a item 38.
+    label: ValidatedLabel | None = None
     item_class: ItemClass | None = Field(default=None, alias="class")
-    # The answer to the bin's own question: how many gigabytes, what the whole thing cost,
-    # how much of it went in. A detail says more about the thing that was already named, so
-    # sending one never changes the label. PLAN.md 21a item 38.
     detail: ValidatedLabel | None = None
     by: str = Field(default="person", max_length=40)
+
+    @model_validator(mode="after")
+    def _label_or_detail(self) -> CorrectionCreate:
+        if self.label is None and self.detail is None:
+            raise ValueError("send a label or a detail")
+        return self
 
 
 class CorrectionResponse(ApiModel):
