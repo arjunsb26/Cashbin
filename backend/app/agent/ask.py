@@ -150,6 +150,25 @@ def _finding(payload: dict[str, Any]) -> str:
     return "read"
 
 
+# Some hosts refuse a thinking budget on a call that also carries function tools, and
+# say so in the 400. The effort the settings ask for is sent first; when it comes back
+# refused by name, the same call goes again with no thinking at all, which is what the
+# host's own message asks for. The alternative is an agent that silently never runs.
+NO_EFFORT = "none"
+_EFFORT_REFUSED = "reasoning_effort"
+
+
+def _call(client: Any, effort: str, **request: Any) -> tuple[Any, str]:
+    """One completion, and the effort that was actually accepted."""
+    try:
+        return client.chat.completions.create(reasoning_effort=effort, **request), effort
+    except Exception as refused:
+        if effort == NO_EFFORT or _EFFORT_REFUSED not in str(refused):
+            raise
+        log.info("the host refuses a thinking budget beside tools, asking again with none")
+        return client.chat.completions.create(reasoning_effort=NO_EFFORT, **request), NO_EFFORT
+
+
 def answer_with_model(
     session: Session, question: str, settings: Settings, client: Any
 ) -> AskResponse:
@@ -163,17 +182,19 @@ def answer_with_model(
     results: list[dict[str, Any]] = []
     used_calls = 0
     parsed: AnswerReply | None = None
+    effort = writer.DEFAULT_EFFORT
 
     while True:
         if time.monotonic() > deadline:
             log.warning("the ask agent ran out of time after %d calls", used_calls)
             break
-        reply = client.chat.completions.create(
+        reply, effort = _call(
+            client,
+            effort,
             model=model,
             messages=messages,
             tools=ask_tools.TOOL_SCHEMAS,
             response_format=writer.response_format(SCHEMA_NAME, AnswerReply),
-            reasoning_effort=writer.DEFAULT_EFFORT,
             service_tier=settings.llm_service_tier,
             timeout=settings.llm_timeout_s,
         )
@@ -255,7 +276,10 @@ def ask(
         active = client if client is not None else writer.build_client(settings)
         return answer_with_model(session, question, settings, active)
     except Exception:
-        log.warning("the ask agent could not reach its model, answering with nothing")
+        # The whole reason goes to the log, where an engineer can read it. What goes back
+        # on the wire is one plain sentence. A swallowed error here is an agent that
+        # quietly never runs, which is the failure this catch exists to make visible.
+        log.exception("the ask agent could not reach its model, answering with nothing")
         return AskResponse(
             answer=UNGROUNDED,
             steps=[],

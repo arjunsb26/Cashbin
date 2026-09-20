@@ -350,6 +350,41 @@ def test_the_agent_stops_at_eight_tool_calls(settings: Settings) -> None:
     assert found.grounded is False
 
 
+class _RefusesEffort:
+    """A host that will not take a thinking budget on a call carrying function tools.
+
+    This is what the live host answers for the configured agent model, word for word:
+    "Function tools with reasoning_effort are not supported ... set reasoning_effort to
+    'none'". Before the retry existed, every ask came back with nothing.
+    """
+
+    def __init__(self, answer: str) -> None:
+        self.efforts: list[str] = []
+        self.answer = answer
+        self.chat = type("chat", (), {"completions": self})()
+
+    def create(self, **request: Any) -> _Reply:
+        effort = str(request.get("reasoning_effort"))
+        self.efforts.append(effort)
+        if effort != ask_agent.NO_EFFORT:
+            raise RuntimeError(
+                "Function tools with reasoning_effort are not supported for this model."
+            )
+        return _Reply(_Message(json.dumps({"answer": self.answer})))
+
+
+def test_a_host_that_refuses_the_thinking_budget_is_asked_again_without_one(
+    settings: Settings,
+) -> None:
+    client = _RefusesEffort("The books hold nothing for that.")
+    with session_scope() as session:
+        found = ask_agent.ask(session, "how are the books", settings, client)
+
+    assert client.efforts == ["low", "none"]
+    assert found.provider == "openai"
+    assert found.answer == "The books hold nothing for that."
+
+
 def test_a_broken_model_still_answers_plainly(settings: Settings) -> None:
     class Broken:
         class chat:  # noqa: N801
