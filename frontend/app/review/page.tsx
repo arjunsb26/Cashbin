@@ -87,7 +87,7 @@ export default function ReviewPage() {
     pending[item.id]?.status ?? item.status;
 
   return (
-    <div className="flex flex-col gap-8">
+    <div className="flex max-w-[860px] flex-col gap-8">
       <PageHeader
         title="Review"
         description="Everything the bin could not settle on its own, and everything a person should stand behind before it leaves the books."
@@ -200,9 +200,8 @@ function ReviewRow({
         </span>
       </div>
       <p className="pt-1 text-caption text-ink-soft">
-        {REVIEW_KIND_WORDS[item.kind]}
-        {item.created_at ? ", " + formatTime(item.created_at) : ""}
-        {". "}
+        {item.reason ? "" : REVIEW_KIND_WORDS[item.kind] + ". "}
+        {item.created_at ? formatTime(item.created_at) + ". " : ""}
         <Link className="underline underline-offset-2" href={"/events/" + item.event_id}>
           Ticket {item.event_id}
         </Link>

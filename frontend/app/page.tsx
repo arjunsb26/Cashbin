@@ -45,6 +45,7 @@ export default function LivePage() {
       ? {
           ...open,
           type: "ask.opened",
+          candidates: open.candidates ?? [],
           crop_url: open.crop_url ?? null,
           description: askDescription(open),
           question: askQuestion(open)?.question ?? null,

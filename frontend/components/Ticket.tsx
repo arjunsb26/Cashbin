@@ -115,6 +115,9 @@ export function Ticket({
   // When the bin was already the right answer there is nothing to argue about, so
   // the option table folds to the one row and says so.
   const settled = fineToBin(options, settings.data);
+  // A headline the backend sent with no money in it is a sentence. Printing it at
+  // 72 px would shout a line that is not a number.
+  const wordsOnly = headline.kind === "given" && !headline.text;
 
   return (
     <article
@@ -176,19 +179,23 @@ export function Ticket({
             className={cx("flex flex-wrap items-end gap-x-3 gap-y-1", compact ? "pt-3" : "pt-5")}
           >
             {shown && headline.lead ? (
-              <span className="pb-2 text-body">{headline.lead}</span>
+              <span className={cx("pb-2", wordsOnly ? "text-section" : "text-body")}>
+                {headline.lead}
+              </span>
             ) : null}
             <span
               className={cx(
-                "font-condensed leading-none",
+                "font-condensed leading-none empty:hidden",
                 compact ? "text-total" : "text-figure",
                 shown && headline.loss && "text-red-ink",
               )}
             >
               {shown
-                ? headline.kind === "carbon"
-                  ? co2eParts(headline.kg).value
-                  : formatMoney(Math.abs(counted), { symbol: true })
+                ? headline.kind === "given"
+                  ? headline.text
+                  : headline.kind === "carbon"
+                    ? co2eParts(headline.kg).value
+                    : formatMoney(Math.abs(counted), { symbol: true })
                 : formatMass(mass)}
             </span>
             <span className="pb-2 text-body text-ink-soft">

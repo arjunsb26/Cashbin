@@ -10,7 +10,10 @@ import {
   bookVsTax,
   checkName,
   askQuestion,
+  askDescription,
   fineToBin,
+  headlineText,
+  splitHeadline,
   isPackaging,
   ticketHeadline,
   checkNumbers,
@@ -466,10 +469,14 @@ test("a waiting ticket rebuilds its own question after a reload", () => {
 test("a ticket that is not waiting has no question", () => {
   assert.equal(askFromDetail(detail()), null);
   assert.equal(askFromDetail(null), null);
-  assert.equal(
-    askFromDetail(detail({ event: event({ status: "asking" }), identifications: [] })),
-    null,
-  );
+});
+
+test("a ticket stuck asking with nothing behind it still offers a way to answer", () => {
+  // Candidate lists can come back empty. The panel then has the box and the way
+  // out, which is better than a ticket that waits forever with nothing to click.
+  const view = askFromDetail(detail({ event: event({ status: "asking" }), identifications: [] }));
+  assert.deepEqual(view?.candidates, []);
+  assert.equal(view?.description, null);
 });
 
 test("the label the vision call settled on is in its own bar chart", () => {
@@ -769,4 +776,66 @@ test("one choice is not a question worth asking", () => {
   assert.equal(askQuestion({ question: "Dead or still works?" }), null);
   assert.equal(askQuestion({ choices: ["dead", "works"] }), null);
   assert.equal(askQuestion(null), null);
+});
+
+// The backend's own headline, once it sends one.
+
+test("the backend's headline wins and keeps the figure big", () => {
+  const line = ticketHeadline(event({ headline: "Written off, $65.00 book loss" } as never), null);
+  assert.equal(line.kind, "given");
+  assert.equal(line.lead, "Written off,");
+  assert.equal(line.text, "$65.00");
+  assert.equal(line.trail, "book loss");
+  assert.equal(line.loss, true);
+  assert.equal(line.known, true);
+});
+
+test("a headline with no money in it is words, not a figure", () => {
+  const line = ticketHeadline(event({ headline: "Nothing on the books" } as never), null);
+  assert.equal(line.kind, "given");
+  assert.equal(line.text, "");
+  assert.equal(line.lead, "Nothing on the books");
+});
+
+test("a headline is data: squashed, capped and never trusted", () => {
+  const parts = splitHeadline("  Wasted   $3.00  \n on a bagel " + "x".repeat(300));
+  assert.equal(parts.lead, "Wasted");
+  assert.equal(parts.money, "$3.00");
+  assert.ok(parts.trail.length < 120);
+  assert.ok(!parts.trail.includes("\n"));
+  assert.equal(headlineText(event({ headline: "   " } as never)), null);
+  assert.equal(headlineText(event({ headline: 12 } as never)), null);
+  assert.equal(headlineText(event()), null);
+});
+
+test("no headline field leaves the class words in charge", () => {
+  assert.equal(ticketHeadline(event(), record()).kind, "written off");
+});
+
+test("the model's sentence is read from looks_like as well as description", () => {
+  assert.equal(askDescription({ looks_like: "a black usb-c cable" }), "a black usb-c cable");
+  assert.equal(askDescription({ description: "a black usb-c cable" }), "a black usb-c cable");
+});
+
+test("a question with nothing to offer is still a question", () => {
+  const view = askFromDetail({
+    event: event({ id: 9, status: "asking" }),
+    identifications: [
+      {
+        id: 1,
+        event_id: 9,
+        method: "cloud",
+        is_final: false,
+        candidates: [],
+        posterior: {},
+        description: "something small and black",
+      },
+    ],
+    options: [],
+    journal_entries: [],
+    item_record: null,
+  } as never);
+  assert.equal(view?.event_id, 9);
+  assert.deepEqual(view?.candidates, []);
+  assert.equal(view?.description, "something small and black");
 });

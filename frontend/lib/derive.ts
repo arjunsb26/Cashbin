@@ -86,7 +86,7 @@ export function ticketFigure(
  * packaging, where a cardboard box's forty cents is noise and the emissions are
  * the story. The figure is printed positive, because the words carry the sign.
  */
-export type HeadlineKind = "wasted" | "written off" | "worth" | "carbon" | "unknown";
+export type HeadlineKind = "wasted" | "written off" | "worth" | "carbon" | "unknown" | "given";
 
 export type Headline = {
   kind: HeadlineKind;
@@ -98,6 +98,8 @@ export type Headline = {
   cents: number | null;
   /** The carbon figure in kg, when the figure is carbon. */
   kg: number | null;
+  /** The figure already written out, when the backend sent the whole sentence. */
+  text?: string;
   /** True when this is a loss, so the figure prints in red ink. */
   loss: boolean;
   /** False when nothing has been valued for the ticket yet. */
@@ -134,12 +136,54 @@ export function isPackaging(record: ItemRecordRead | null | undefined): boolean 
   return mix.every(([material]) => PACKAGING_MATERIALS.has(material));
 }
 
+/**
+ * The backend's own headline, split around its money so the figure can still be
+ * the big condensed one. "Written off, $65.00 book loss" becomes the words before
+ * it, the money, and the words after. A sentence with no money in it is printed
+ * whole, at body size, because inventing a figure for it would be a lie.
+ */
+export function splitHeadline(text: string): { lead: string; money: string; trail: string } {
+  const clean = text.replace(/\s+/g, " ").trim().slice(0, 120);
+  const found = /[-(]?\$\s?[\d,]+(?:\.\d{2})?\)?/.exec(clean);
+  if (!found) return { lead: clean, money: "", trail: "" };
+  return {
+    lead: clean.slice(0, found.index).trim(),
+    money: found[0].replace(/\s/g, ""),
+    trail: clean.slice(found.index + found[0].length).trim(),
+  };
+}
+
+/** The headline string the backend sends, when it sends one. Model words, so capped. */
+export function headlineText(event: EventSummary): string | null {
+  const raw = (event as { headline?: unknown }).headline;
+  if (typeof raw !== "string") return null;
+  const text = raw.replace(/\s+/g, " ").trim().slice(0, 120);
+  return text.length > 0 ? text : null;
+}
+
 export function ticketHeadline(
   event: EventSummary,
   record: ItemRecordRead | null | undefined,
   options?: OptionScoreRead[] | null,
 ): Headline {
   const figure = ticketFigure(event, record);
+  // The backend's own words win where it sends them. PLAN.md 21a item 41 is the
+  // same rule on both sides, and one sentence beats two that can drift apart.
+  const given = headlineText(event);
+  if (given !== null) {
+    const parts = splitHeadline(given);
+    return {
+      kind: "given",
+      lead: parts.lead,
+      trail: parts.trail,
+      text: parts.money,
+      cents: null,
+      kg: null,
+      loss: /loss|wasted|written off/i.test(given),
+      known: true,
+      estimate: isEstimate(event, record),
+    };
+  }
   const base = { estimate: figure.estimate, known: figure.known };
   const itemClass = record?.class ?? event.class ?? null;
 
@@ -413,7 +457,9 @@ export function askFromDetail(detail: EventDetail | null | undefined): AskView |
     4,
   );
   const detailQuestion = askQuestion(identification);
-  if (candidates.length === 0 && detailQuestion === null) return null;
+  // A question with nothing to offer is still a question. The model can come back
+  // sure that it does not know, and the panel then shows what it thinks it saw and
+  // a box to type in, rather than disappearing and leaving the ticket stuck.
   return {
     type: "ask.opened",
     event_id: detail.event.id,
@@ -434,7 +480,10 @@ export function askFromDetail(detail: EventDetail | null | undefined): AskView |
  */
 export function askDescription(source: unknown): string | null {
   if (!source || typeof source !== "object") return null;
-  const raw = (source as { description?: unknown }).description;
+  // The socket calls it looks_like and the identification read calls it
+  // description. Both are the model's own sentence about the photo.
+  const fields = source as { description?: unknown; looks_like?: unknown };
+  const raw = typeof fields.looks_like === "string" ? fields.looks_like : fields.description;
   if (typeof raw !== "string") return null;
   const text = raw.replace(/\s+/g, " ").trim().slice(0, 120);
   return text.length > 0 ? text : null;

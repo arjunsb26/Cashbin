@@ -35,7 +35,7 @@ export default function TrendsPage() {
   const data = stats.data ?? null;
 
   return (
-    <div className="flex flex-col gap-8">
+    <div className="flex max-w-[860px] flex-col gap-8">
       <PageHeader
         title="Trends"
         description="What has gone in the bin, what it cost, and where it came from."

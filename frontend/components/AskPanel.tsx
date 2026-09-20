@@ -98,11 +98,20 @@ export function AskPanel({ ask, onDismiss }: { ask: AskView; onDismiss: () => vo
         size={120}
       />
       <div className="flex-1">
-        <h3 className="text-section">{detail ? detail.question : "Which is it?"}</h3>
+        <h3 className="text-section">
+          {detail ? detail.question : buttons.length > 0 ? "Which is it?" : "What is this?"}
+        </h3>
         {ask.description ? (
           <p className="pt-1 text-caption text-ink-soft">Looks like: {ask.description}</p>
         ) : null}
-        <ul className="m-0 flex list-none flex-col gap-2 p-0 pt-3">
+        {/* The model can come back sure that it does not know, and then there is
+            nothing to offer but what it thinks it saw and a box to type in. */}
+        {buttons.length === 0 ? (
+          <p className="pt-2 text-body text-ink-soft">
+            Nothing came back that this could be. Type what it is, or leave it for later.
+          </p>
+        ) : null}
+        <ul className="m-0 flex list-none flex-col gap-2 p-0 pt-3 empty:hidden">
           {buttons.map((candidate, i) => (
             <li key={candidate.label}>
               <button
