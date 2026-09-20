@@ -17,11 +17,18 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app import models
-from app.agent import investigator
+from app.agent import close_memo, investigator
 from app.config import Settings, get_settings
 from app.db import get_db
 from app.ledger import close as close_module
-from app.schemas import CloseCheck, CloseRead, CloseRequest
+from app.schemas import (
+    CloseCheck,
+    CloseRead,
+    CloseRequest,
+    Form4797Block,
+    ReconciliationBlock,
+    RollforwardBlock,
+)
 
 router = APIRouter(prefix="/api/close", tags=["close"])
 
@@ -35,21 +42,43 @@ def _load_json(raw: str | None, fallback: Any) -> Any:
         return fallback
 
 
+def _block(totals: Any, key: str, kind: type[Any]) -> Any:
+    """One of Lane P's depth blocks off the saved totals, or nothing when it is absent.
+
+    A close saved before these blocks existed still reads back, with the block empty
+    rather than the whole request failing.
+    """
+    found = totals.get(key) if isinstance(totals, dict) else None
+    if not isinstance(found, dict):
+        return None
+    try:
+        return kind.model_validate(found)
+    except ValueError:
+        return None
+
+
 def read_close(row: models.Close) -> CloseRead:
     """One saved close as the wire type the Close page reads."""
     checks = _load_json(row.checks_json, [])
+    totals = _load_json(row.totals_json, {})
+    report = _load_json(row.report_json, {})
+    memo = report.get("memo_md") if isinstance(report, dict) else None
     return CloseRead(
+        rollforward=_block(totals, "rollforward", RollforwardBlock),
+        reconciliation=_block(totals, "reconciliation", ReconciliationBlock),
+        form4797=_block(totals, "form4797", Form4797Block),
+        memo_md=memo if isinstance(memo, str) and memo else None,
         id=row.id,
         period_start=row.period_start,
         period_end=row.period_end,
         created_at=row.created_at,
         status=row.status,
-        totals=_load_json(row.totals_json, {}),
+        totals=totals,
         checks=[CloseCheck.model_validate(check) for check in checks]
         if isinstance(checks, list)
         else [],
         investigation_md=row.investigation_md,
-        report=_load_json(row.report_json, {}),
+        report=report if isinstance(report, dict) else {},
     )
 
 
@@ -64,12 +93,16 @@ def run_close(
     def narrate(rows: close_module.PeriodRows, result: close_module.CloseResult) -> None:
         investigator.attach(rows, result, settings)
 
+    def memo(result: close_module.CloseResult) -> None:
+        close_memo.attach(settings, result)
+
     result = close_module.run_close(
         session,
         body.period_start,
         body.period_end,
         settings,
         investigator=narrate,
+        memo_writer=memo,
     )
     session.commit()
     assert result.id is not None
