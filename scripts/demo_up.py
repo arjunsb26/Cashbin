@@ -30,11 +30,17 @@ from pathlib import Path
 
 REPO_DIR = Path(__file__).resolve().parent.parent
 
-HEALTH_URL = "http://localhost:8000/api/health"
+# Every check and every local socket dials 127.0.0.1, never the word localhost. The
+# backend binds IPv4 only, `localhost` resolves to ::1 first on this laptop, and that
+# attempt sits there until it times out, so `localhost` costs two seconds a connection
+# where 127.0.0.1 costs forty milliseconds. The URLs printed for people keep the word,
+# because a browser tries both at once and reads better for it.
+HEALTH_URL = "http://127.0.0.1:8000/api/health"
+DASHBOARD_PROBE = "http://127.0.0.1:3000"
 DASHBOARD_URL = "http://localhost:3000"
 API_URL = "http://localhost:8000"
-PHONE_SOCKET = "ws://localhost:8000/ws/phone"
-BIN_SOCKET = "ws://localhost:8000/ws/bin"
+PHONE_SOCKET = "ws://127.0.0.1:8000/ws/phone"
+BIN_SOCKET = "ws://127.0.0.1:8000/ws/bin"
 HOTSPOT_PREFIX = "192.168.137."
 
 BACKEND_TRIES = 3
@@ -348,7 +354,7 @@ class Launcher:
         )
         child.start()
         print(f"dashboard starting, pid {child.pid}", flush=True)
-        if wait_until(DASHBOARD_URL, "the dashboard", DASHBOARD_WAIT_S, child) is None:
+        if wait_until(DASHBOARD_PROBE, "the dashboard", DASHBOARD_WAIT_S, child) is None:
             child.stop()
             return False
         self.dashboard = child
