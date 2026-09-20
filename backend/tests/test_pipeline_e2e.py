@@ -479,7 +479,7 @@ def test_the_advice_line_says_what_to_do_or_what_happened() -> None:
     )
     assert advice_line(_record(), donate, blocked=False) == "Donate it instead"
     recycle = donate.model_copy(update={"best_option": Option.recycle})
-    assert advice_line(_record(), recycle, blocked=True) == "No bin. Recycle it"
+    assert advice_line(_record(), recycle, blocked=True) == "Recycle, not trash"
     binned = donate.model_copy(update={"best_option": Option.trash})
     assert advice_line(_record(**{"class": EngineClass.fixed_asset}), binned, blocked=False) == (
         "Removed from books"

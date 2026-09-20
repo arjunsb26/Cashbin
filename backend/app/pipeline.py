@@ -90,7 +90,6 @@ VISION_KEEP = 64
 TONES: dict[str, LcdColour] = {"green": "green", "amber": "amber", "red": "red"}
 
 # User copy. DESIGN.md section 8: say what to do, or say what happened, in one short line.
-BLOCKED_PREFIX = "No bin. "
 BLOCKED_ONLY = "Not for the bin"
 ADVICE: dict[Option, str] = {
     Option.recycle: "Recycle it instead",
@@ -98,11 +97,14 @@ ADVICE: dict[Option, str] = {
     Option.resell: "Resell it instead",
     Option.repair: "Repair it instead",
 }
+# PLAN.md 21a item 31. "No bin. Repair it" read as a bug to the first person who used it:
+# two sentences, the first one a refusal, and nothing saying what the bin was refusing.
+# Saying what to do and what not to do in one clause fixes it, inside the 20 columns.
 BLOCKED_ADVICE: dict[Option, str] = {
-    Option.recycle: "Recycle it",
-    Option.donate: "Donate it",
-    Option.resell: "Resell it",
-    Option.repair: "Repair it",
+    Option.recycle: "Recycle, not trash",
+    Option.donate: "Donate it, not trash",
+    Option.resell: "Resell it, not trash",
+    Option.repair: "Repair it, not trash",
 }
 # User copy, for the moment between knowing what a thing is and knowing what it is worth.
 VALUING_BIG = "..."
@@ -172,7 +174,7 @@ def advice_line(record: ItemRecord, ranking: engine_options.Ranking, blocked: bo
     best = ranking.best_option
     if blocked:
         if best is not None and best in BLOCKED_ADVICE:
-            return BLOCKED_PREFIX + BLOCKED_ADVICE[best]
+            return BLOCKED_ADVICE[best]
         return BLOCKED_ONLY
     if best is not None and best in ADVICE:
         return ADVICE[best]
