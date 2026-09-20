@@ -141,3 +141,4 @@ def test_a_short_before_lead_loses_the_crop(demo_run: tuple[list[Step], list[Fra
         qualities.append(crop_item(pick.before.jpeg, pick.after.jpeg, short).crop_quality)
 
     assert "low" in qualities, "if this passes at a 300 ms lead the default can go back"
+

@@ -37,6 +37,17 @@ def test_an_empty_list_is_an_empty_list(client: TestClient) -> None:
     assert client.get("/api/events").json() == {"events": []}
 
 
+def show_the_camera(dev_client: TestClient) -> None:
+    """Two frames in the ring, which is what an Add off the live camera needs."""
+    from app.ingest.state import get_ingest
+    from tests.ingest_helpers import background_frame, frame_with_item, jpeg
+
+    deps = get_ingest(dev_client.app)  # type: ignore[arg-type]
+    now = deps.clock()
+    deps.frames.push(jpeg(background_frame()), now - 2000.0)
+    deps.frames.push(jpeg(frame_with_item(background_frame())), now)
+
+
 def test_a_missing_event_is_a_404(client: TestClient) -> None:
     response = client.get("/api/events/9999")
     assert response.status_code == 404
@@ -45,8 +56,9 @@ def test_a_missing_event_is_a_404(client: TestClient) -> None:
 
 def test_an_injected_toss_becomes_an_event(dev_client: TestClient) -> None:
     # The glue is attached now, so an injected toss runs the whole pipeline and comes
-    # back posted rather than stopping at detected.
-    dev_client.post("/api/sim/expect", json={"label": "bagel"})
+    # back posted rather than stopping at detected. With no image in the body the frames
+    # come from the camera, so one is held up first.
+    show_the_camera(dev_client)
     posted = dev_client.post("/api/sim/toss", json=BAGEL)
     assert posted.status_code == 200
     body = posted.json()
@@ -57,7 +69,7 @@ def test_an_injected_toss_becomes_an_event(dev_client: TestClient) -> None:
     assert listed[0]["id"] == body["event_id"]
     assert listed[0]["kind"] == EventKind.toss
     assert abs(listed[0]["mass_g"] - 95.0) < 0.01
-    assert listed[0]["crop_quality"] == CropQuality.low
+    assert listed[0]["crop_quality"] == CropQuality.ok
 
 
 def test_an_injected_toss_with_an_image_gets_a_frame(
@@ -85,6 +97,7 @@ def test_an_image_outside_the_sim_assets_is_refused(dev_client: TestClient) -> N
 
 def test_the_list_is_newest_first_and_filters(dev_client: TestClient) -> None:
     for mass in (95.0, 780.0, 62.0):
+        show_the_camera(dev_client)
         dev_client.post("/api/sim/toss", json={"label": "bagel", "mass_g": mass})
     listed = dev_client.get("/api/events").json()["events"]
     assert [row["mass_g"] for row in listed] == [62.0, 780.0, 95.0]
@@ -103,6 +116,7 @@ def test_the_list_is_newest_first_and_filters(dev_client: TestClient) -> None:
 
 
 def test_detail_carries_the_trace_and_the_later_tables(dev_client: TestClient) -> None:
+    show_the_camera(dev_client)
     event_id = dev_client.post("/api/sim/toss", json=BAGEL).json()["event_id"]
 
     with session_scope() as session:
@@ -179,6 +193,7 @@ def test_detail_carries_the_trace_and_the_later_tables(dev_client: TestClient) -
 
 
 def test_a_bad_json_column_does_not_take_the_read_down(dev_client: TestClient) -> None:
+    show_the_camera(dev_client)
     event_id = dev_client.post("/api/sim/toss", json=BAGEL).json()["event_id"]
     with session_scope() as session:
         row = session.get(Event, event_id)
@@ -189,6 +204,7 @@ def test_a_bad_json_column_does_not_take_the_read_down(dev_client: TestClient) -
 
 
 def test_void_marks_the_event_and_says_what_was_reversed(dev_client: TestClient) -> None:
+    show_the_camera(dev_client)
     event_id = dev_client.post("/api/sim/toss", json=BAGEL).json()["event_id"]
     response = dev_client.post(f"/api/events/{event_id}/void")
     assert response.status_code == 200
@@ -214,6 +230,7 @@ def test_an_event_is_marked_an_estimate_when_the_value_came_from_a_model(
 ) -> None:
     """PLAN.md 21a item 18. The tape marks a model figure so nobody reads it as measured."""
     dev_client.post("/api/sim/expect", json={"label": "bagel"})
+    show_the_camera(dev_client)
     event_id = dev_client.post("/api/sim/toss", json=BAGEL).json()["event_id"]
 
     listed = dev_client.get("/api/events").json()["events"]

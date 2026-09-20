@@ -131,10 +131,11 @@ def test_sim_routes_are_hidden_without_dev_tools(client: TestClient) -> None:
 
 
 def test_sim_routes_appear_with_dev_tools(dev_client: TestClient) -> None:
-    # Lane A filled /toss, so it answers. /expect is Lane C's and still says so.
-    assert (
-        dev_client.post("/api/sim/toss", json={"label": "bagel", "mass_g": 90.0}).status_code == 200
-    )
+    """Both routes are mounted. A toss with no camera behind it is refused for a reason
+    that is about the camera and not about the route, which is proof enough that it ran."""
+    refused = dev_client.post("/api/sim/toss", json={"label": "bagel", "mass_g": 90.0})
+    assert refused.status_code == 409
+    assert "camera" in refused.json()["detail"]
     assert dev_client.post("/api/sim/expect", json={"label": "bagel"}).status_code == 200
 
 
