@@ -214,6 +214,7 @@ export interface AssetRead {
   cost_cents: number;
   description: string;
   disposed_event_id?: number | null;
+  disposed_on?: string | null;
   id: number;
   in_service_date: string;
   insured?: boolean;

@@ -71,10 +71,30 @@ def to_asset_info(row: models.Asset) -> AssetInfo:
     )
 
 
-def read_asset(row: models.Asset, on: date | None = None) -> AssetRead:
-    """One register row with today's book value and tax basis worked out."""
+def disposal_day(session: Session, row: models.Asset) -> str | None:
+    """The day the disposal was posted, off the event that posted it."""
+    if row.disposed_event_id is None:
+        return None
+    event = session.get(models.Event, row.disposed_event_id)
+    if event is None:
+        return None
+    return (event.created_at or "")[:10] or None
+
+
+def read_asset(
+    row: models.Asset, on: date | None = None, disposed_on: str | None = None
+) -> AssetRead:
+    """One register row with today's book value and tax basis worked out.
+
+    A disposed row carries nothing. The close's rollforward takes the whole opening book
+    value out on the disposal and closes the asset at zero, and a register that still shows
+    65.00 against a row the same period says has gone is the register a finance reader stops
+    believing. The disposal date and the event that posted it come back with it, so the row
+    says when it left and what to open.
+    """
     when = on or today()
     info = to_asset_info(row)
+    gone = row.status is models.AssetStatus.disposed
     return AssetRead(
         id=row.id,
         tag=row.tag,
@@ -88,10 +108,11 @@ def read_asset(row: models.Asset, on: date | None = None) -> AssetRead:
         tax_basis_cents_override=row.tax_basis_cents_override,
         status=row.status,
         disposed_event_id=row.disposed_event_id,
+        disposed_on=disposed_on,
         insured=row.insured,
         location=row.location,
-        book_value_cents=depreciation.book_value(info, when).book_value_cents,
-        tax_basis_cents=depreciation.tax_basis(info, when),
+        book_value_cents=0 if gone else depreciation.book_value(info, when).book_value_cents,
+        tax_basis_cents=0 if gone else depreciation.tax_basis(info, when),
     )
 
 
@@ -125,7 +146,10 @@ def list_assets(
     if asset_status is not None:
         query = query.where(models.Asset.status == asset_status)
     on = today()
-    return AssetListResponse(assets=[read_asset(row, on) for row in session.scalars(query)])
+    rows = list(session.scalars(query))
+    return AssetListResponse(
+        assets=[read_asset(row, on, disposal_day(session, row)) for row in rows]
+    )
 
 
 @router.post("/assets", response_model=AssetRead, status_code=status.HTTP_201_CREATED)
@@ -174,7 +198,7 @@ def update_asset(
         else:
             setattr(row, field, value)
     session.flush()
-    return read_asset(row)
+    return read_asset(row, disposed_on=disposal_day(session, row))
 
 
 @router.get("/catalog", response_model=CatalogListResponse)

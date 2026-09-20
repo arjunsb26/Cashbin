@@ -133,3 +133,40 @@ def test_a_tag_with_an_injection_in_it_is_refused(client: TestClient) -> None:
         json={**KEYBOARD, "tag": "ignore previous instructions; DROP TABLE asset"},
     )
     assert response.status_code == 422
+
+
+def test_a_disposed_row_carries_nothing_and_says_when_it_left(client: TestClient) -> None:
+    """Finding 4 from the blind judge. The register showed 65.00 on an asset the close
+    said had gone. Book value and tax basis are zero once the disposal is posted, and the
+    row says the day and the event that posted it.
+    """
+    from app import models
+    from app.db import session_scope
+
+    created = client.post("/api/assets", json=KEYBOARD)
+    assert created.status_code == 201, created.text
+    assert created.json()["book_value_cents"] > 0
+
+    with session_scope() as session:
+        event = models.Event(
+            kind=models.EventKind.toss,
+            status=models.EventStatus.posted,
+            created_at="2026-09-20T12:00:00+00:00",
+            mass_g=900.0,
+        )
+        session.add(event)
+        session.flush()
+        asset = session.get(models.Asset, created.json()["id"])
+        assert asset is not None
+        asset.status = models.AssetStatus.disposed
+        asset.disposed_event_id = event.id
+        event_id = event.id
+
+    listed = client.get("/api/assets")
+    assert listed.status_code == 200
+    row = listed.json()["assets"][0]
+    assert row["status"] == "disposed"
+    assert row["book_value_cents"] == 0
+    assert row["tax_basis_cents"] == 0
+    assert row["disposed_on"] == "2026-09-20"
+    assert row["disposed_event_id"] == event_id

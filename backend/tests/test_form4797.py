@@ -54,7 +54,9 @@ def test_every_row_carries_the_dates_the_cost_and_the_depreciation(
     assert row.date_acquired == "2025-02-01"
     assert row.date_disposed == "2026-09-12"
     assert row.cost_cents == 180_000
-    assert row.depreciation_allowed_cents == 180_000
+    # The accumulated depreciation the disposal entry posted, not the cost less the tax
+    # basis. Bonus took the whole 1,800.00 in 2025; the books had reached 950.00.
+    assert row.depreciation_allowed_cents == 95_000
     assert row.gain_or_loss_cents == 0
     assert "BONUS_100" in row.rule_ids
 
@@ -141,3 +143,27 @@ def test_the_line_10_subtotal_matches_the_close(settings: Settings) -> None:
         disposals = close_module.asset_disposals(rows, queries.list_entries(session))
 
     assert block.part_ii_line_10_cents == disposals["form_4797_part_ii_line_10_cents"]
+
+
+def test_the_depreciation_column_is_what_the_disposal_entry_posted(
+    settings: Settings,
+) -> None:
+    """Finding 3 from the blind judge. The schedule said 130.00 where the journal said 65.00.
+
+    The laptop cost 1,800.00 and the books still carried 850.00 on the day it left, so the
+    disposal entry debited 950.00 of accumulated depreciation. This column reads that figure
+    and no other.
+    """
+    with session_scope() as session:
+        build_disposals(session)
+        block = form4797.compute(session, PERIOD_START, PERIOD_END)
+        records = {
+            row.label: row for row in session.scalars(select(models.ItemRecord))
+        }
+
+    row = next(r for r in block.part_ii_rows if r.description == "laptop")
+    assert row.depreciation_allowed_cents == 95_000
+    assert row.cost_cents - records["laptop"].book_value_cents == 95_000
+
+    keyboard = next(r for r in block.part_ii_rows if r.description == "mechanical keyboard")
+    assert keyboard.depreciation_allowed_cents == 10_000

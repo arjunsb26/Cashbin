@@ -4,6 +4,7 @@ from datetime import date
 
 import pytest
 
+from app.engine import tax
 from app.engine.options import (
     TONE_AMBER,
     TONE_GREEN,
@@ -46,7 +47,9 @@ def test_the_keyboard_shows_a_book_loss_against_a_zero_tax_basis() -> None:
     assert "BONUS_100" in trash.rule_ids
 
     repair = scores[Option.repair]
-    assert repair.net_after_tax_cents == 12000 - 1500
+    # What the mended keyboard is worth, 20.00, less the 15.00 bill. The 120.00 replacement
+    # is the cap on that figure, not the figure itself. PLAN.md 21a item 55.
+    assert repair.net_after_tax_cents == 2000 - 1500
 
     ranking = summarise(list(scores.values()), SETTINGS)
     assert ranking.tone == TONE_RED
@@ -199,7 +202,7 @@ def test_the_tone_is_amber_when_money_was_left_on_the_table() -> None:
     assert ranking.tone == TONE_AMBER
 
 
-def test_repair_adds_back_the_replacement_it_avoids() -> None:
+def test_repair_adds_back_what_the_mended_thing_is_worth() -> None:
     record = ItemRecord(
         event_id=13,
         label="monitor",
@@ -208,6 +211,8 @@ def test_repair_adds_back_the_replacement_it_avoids() -> None:
         event_date=EVENT_DATE,
         material_mix={"flat_panel_displays": 1.0},
         condition=Condition.broken,
+        fmv_mid=12000,
+        fmv_source=EstimateSource.model_estimate,
         repair_mid=4000,
         repair_source=EstimateSource.model_estimate,
         replacement_cents=15000,
@@ -215,7 +220,8 @@ def test_repair_adds_back_the_replacement_it_avoids() -> None:
     table = by_option(score_options(record, SETTINGS))
     repair = table[Option.repair]
     assert repair.cash_cents == -4000
-    assert repair.net_after_tax_cents == 11000
+    # Worth 120.00 mended, against a 150.00 replacement, less the 40.00 repair bill.
+    assert repair.net_after_tax_cents == 8000
     assert any("replacement" in note for note in repair.notes)
 
 
@@ -500,3 +506,71 @@ def test_packaging_is_recycled_and_never_resold() -> None:
     assert table[Option.recycle].allowed is True
     assert table[Option.resell].allowed is False
     assert table[Option.resell].blocked_reason == tax.PACKAGING_NOT_GOODS
+
+
+def test_a_cracked_phone_worth_less_than_its_repair_is_not_offered_a_repair() -> None:
+    """Finding 2 from the blind judge. PLAN.md 21a item 55.
+
+    The phone the ticket valued at 10.00 carried a 150.00 repair row marked best, and that
+    150.00 walked into the headline saving. A repair is offered only when the mended thing
+    is worth more than the bill.
+    """
+    phone = ItemRecord(
+        event_id=201,
+        label="phone cracked screen",
+        item_class=ItemClass.untracked,
+        mass_g=190.0,
+        event_date=EVENT_DATE,
+        material_mix={"portable_electronic_devices": 1.0},
+        regulatory_flags=["electronics", "battery"],
+        condition=Condition.broken,
+        fmv_mid=1_000,
+        repair_mid=15_000,
+        replacement_cents=30_000,
+    )
+    table = by_option(score_options(phone, SETTINGS))
+    assert table[Option.repair].allowed is False
+    assert table[Option.repair].blocked_reason == tax.TOO_CHEAP_TO_REPAIR
+    ranking = summarise(score_options(phone, SETTINGS), SETTINGS)
+    assert ranking.best_option is not Option.repair
+
+
+def test_a_repair_that_costs_more_than_the_mended_thing_is_worth_is_refused() -> None:
+    laptop = ItemRecord(
+        event_id=202,
+        label="laptop",
+        item_class=ItemClass.untracked,
+        mass_g=1400.0,
+        event_date=EVENT_DATE,
+        material_mix={"portable_electronic_devices": 1.0},
+        regulatory_flags=["electronics", "battery"],
+        condition=Condition.broken,
+        fmv_mid=10_000,
+        repair_mid=11_000,
+        replacement_cents=90_000,
+    )
+    table = by_option(score_options(laptop, SETTINGS))
+    assert table[Option.repair].allowed is False
+    assert table[Option.repair].blocked_reason == tax.REPAIR_COSTS_MORE_THAN_IT_IS_WORTH
+
+
+def test_a_broken_laptop_worth_four_hundred_still_gets_a_repair_row() -> None:
+    laptop = ItemRecord(
+        event_id=203,
+        label="laptop",
+        item_class=ItemClass.untracked,
+        mass_g=1400.0,
+        event_date=EVENT_DATE,
+        material_mix={"portable_electronic_devices": 1.0},
+        regulatory_flags=["electronics", "battery"],
+        condition=Condition.broken,
+        fmv_mid=40_000,
+        repair_mid=12_000,
+        replacement_cents=90_000,
+    )
+    table = by_option(score_options(laptop, SETTINGS))
+    repair = table[Option.repair]
+    assert repair.allowed is True
+    assert repair.blocked_reason is None
+    # 400.00 mended, capped by the 900.00 replacement, less the 120.00 bill.
+    assert repair.net_after_tax_cents == 28_000
